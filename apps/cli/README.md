@@ -1,4 +1,4 @@
-# @owlieio/cli
+# owlie
 
 The `owlie` command-line interface.
 

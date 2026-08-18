@@ -61,7 +61,8 @@ export function isVideoUrl(input: string): boolean {
  * implemented in this scaffold.
  */
 export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
-  readonly id = 'youtube';
+  static readonly id = 'youtube';
+  readonly id = YouTubeAdapter.id;
   readonly sourceType = 'youtube' as const;
 
   recognize(locator: ContentLocator): boolean {

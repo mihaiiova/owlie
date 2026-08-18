@@ -31,11 +31,12 @@ extraction, automatic publishing, and Windows support guarantees.
 
 `owlie-app` is the private hosted product (UI, auth, billing, Postgres, job
 queues, monitoring, schedules, notifications, storage, analytics, admin,
-deployment). `owlie-cli` is the canonical owner of reusable content
-functionality. Dependency direction is one-way:
+deployment). `owlie-cli` owns the reusable content functionality. `owlie-app`
+consumes it by running the published `owlie` command as a subprocess (typically
+in a container) — it does not import `owlie-cli` packages as libraries:
 
 ```text
-owlie-app → installs released → owlie-cli packages
+owlie-app → runs `owlie` CLI (container/subprocess)
 ```
 
 Never import files or packages from `owlie-app`. Never introduce hosted
@@ -46,7 +47,7 @@ repository.
 ## 5. Package and directory map
 
 ```text
-apps/cli/                    @owlieio/cli (the owlie executable)
+apps/cli/                    owlie (the published executable)
 packages/core/               @owlieio/core (types, contracts, orchestration)
 packages/testing/            @owlieio/testing (fakes, fixtures, contract tests)
 packages/adapter-youtube/    @owlieio/adapter-youtube
@@ -65,7 +66,7 @@ docs/                        Architecture, contracts, security, decisions
 adapters             → @owlieio/core only (never providers/CLI/hosted)
 providers            → @owlieio/core only (never adapters/CLI/hosted)
 @owlieio/testing     → @owlieio/core only (fakes, fixtures, contract helpers)
-@owlieio/cli         → composes core, adapters, providers (owns terminal/env/config)
+owlie (published)    → bundles core, adapters, providers (owns terminal/env/config)
 ```
 
 Documented exception: `adapter-reddit` may reuse public RSS/Atom parsing from

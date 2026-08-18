@@ -17,7 +17,7 @@ export default defineConfig({
       '@owlieio/adapter-reddit': src('packages/adapter-reddit/src/index.ts'),
       '@owlieio/provider-openai': src('packages/provider-openai/src/index.ts'),
       '@owlieio/provider-whisper': src('packages/provider-whisper/src/index.ts'),
-      '@owlieio/cli': src('apps/cli/src/index.ts'),
+      owlie: src('apps/cli/src/index.ts'),
     },
   },
   test: {

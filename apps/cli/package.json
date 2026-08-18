@@ -1,8 +1,7 @@
 {
-  "name": "@owlieio/cli",
+  "name": "owlie",
   "version": "0.1.0",
-  "private": true,
-  "description": "Owlie CLI",
+  "description": "Local-first content extraction and processing CLI",
   "type": "module",
   "license": "Apache-2.0",
   "bin": {
@@ -21,21 +20,20 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --config ../../vitest.config.ts apps/cli"
   },
-  "dependencies": {
-    "@owlieio/core": "workspace:*",
-    "@owlieio/adapter-youtube": "workspace:*",
-    "@owlieio/adapter-podcast": "workspace:*",
-    "@owlieio/adapter-rss": "workspace:*",
-    "@owlieio/adapter-reddit": "workspace:*",
-    "@owlieio/provider-openai": "workspace:*",
-    "@owlieio/provider-whisper": "workspace:*"
-  },
   "devDependencies": {
+    "@owlieio/adapter-podcast": "workspace:*",
+    "@owlieio/adapter-reddit": "workspace:*",
+    "@owlieio/adapter-rss": "workspace:*",
+    "@owlieio/adapter-youtube": "workspace:*",
+    "@owlieio/core": "workspace:*",
+    "@owlieio/provider-openai": "workspace:*",
+    "@owlieio/provider-whisper": "workspace:*",
     "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

@@ -1,22 +1,24 @@
 // Enforces the documented dependency-direction rules and detects undeclared
 // cross-package imports. Run with: pnpm check:deps
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
+// Internal packages are private and never published. `owlie` is the single
+// publishable package: it bundles the internal packages into one artifact.
 const PACKAGES = [
-  { name: '@owlieio/core', dir: 'packages/core' },
-  { name: '@owlieio/testing', dir: 'packages/testing' },
-  { name: '@owlieio/adapter-youtube', dir: 'packages/adapter-youtube' },
-  { name: '@owlieio/adapter-podcast', dir: 'packages/adapter-podcast' },
-  { name: '@owlieio/adapter-rss', dir: 'packages/adapter-rss' },
-  { name: '@owlieio/adapter-reddit', dir: 'packages/adapter-reddit' },
-  { name: '@owlieio/provider-openai', dir: 'packages/provider-openai' },
-  { name: '@owlieio/provider-whisper', dir: 'packages/provider-whisper' },
-  { name: '@owlieio/cli', dir: 'apps/cli' },
+  { name: '@owlieio/core', dir: 'packages/core', publishable: false },
+  { name: '@owlieio/testing', dir: 'packages/testing', publishable: false },
+  { name: '@owlieio/adapter-youtube', dir: 'packages/adapter-youtube', publishable: false },
+  { name: '@owlieio/adapter-podcast', dir: 'packages/adapter-podcast', publishable: false },
+  { name: '@owlieio/adapter-rss', dir: 'packages/adapter-rss', publishable: false },
+  { name: '@owlieio/adapter-reddit', dir: 'packages/adapter-reddit', publishable: false },
+  { name: '@owlieio/provider-openai', dir: 'packages/provider-openai', publishable: false },
+  { name: '@owlieio/provider-whisper', dir: 'packages/provider-whisper', publishable: false },
+  { name: 'owlie', dir: 'apps/cli', publishable: true },
 ];
 
 const ADAPTERS = [
@@ -37,7 +39,7 @@ const ALLOWED = {
   '@owlieio/adapter-reddit': ['@owlieio/core', '@owlieio/adapter-rss'],
   '@owlieio/provider-openai': ['@owlieio/core'],
   '@owlieio/provider-whisper': ['@owlieio/core'],
-  '@owlieio/cli': ['@owlieio/core', ...ADAPTERS, ...PROVIDERS],
+  owlie: ['@owlieio/core', ...ADAPTERS, ...PROVIDERS],
 };
 
 const scopedDeps = (pkg) =>
@@ -63,8 +65,7 @@ function importsOf(dir) {
     const text = readFileSync(file, 'utf8');
     const re = /from\s+['"](@owlieio\/[^'"]+)['"]/g;
     for (const m of text.matchAll(re)) {
-      const spec = m[1];
-      const base = spec.split('/').slice(0, 2).join('/');
+      const base = m[1].split('/').slice(0, 2).join('/');
       imports.add(base);
     }
   }
@@ -73,7 +74,7 @@ function importsOf(dir) {
 
 const failures = [];
 
-for (const { name, dir } of PACKAGES) {
+for (const { name, dir, publishable } of PACKAGES) {
   const pkg = readJson(join(root, dir, 'package.json'));
   if (pkg.name !== name) {
     failures.push(`${dir}: expected package name ${name}, found ${pkg.name}`);
@@ -86,12 +87,17 @@ for (const { name, dir } of PACKAGES) {
     }
   }
 
-  // 2. src imports must be declared as runtime dependencies.
+  // 2. src imports must be declared where they resolve at build time.
   const srcDir = join(root, dir, 'src');
   if (statSync(srcDir, { throwIfNoEntry: false })) {
     for (const imp of importsOf(srcDir)) {
       if (imp === name) continue;
-      if (!(pkg.dependencies ?? {})[imp]) {
+      if (publishable) {
+        // owlie bundles its internal deps, so they live in devDependencies.
+        if (!(pkg.devDependencies ?? {})[imp]) {
+          failures.push(`${name}: src imports ${imp} but it is not in "devDependencies"`);
+        }
+      } else if (!(pkg.dependencies ?? {})[imp]) {
         failures.push(`${name}: src imports ${imp} but it is not in "dependencies"`);
       }
     }
@@ -108,9 +114,13 @@ for (const { name, dir } of PACKAGES) {
     }
   }
 
-  // 4. Every package must be private until the npm scope is claimed.
-  if (pkg.private !== true) {
-    failures.push(`${name}: must be private until the @owlieio npm scope is owned`);
+  // 4. Privacy: internal packages stay private; owlie is publishable.
+  if (publishable) {
+    if (pkg.private === true) {
+      failures.push(`${name}: must be publishable (remove "private": true)`);
+    }
+  } else if (pkg.private !== true) {
+    failures.push(`${name}: must be private (internal package, never published)`);
   }
 }
 
@@ -119,5 +129,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-const rel = (d) => relative(root, d);
-console.log(`Dependency boundary check passed for ${PACKAGES.map((p) => rel(p.dir)).join(', ')}.`);
+console.log(
+  `Dependency boundary check passed (${PACKAGES.filter((p) => p.publishable).length} publishable, ` +
+    `${PACKAGES.filter((p) => !p.publishable).length} internal).`,
+);

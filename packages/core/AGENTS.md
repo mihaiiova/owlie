@@ -16,7 +16,7 @@ provider, and the CLI — never the other way around.
 2. **No OpenAI model names, pricing, credits, or hosted tiers.** Those belong to
    `provider-openai` and `owlie-app`, respectively.
 3. **No environment-variable loading.** Configuration arrives as explicit
-   objects. Only `@owlieio/cli` loads environment files.
+   objects. Only the `owlie` CLI loads environment files.
 4. **No network access.** Core is pure contracts plus small pure helpers.
 5. **Never call `process.exit`.** Throw typed errors (`errors.ts`) instead.
 6. **Prefer discriminated unions** (like `ProgressEvent`) where they improve

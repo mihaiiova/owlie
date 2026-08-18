@@ -1,13 +1,16 @@
 # Repository boundaries
 
-The open-source `owlie-cli` and the private `owlie-app` share a one-way
-dependency:
+The open-source `owlie-cli` and the private `owlie-app` interact through the
+published `owlie` command, not through library imports:
 
 ```text
 owlie-app
-    ↓ installs released packages
-owlie-cli packages
+    ↓ runs `owlie` CLI as a subprocess (typically in a container)
+owlie (published package)
 ```
+
+`owlie-app` does not install or import the internal `@owlieio/*` packages.
+Those are private and bundled into `owlie` at build time.
 
 ## `owlie-cli` owns
 

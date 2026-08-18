@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ExitCode, run, VERSION } from '@owlieio/cli';
-import type { CliDeps, CliIo } from '@owlieio/cli';
+import { ExitCode, run, VERSION } from 'owlie';
+import type { CliDeps, CliIo } from 'owlie';
 
 function capture() {
   let stdout = '';
@@ -57,6 +57,8 @@ describe('doctor', () => {
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('Node');
     expect(stdout()).toContain('ffmpeg');
+    expect(stdout()).toContain('Adapters: youtube, podcast, rss, reddit');
+    expect(stdout()).toContain('Providers: openai, whisper-local');
   });
 
   it('supports --json on stdout', async () => {
@@ -66,6 +68,8 @@ describe('doctor', () => {
     const report = JSON.parse(stdout());
     expect(report.node).toContain('v');
     expect(report.ffmpeg).toBe('available');
+    expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'reddit']);
+    expect(report.providers).toEqual(['openai', 'whisper-local']);
     expect(stderr()).toBe('');
   });
 });

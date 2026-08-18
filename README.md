@@ -72,12 +72,12 @@ hosted `owlie-app`.
 Postgres, job queues, monitoring, notifications, storage, analytics, admin, and
 deployment.
 
-`owlie-cli` is the eventual canonical owner of reusable content functionality:
-types, contracts, adapters, providers, and the CLI. The dependency direction is
-one-way:
+`owlie-cli` owns the reusable content functionality. `owlie-app` consumes it by
+running the published `owlie` command as a subprocess (typically in a
+container) — it does not import `owlie-cli` packages as libraries:
 
 ```text
-owlie-app  →  installs released  →  owlie-cli packages
+owlie-app  →  runs `owlie` CLI (container/subprocess)
 ```
 
 `owlie-cli` never imports from `owlie-app`. See
@@ -110,10 +110,12 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds                |
 | `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                       |
 | `@owlieio/provider-whisper` | Local faster-whisper `Transcriber`              |
-| `@owlieio/cli`              | The `owlie` command-line interface              |
+| `owlie`                     | The `owlie` command-line interface (published)  |
 
-All packages are currently `private`. The `@owlieio` npm scope is not yet owned
-by the repository owner; it must be claimed (or renamed) before publication.
+Only `owlie` is published. The `@owlieio/*` packages are internal (private) —
+they organize the code and enforce dependency boundaries, and are bundled into
+the `owlie` package at build time. They are never published to npm, so no npm
+scope needs to be claimed.
 
 ## Development setup
 

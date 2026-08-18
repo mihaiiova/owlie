@@ -48,7 +48,7 @@ check, build, package export validation, and CLI smoke tests.
 - `@owlieio/core` depends on nothing Owlie-specific and no providers/adapters.
 - Adapters and providers depend only on `@owlieio/core` (Reddit may also reuse
   `@owlieio/adapter-rss`).
-- `@owlieio/cli` composes core, adapters, and providers.
+- `owlie` (the single published package) bundles core, adapters, and providers.
 - No undeclared cross-package imports. `pnpm check:deps` enforces this.
 
 ## Testing expectations
@@ -65,6 +65,7 @@ check, build, package export validation, and CLI smoke tests.
 
 ## Releasing
 
-Publishing is not automated. Packages are private until the `@owlieio` npm
-scope is owned. A release requires explicit repository-owner approval; npm
-versions are immutable and must never be overwritten.
+Publishing is not automated. Only the `owlie` package is published; the
+`@owlieio/*` packages are internal and never published. A release requires
+explicit repository-owner approval; npm versions are immutable and must never
+be overwritten.

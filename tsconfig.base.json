@@ -29,7 +29,7 @@
       "@owlieio/adapter-reddit": ["./packages/adapter-reddit/src/index.ts"],
       "@owlieio/provider-openai": ["./packages/provider-openai/src/index.ts"],
       "@owlieio/provider-whisper": ["./packages/provider-whisper/src/index.ts"],
-      "@owlieio/cli": ["./apps/cli/src/index.ts"]
+      "owlie": ["./apps/cli/src/index.ts"]
     }
   }
 }

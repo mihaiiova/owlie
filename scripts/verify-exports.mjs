@@ -5,7 +5,7 @@
 // separately by the CLI smoke tests, which run from inside a package that
 // declares the dependencies. Here we load each entry file directly so the
 // check does not depend on the root having workspace packages linked.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -62,6 +62,21 @@ for (const dir of PACKAGES) {
       failures.push(`${name}: exports types target ${typesTarget} does not exist (run build)`);
     }
   }
+}
+
+// The published `owlie` package must be self-contained: bundling must inline
+// the private @owlieio/* packages, leaving no runtime import of them behind.
+const cliDist = join(root, 'apps/cli/dist');
+if (existsSync(cliDist)) {
+  for (const file of readdirSync(cliDist)) {
+    if (!file.endsWith('.js')) continue;
+    const content = readFileSync(join(cliDist, file), 'utf8');
+    if (/@owlieio\//.test(content)) {
+      failures.push(`owlie: dist/${file} still references a private @owlieio/* package`);
+    }
+  }
+} else {
+  failures.push('owlie: apps/cli/dist is missing (run build)');
 }
 
 if (failures.length > 0) {

@@ -18,7 +18,7 @@ Porting a capability from `owlie-app` into `owlie-cli` follows these steps.
    package locally before any publish.
 8. **Publish a stable version only after approval.** Publishing requires
    explicit repository-owner approval.
-9. **Update `owlie-app` to the released package.**
+9. **Update `owlie-app` to the released `owlie` package.**
 10. **Verify hosted parity.** Confirm identical observable behavior.
 11. **Remove the private implementation only after parity is confirmed.**
 

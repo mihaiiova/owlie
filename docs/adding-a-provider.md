@@ -14,7 +14,18 @@ Providers implement `ContentProcessor` (LLM) or `Transcriber` (transcription).
 6. Wire the `processorContract` / `transcriberContract` helpers once real
    behavior exists.
 7. Add a fake to `@owlieio/testing` so consumers can test against it.
-8. Update the README, dependency map, and any affected docs/ADRs.
+8. Register the provider so it is bundled into `owlie`. A new package must be
+   added in all of these places:
+
+   1. `apps/cli/src/registry.ts` — import the class, add its id to
+      `PROVIDER_IDS`.
+   2. `apps/cli/package.json` — add it to `devDependencies`.
+   3. `scripts/check-dependencies.mjs` — add it to `PACKAGES` and `ALLOWED`.
+   4. `tsconfig.base.json` — add a `paths` entry.
+   5. `vitest.config.ts` — add an `alias` entry.
+   6. `.changeset/config.json` — add it to `ignore`.
+
+9. Update the README, dependency map, and any affected docs/ADRs.
 
 ## Checklist
 
@@ -24,3 +35,4 @@ Providers implement `ContentProcessor` (LLM) or `Transcriber` (transcription).
 - No network calls or secret handling during scaffolding.
 - For transcribers, document ffmpeg/ffprobe/Python requirements and enforce
   subprocess calls without shell interpolation when implemented.
+- Internal (`private`) package — never published; bundled into `owlie`.

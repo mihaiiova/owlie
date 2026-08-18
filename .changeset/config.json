@@ -4,8 +4,17 @@
   "commit": false,
   "fixed": [],
   "linked": [],
-  "access": "restricted",
+  "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [
+    "@owlieio/core",
+    "@owlieio/testing",
+    "@owlieio/adapter-youtube",
+    "@owlieio/adapter-podcast",
+    "@owlieio/adapter-rss",
+    "@owlieio/adapter-reddit",
+    "@owlieio/provider-openai",
+    "@owlieio/provider-whisper"
+  ]
 }

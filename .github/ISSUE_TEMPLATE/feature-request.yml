@@ -29,7 +29,7 @@ body:
       label: Area
       options:
         - '@owlieio/core'
-        - '@owlieio/cli'
+        - 'owlie'
         - 'An adapter'
         - 'A provider'
         - 'Documentation'

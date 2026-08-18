@@ -18,7 +18,7 @@ documented defaults
 
 ## Where loading happens
 
-Environment-file loading belongs only to `@owlieio/cli`. Core, adapters, and
+Environment-file loading belongs only to the `owlie` CLI. Core, adapters, and
 providers receive explicit configuration objects and never read environment
 variables themselves.
 

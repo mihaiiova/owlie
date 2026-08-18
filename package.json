@@ -11,7 +11,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm -r --filter \"./packages/**\" build && pnpm -r --filter \"./apps/**\" build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test": "vitest run",
@@ -23,7 +23,8 @@
     "cli": "node apps/cli/dist/bin.js",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:deps && pnpm build && pnpm verify:exports && pnpm smoke",
     "changeset": "changeset",
-    "version": "changeset version"
+    "version": "changeset version",
+    "publish": "pnpm build && pnpm --filter owlie publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",

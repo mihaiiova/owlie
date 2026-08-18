@@ -7,10 +7,10 @@ provider-neutral core.
 
 ```text
                         ┌──────────────────────┐
-                        │     @owlieio/cli     │  apps/cli
+                        │        owlie         │  apps/cli (published)
                         │  (owlie executable)  │
                         └──────┬─────────┬─────┘
-                               │ composes │
+                               │ bundles │
         ┌──────────────┬───────┴────┐ ┌────┴───────────────┐
         ▼              ▼            ▼ ▼                    ▼
  adapter-youtube   adapter-…   adapter-reddit    provider-openai
@@ -26,20 +26,24 @@ provider-neutral core.
         @owlieio/testing  ──depends on──▶  @owlieio/core
 ```
 
+Only `owlie` is published. The `@owlieio/*` packages are internal (private) and
+are bundled into `owlie` at build time.
+
 ## Dependency direction
 
 ```text
-owlie-app  →  installs released  →  owlie-cli packages
+owlie-app  →  runs `owlie` CLI (container/subprocess)
 ```
 
-Within the monorepo:
+`owlie-app` does not import `owlie-cli` packages as libraries. Within the
+monorepo:
 
 - `@owlieio/core` has no Owlie dependencies.
 - Adapters depend only on `@owlieio/core` (Reddit also reuses
   `@owlieio/adapter-rss` parsing).
 - Providers depend only on `@owlieio/core`.
 - `@owlieio/testing` depends only on `@owlieio/core`.
-- `@owlieio/cli` composes core, adapters, and providers.
+- `owlie` bundles core, adapters, and providers into one self-contained build.
 
 `pnpm check:deps` enforces these rules and detects undeclared cross-package
 imports.
@@ -82,9 +86,10 @@ entry point (`apps/cli/src/bin.ts`) translates failures into exit codes.
 
 ## Future hosted-app integration
 
-`owlie-app` will install released `@owlieio/*` packages and reuse the content
-types, adapters, and providers. It keeps its own persistence, scheduling, and
-user/billing layers on top.
+`owlie-app` runs the published `owlie` binary as a subprocess (typically in a
+container) and reads its stdout / exit codes — it keeps its own persistence,
+scheduling, and user/billing layers on top. It never imports the internal
+`@owlieio/*` packages.
 
 ## Scheduling
 

@@ -1,4 +1,4 @@
-# AGENTS — @owlieio/cli
+# AGENTS — owlie (CLI)
 
 Local rules for coding agents working in this package. The root `AGENTS.md`
 applies first; this file adds CLI-specific guidance.
@@ -6,8 +6,10 @@ applies first; this file adds CLI-specific guidance.
 ## Responsibilities
 
 The CLI owns terminal behavior, environment-file loading, and local
-configuration. It composes `@owlieio/core`, adapters, and providers — it never
-owns content logic itself.
+configuration. It bundles `@owlieio/core`, adapters, and providers into one
+self-contained published `owlie` package — it never owns content logic itself.
+When adding an adapter or provider, register it in `src/registry.ts` and add it
+to this package's `devDependencies`.
 
 ## Hard rules
 

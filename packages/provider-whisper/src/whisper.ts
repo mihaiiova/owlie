@@ -28,7 +28,8 @@ export const DEFAULT_WHISPER_COMPUTE_TYPE = 'int8';
  * {@link NotImplementedError}.
  */
 export class WhisperLocalTranscriber implements Transcriber {
-  readonly id = 'whisper-local';
+  static readonly id = 'whisper-local';
+  readonly id = WhisperLocalTranscriber.id;
   readonly config: WhisperLocalConfig;
 
   constructor(config: WhisperLocalConfig = {}) {

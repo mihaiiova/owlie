@@ -1,6 +1,6 @@
 # ADR 0001 — Repository and package architecture
 
-- **Status:** Accepted
+- **Status:** Superseded (publishing aspects) by [ADR 0004](0004-single-published-package.md)
 - **Date:** 2026-08-18
 
 ## Context
@@ -18,11 +18,10 @@ single-purpose packages:
 - `@owlieio/testing` — fakes, fixtures, contract-test helpers.
 - `@owlieio/adapter-*` — one package per source adapter.
 - `@owlieio/provider-*` — one package per processor/transcriber provider.
-- `@owlieio/cli` — the executable.
+- the CLI executable (published as `owlie`; see ADR 0004).
 
 Enforce a strict dependency direction (core ← adapters/providers ← CLI) with an
-automated boundary check (`scripts/check-dependencies.mjs`). Keep packages
-`private` until the `@owlieio` npm scope is owned.
+automated boundary check (`scripts/check-dependencies.mjs`).
 
 ## Consequences
 
@@ -30,5 +29,4 @@ automated boundary check (`scripts/check-dependencies.mjs`). Keep packages
   hosted concepts.
 - A generic `utils` package is intentionally avoided; utilities live with their
   owning domain.
-- The scope/name must be claimed or changed before the first release, and
-  consumers must pin exact versions while packages are below `1.0`.
+- The internal packages stay `private`; publishing is addressed by ADR 0004.

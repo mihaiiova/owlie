@@ -26,7 +26,8 @@ export function validateOpenAIConfig(config: OpenAIConfig): OpenAIConfig {
  * never makes network calls; `process` throws {@link NotImplementedError}.
  */
 export class OpenAIProcessor implements ContentProcessor {
-  readonly id = 'openai';
+  static readonly id = 'openai';
+  readonly id = OpenAIProcessor.id;
   readonly config: OpenAIConfig;
 
   constructor(config: OpenAIConfig) {

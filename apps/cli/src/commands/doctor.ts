@@ -5,6 +5,7 @@ import type { CliIo } from '../io.js';
 import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, configDir } from '../config.js';
+import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
 
 /** Injectable system probes so tests can run `doctor` without spawning. */
 export interface DoctorDeps {
@@ -40,6 +41,8 @@ export interface DoctorReport {
   ffprobe: 'available' | 'missing';
   python: 'available' | 'missing';
   providerEnvironmentVariables: { name: string; set: boolean }[];
+  adapters: string[];
+  providers: string[];
   configDirectory: { path: string; writable: boolean };
   cacheDirectory: { path: string; writable: boolean };
 }
@@ -65,6 +68,8 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
       name,
       set: Boolean(process.env[name]),
     })),
+    adapters: [...ADAPTER_IDS],
+    providers: [...PROVIDER_IDS],
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
   };
@@ -83,6 +88,10 @@ function formatDoctorReport(report: DoctorReport): string {
   for (const variable of report.providerEnvironmentVariables) {
     lines.push(`    ${variable.name}: ${variable.set ? 'set' : 'not set'}`);
   }
+  lines.push(
+    `  Adapters: ${report.adapters.join(', ')}`,
+    `  Providers: ${report.providers.join(', ')}`,
+  );
   lines.push(
     `  Config directory: ${report.configDirectory.path} (${report.configDirectory.writable ? 'writable' : 'not writable'})`,
     `  Cache directory: ${report.cacheDirectory.path} (${report.cacheDirectory.writable ? 'writable' : 'not writable'})`,

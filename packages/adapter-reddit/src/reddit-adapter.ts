@@ -25,7 +25,8 @@ export function parseSubredditFeed(xml: string): Promise<ParsedFeed> {
  * scaffold.
  */
 export class RedditAdapter implements CollectionAdapter {
-  readonly id = 'reddit';
+  static readonly id = 'reddit';
+  readonly id = RedditAdapter.id;
   readonly sourceType = 'reddit' as const;
 
   recognize(locator: ContentLocator): boolean {

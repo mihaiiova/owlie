@@ -21,7 +21,8 @@ export function recognizePodcastUrl(input: string): boolean {
  * {@link Transcriber}; transcription is not implemented in this scaffold.
  */
 export class PodcastAdapter implements ItemAdapter {
-  readonly id = 'podcast';
+  static readonly id = 'podcast';
+  readonly id = PodcastAdapter.id;
   readonly sourceType = 'podcast' as const;
 
   recognize(locator: ContentLocator): boolean {

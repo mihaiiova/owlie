@@ -16,8 +16,19 @@ normalized documents.
    work is approved; honor `AbortSignal`, `ProgressSink`, and bounded limits.
 6. Add pure-logic unit tests and, once list/extract exist, wire the
    `collectionAdapterContract` / `itemAdapterContract` helpers.
-7. Keep provider/SDK-specific types out of the public surface.
-8. Update the README, dependency map, and any affected docs/ADRs.
+7. Register the adapter so it is bundled into `owlie`. A new package must be
+   added in all of these places:
+
+   1. `apps/cli/src/registry.ts` — import the class, add its id to
+      `ADAPTER_IDS`.
+   2. `apps/cli/package.json` — add it to `devDependencies`.
+   3. `scripts/check-dependencies.mjs` — add it to `PACKAGES` and `ALLOWED`.
+   4. `tsconfig.base.json` — add a `paths` entry.
+   5. `vitest.config.ts` — add an `alias` entry.
+   6. `.changeset/config.json` — add it to `ignore`.
+
+8. Keep provider/SDK-specific types out of the public surface.
+9. Update the README, dependency map, and any affected docs/ADRs.
 
 ## Checklist
 
@@ -25,3 +36,4 @@ normalized documents.
 - Bounded collection operations (`assertBoundedLimit`).
 - No real network calls in the default test suite.
 - No credentials or hosted concepts.
+- Internal (`private`) package — never published; bundled into `owlie`.

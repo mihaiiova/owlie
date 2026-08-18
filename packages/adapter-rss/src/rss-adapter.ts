@@ -20,7 +20,8 @@ import { isFeedUrl, normalizeFeedUrl } from './feed.js';
  * scaffold.
  */
 export class RssAdapter implements CollectionAdapter, ContentExtractor {
-  readonly id = 'rss';
+  static readonly id = 'rss';
+  readonly id = RssAdapter.id;
   readonly sourceType = 'rss' as const;
 
   recognize(locator: ContentLocator): boolean {

@@ -12,7 +12,7 @@ what is deferred, and what belongs to the hosted product.
 - Provider scaffolds (OpenAI, local faster-whisper) with public config types
   and no network calls.
 - `@owlieio/testing` fakes, fixtures, and contract-test helpers.
-- `@owlieio/cli` with functional `--help`, `--version`, and `doctor`.
+- `owlie` CLI with functional `--help`, `--version`, and `doctor`.
 - Full documentation and ADRs.
 
 ## First functional CLI scope
