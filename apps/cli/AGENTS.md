@@ -1,0 +1,36 @@
+# AGENTS — @owlieio/cli
+
+Local rules for coding agents working in this package. The root `AGENTS.md`
+applies first; this file adds CLI-specific guidance.
+
+## Responsibilities
+
+The CLI owns terminal behavior, environment-file loading, and local
+configuration. It composes `@owlieio/core`, adapters, and providers — it never
+owns content logic itself.
+
+## Hard rules
+
+1. **Results → stdout; diagnostics/progress → stderr.** Never mix JSON output
+   with progress text.
+2. **Never print secrets.** Environment-variable values, API keys, and tokens
+   are never written to stdout or stderr.
+3. **No telemetry.**
+4. **Only the entry point (`src/bin.ts`) translates failures into exit codes.**
+   Command modules return exit codes; they never call `process.exit`.
+5. **Support cancellation.** Long-running commands must accept and honor
+   `AbortSignal` from the process.
+6. **Planned commands fail honestly.** Anything not implemented returns
+   `ExitCode.NotImplemented` with a concise message and never pretends to work.
+7. **Environment-file loading lives here only.** Core, adapters, and providers
+   receive explicit configuration objects.
+
+## Exit codes
+
+`0` success, `1` error, `2` usage error, `3` not implemented.
+
+## Testing
+
+CLI tests must assert stdout, stderr, and exit status separately, using
+injected I/O buffers (see `test/`). `doctor` checks must use injectable
+`DoctorDeps` so tests do not spawn processes or touch the filesystem.

@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a bug in Owlie CLI
+title: 'bug: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please do not include credentials, tokens,
+        or personal data in this report.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `owlie --version`.
+      placeholder: 'owlie 0.1.0'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Minimal steps to reproduce the issue. Prefer sanitized URLs and inputs.
+      placeholder: |
+        1. Run `owlie ...`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of `owlie doctor` (redact anything sensitive).
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      description: Any relevant stdout/stderr, with secrets redacted.
+      render: text

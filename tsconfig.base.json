@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@owlieio/core": ["./packages/core/src/index.ts"],
+      "@owlieio/testing": ["./packages/testing/src/index.ts"],
+      "@owlieio/testing/contract-tests": ["./packages/testing/src/contract-tests.ts"],
+      "@owlieio/adapter-youtube": ["./packages/adapter-youtube/src/index.ts"],
+      "@owlieio/adapter-podcast": ["./packages/adapter-podcast/src/index.ts"],
+      "@owlieio/adapter-rss": ["./packages/adapter-rss/src/index.ts"],
+      "@owlieio/adapter-reddit": ["./packages/adapter-reddit/src/index.ts"],
+      "@owlieio/provider-openai": ["./packages/provider-openai/src/index.ts"],
+      "@owlieio/provider-whisper": ["./packages/provider-whisper/src/index.ts"],
+      "@owlieio/cli": ["./apps/cli/src/index.ts"]
+    }
+  }
+}

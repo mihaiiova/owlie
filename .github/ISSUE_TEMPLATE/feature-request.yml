@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a new capability for Owlie CLI
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Owlie CLI is the open-source, local-first core. Hosted features
+        (auth, billing, scheduling, monitoring, cloud storage) belong to the
+        private `owlie-app`, not here.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the desired behavior and how it fits the existing contracts.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - '@owlieio/core'
+        - '@owlieio/cli'
+        - 'An adapter'
+        - 'A provider'
+        - 'Documentation'
+        - 'Tooling / CI'
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, including whether this is in v1 scope.

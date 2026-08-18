@@ -1,0 +1,37 @@
+{
+  "name": "@owlieio/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fakes, fixtures, and contract-test helpers for Owlie CLI",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contract-tests": {
+      "types": "./dist/contract-tests.d.ts",
+      "import": "./dist/contract-tests.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts packages/testing"
+  },
+  "dependencies": {
+    "@owlieio/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
