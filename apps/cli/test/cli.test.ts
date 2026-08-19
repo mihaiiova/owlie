@@ -16,14 +16,18 @@ function capture() {
         stderr += chunk;
       },
     },
+    stdin: {
+      isTTY: false,
+      read: async () => '',
+    },
   };
   return { io, stdout: () => stdout, stderr: () => stderr };
 }
 
 const fakeDeps: CliDeps = {
   doctor: {
-    commandAvailable: async () => true,
     dirWritable: async () => true,
+    env: { DEEPSEEK_API_KEY: 'sk-test', DEEPSEEK_MODEL: 'deepseek-chat' },
   },
 };
 
@@ -56,9 +60,11 @@ describe('doctor', () => {
     const code = await run(['doctor'], io, fakeDeps);
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('Node');
-    expect(stdout()).toContain('ffmpeg');
+    expect(stdout()).toContain('DEEPSEEK_API_KEY: set');
+    expect(stdout()).toContain('Model: set');
     expect(stdout()).toContain('Adapters: youtube, podcast, rss, reddit');
-    expect(stdout()).toContain('Providers: openai, whisper-local');
+    expect(stdout()).toContain('Providers: deepseek');
+    expect(stdout()).toContain('Deferred providers: openai, whisper-local');
   });
 
   it('supports --json on stdout', async () => {
@@ -67,9 +73,11 @@ describe('doctor', () => {
     expect(code).toBe(ExitCode.Success);
     const report = JSON.parse(stdout());
     expect(report.node).toContain('v');
-    expect(report.ffmpeg).toBe('available');
+    expect(report.deepSeekApiKey).toBe('set');
+    expect(report.modelConfigured).toBe('set');
     expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'reddit']);
-    expect(report.providers).toEqual(['openai', 'whisper-local']);
+    expect(report.providers).toEqual(['deepseek']);
+    expect(report.deferredProviders).toEqual(['openai', 'whisper-local']);
     expect(stderr()).toBe('');
   });
 });

@@ -52,3 +52,6 @@ jobs:
 
       - name: CLI smoke tests
         run: pnpm smoke
+
+      - name: Verify packaged artifact
+        run: pnpm verify:artifact

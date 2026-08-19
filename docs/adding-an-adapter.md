@@ -32,7 +32,8 @@ normalized documents.
 
 ## Checklist
 
-- Only `@owlieio/core` (plus the documented RSS exception) as a dependency.
+- Only `@owlieio/core` (plus the documented RSS exception) as a runtime
+  dependency; `@owlieio/testing` is allowed as a test-only `devDependency`.
 - Bounded collection operations (`assertBoundedLimit`).
 - No real network calls in the default test suite.
 - No credentials or hosted concepts.

@@ -1,0 +1,36 @@
+{
+  "name": "@owlieio/provider-deepseek",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSeek content processor provider for Owlie CLI",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts packages/provider-deepseek"
+  },
+  "dependencies": {
+    "@owlieio/core": "workspace:*",
+    "ai": "^7.0.68",
+    "@ai-sdk/deepseek": "^3.0.28"
+  },
+  "devDependencies": {
+    "@owlieio/testing": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

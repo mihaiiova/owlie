@@ -19,6 +19,12 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "ai": "^7.0.68",
+    "@ai-sdk/deepseek": "^3.0.28",
+    "@hallelx/youtube-transcript": "^0.2.0",
+    "undici": "^7.0.0"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
@@ -30,6 +36,7 @@
     "@owlieio/adapter-rss": "workspace:*",
     "@owlieio/adapter-youtube": "workspace:*",
     "@owlieio/core": "workspace:*",
+    "@owlieio/provider-deepseek": "workspace:*",
     "@owlieio/provider-openai": "workspace:*",
     "@owlieio/provider-whisper": "workspace:*",
     "@types/node": "^22.10.2",

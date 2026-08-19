@@ -23,9 +23,11 @@
     "test": "vitest run --config ../../vitest.config.ts packages/adapter-youtube"
   },
   "dependencies": {
+    "@hallelx/youtube-transcript": "^0.2.0",
     "@owlieio/core": "workspace:*"
   },
   "devDependencies": {
+    "@owlieio/testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

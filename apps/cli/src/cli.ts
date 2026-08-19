@@ -2,19 +2,30 @@ import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
 import { commandHelp, helpText, PLANNED_COMMANDS } from './commands/help.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
+import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
+import { runProcessCommand, type ProcessDeps } from './commands/process.js';
+import { runSetupCommand, type SetupDeps } from './commands/setup.js';
 import { VERSION } from './version.js';
 
 export interface CliOptions {
   quiet: boolean;
   json: boolean;
   envFile?: string;
+  input?: string;
+  inputFormat?: 'text' | 'json';
+  prompt?: string;
+  model?: string;
+  language?: string;
 }
 
 export interface CliDeps {
   doctor?: DoctorDeps;
+  extract?: ExtractDeps;
+  process?: ProcessDeps;
+  setup?: SetupDeps;
 }
 
-interface ParsedArgs {
+export interface ParsedArgs {
   args: string[];
   options: CliOptions;
   helpRequested: boolean;
@@ -22,12 +33,52 @@ interface ParsedArgs {
   usageError?: string;
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
   const options: CliOptions = { quiet: false, json: false };
   const args: string[] = [];
   let helpRequested = false;
   let versionRequested = false;
   let usageError: string | undefined;
+
+  const KNOWN_VALUE_FLAGS: readonly string[] = [
+    '--env-file',
+    '--input',
+    '--input-format',
+    '--prompt',
+    '--model',
+    '--language',
+  ];
+
+  const applyValue = (key: string, value: string | undefined): void => {
+    if (value === undefined) {
+      usageError = `${key} requires a value`;
+      return;
+    }
+    switch (key) {
+      case '--env-file':
+        options.envFile = value;
+        break;
+      case '--input':
+        options.input = value;
+        break;
+      case '--input-format':
+        if (value === 'text' || value === 'json') {
+          options.inputFormat = value;
+        } else {
+          usageError = `--input-format must be "text" or "json", received "${value}"`;
+        }
+        break;
+      case '--prompt':
+        options.prompt = value;
+        break;
+      case '--model':
+        options.model = value;
+        break;
+      case '--language':
+        options.language = value;
+        break;
+    }
+  };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -48,22 +99,21 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--json':
         options.json = true;
         break;
-      case '--env-file': {
-        const next = argv[i + 1];
-        if (next === undefined) {
-          usageError = '--env-file requires a path';
+      default: {
+        if (KNOWN_VALUE_FLAGS.includes(arg)) {
+          const next = argv[i + 1];
+          applyValue(arg, next);
+          if (next !== undefined) i++;
         } else {
-          options.envFile = next;
-          i++;
+          const eq = arg.indexOf('=');
+          const key = eq > 0 ? arg.slice(0, eq) : undefined;
+          if (key !== undefined && KNOWN_VALUE_FLAGS.includes(key)) {
+            applyValue(key, arg.slice(eq + 1));
+          } else {
+            args.push(arg);
+          }
         }
-        break;
       }
-      default:
-        if (arg.startsWith('--env-file=')) {
-          options.envFile = arg.slice('--env-file='.length);
-        } else {
-          args.push(arg);
-        }
     }
   }
 
@@ -112,6 +162,18 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'doctor') {
     return runDoctorCommand(io, options, deps.doctor);
+  }
+
+  if (command === 'extract') {
+    return runExtractCommand(parsed.args.slice(1), io, options, deps.extract);
+  }
+
+  if (command === 'process') {
+    return runProcessCommand(parsed.args.slice(1), io, options, deps.process);
+  }
+
+  if (command === 'setup') {
+    return runSetupCommand(io, options, deps.setup);
   }
 
   if ((PLANNED_COMMANDS as readonly string[]).includes(command)) {

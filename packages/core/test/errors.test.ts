@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CancelledError, ConfigurationError, NotImplementedError, OwlieError } from '@owlieio/core';
+import {
+  CancelledError,
+  CaptionsUnavailableError,
+  ConfigurationError,
+  ExtractionError,
+  NotImplementedError,
+  OwlieError,
+} from '@owlieio/core';
 
 describe('error hierarchy', () => {
   it('assigns stable codes', () => {
@@ -7,6 +14,8 @@ describe('error hierarchy', () => {
     expect(new ConfigurationError('x').code).toBe('CONFIGURATION_ERROR');
     expect(new CancelledError().code).toBe('CANCELLED');
     expect(new NotImplementedError('x').code).toBe('NOT_IMPLEMENTED');
+    expect(new ExtractionError('x').code).toBe('EXTRACTION_ERROR');
+    expect(new CaptionsUnavailableError('x').code).toBe('CAPTIONS_UNAVAILABLE');
   });
 
   it('preserves a cause', () => {
@@ -20,5 +29,11 @@ describe('error hierarchy', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(OwlieError);
     expect(err.message).toBe('bad');
+  });
+
+  it('classifies captions-unavailable as an extraction error', () => {
+    const err = new CaptionsUnavailableError('no captions');
+    expect(err).toBeInstanceOf(ExtractionError);
+    expect(err).toBeInstanceOf(OwlieError);
   });
 });

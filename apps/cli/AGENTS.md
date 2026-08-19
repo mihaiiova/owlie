@@ -26,10 +26,15 @@ to this package's `devDependencies`.
    `ExitCode.NotImplemented` with a concise message and never pretends to work.
 7. **Environment-file loading lives here only.** Core, adapters, and providers
    receive explicit configuration objects.
+8. **Resolve `process` input at the shared seam.** Exactly one of a positional
+   file, `--input FILE`, or piped stdin is allowed; use `resolveProcessInput`
+   (`src/input.ts`). Ambiguity is a usage error (2); empty stdin is a general
+   error (1).
 
 ## Exit codes
 
-`0` success, `1` error, `2` usage error, `3` not implemented.
+`0` success, `1` error, `2` usage error, `3` not implemented. Translate thrown
+typed errors with `exitCodeForError` in `src/io.ts`.
 
 ## Testing
 

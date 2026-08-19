@@ -35,3 +35,18 @@ The default test suite must:
 
 Adapters and providers are scaffolded so their network paths throw
 `NotImplementedError`; nothing performs real fetches in tests.
+
+## Live tests (opt-in)
+
+Live integration tests (`*.live.test.ts`) make real network calls to YouTube
+and DeepSeek. They are excluded from the default suite (`vitest.config.ts`) and
+from CI, and are gated behind `OWLIE_LIVE_TESTS=1` (plus `DEEPSEEK_API_KEY` for
+DeepSeek). Run them
+explicitly:
+
+```bash
+OWLIE_LIVE_TESTS=1 pnpm test:live
+```
+
+Live tests skip (never fail) when the gate, credentials, or required
+dependencies are absent. Never run them in CI, and never commit credentials.

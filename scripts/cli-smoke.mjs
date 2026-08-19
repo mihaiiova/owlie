@@ -41,6 +41,20 @@ const checks = [
     stderr: /not implemented/i,
   },
   {
+    name: 'extract rejects an unsupported URL',
+    args: ['extract', 'not-a-url'],
+    status: 1,
+    stdout: null,
+    stderr: /not a supported YouTube video URL/i,
+  },
+  {
+    name: 'process with empty stdin errors',
+    args: ['process', '--prompt', 'Summarize this'],
+    status: 1,
+    stdout: null,
+    stderr: /stdin is empty/i,
+  },
+  {
     name: 'unknown command',
     args: ['frobnicate'],
     status: 2,

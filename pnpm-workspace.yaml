@@ -4,3 +4,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@ai-sdk/gateway@4.0.54'
+  - ai@7.0.68

@@ -29,7 +29,8 @@ Providers implement `ContentProcessor` (LLM) or `Transcriber` (transcription).
 
 ## Checklist
 
-- Only `@owlieio/core` as a dependency.
+- Only `@owlieio/core` as a runtime dependency; `@owlieio/testing` is allowed
+  as a test-only `devDependency`.
 - No SDK-specific types in `@owlieio/core`.
 - No environment-variable loading in the provider.
 - No network calls or secret handling during scaffolding.

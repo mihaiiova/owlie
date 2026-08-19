@@ -28,6 +28,7 @@
       "@owlieio/adapter-rss": ["./packages/adapter-rss/src/index.ts"],
       "@owlieio/adapter-reddit": ["./packages/adapter-reddit/src/index.ts"],
       "@owlieio/provider-openai": ["./packages/provider-openai/src/index.ts"],
+      "@owlieio/provider-deepseek": ["./packages/provider-deepseek/src/index.ts"],
       "@owlieio/provider-whisper": ["./packages/provider-whisper/src/index.ts"],
       "owlie": ["./apps/cli/src/index.ts"]
     }

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+__pycache__/
+*.pyc
 *.log
 .DS_Store
 .env
@@ -9,3 +11,4 @@ coverage/
 .idea/
 .vscode/
 *.tsbuildinfo
+.pi/

@@ -18,17 +18,19 @@ pnpm install
 
 Run from the repository root:
 
-| Command             | Purpose                                      |
-| ------------------- | -------------------------------------------- |
-| `pnpm install`      | Install dependencies (frozen lockfile in CI) |
-| `pnpm build`        | Build all packages to `dist/`                |
-| `pnpm typecheck`    | Typecheck every package                      |
-| `pnpm lint`         | ESLint over the repository                   |
-| `pnpm test`         | Run the full Vitest suite                    |
-| `pnpm format`       | Format with Prettier                         |
-| `pnpm format:check` | Verify formatting                            |
-| `pnpm check`        | Run every check required before merge        |
-| `pnpm cli --help`   | Run the built CLI                            |
+| Command                | Purpose                                            |
+| ---------------------- | -------------------------------------------------- |
+| `pnpm install`         | Install dependencies (frozen lockfile in CI)       |
+| `pnpm build`           | Build all packages to `dist/`                      |
+| `pnpm typecheck`       | Typecheck every package                            |
+| `pnpm lint`            | ESLint over the repository                         |
+| `pnpm test`            | Run the full Vitest suite                          |
+| `pnpm format`          | Format with Prettier                               |
+| `pnpm format:check`    | Verify formatting                                  |
+| `pnpm check`           | Run every check required before merge              |
+| `pnpm verify:artifact` | Pack, install, and smoke-run the published tarball |
+| `pnpm test:live`       | Run opt-in live tests (`OWLIE_LIVE_TESTS=1`)       |
+| `pnpm cli --help`      | Run the built CLI                                  |
 
 `pnpm check` runs: format check, lint, typecheck, tests, dependency-boundary
 check, build, package export validation, and CLI smoke tests.
@@ -56,6 +58,8 @@ check, build, package export validation, and CLI smoke tests.
 - The default test suite makes no network calls and requires no credentials.
 - Add unit tests for pure logic and contract tests for new adapters/providers.
 - Keep fixtures sanitized; never commit credentials, tokens, or user data.
+- Opt-in live tests (`OWLIE_LIVE_TESTS=1 pnpm test:live`) make real network
+  calls and are excluded from default CI.
 
 ## Security
 

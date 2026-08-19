@@ -6,24 +6,43 @@ exit codes.
 ## Commands
 
 ```text
-owlie list     List items in a collection         (planned)
-owlie extract  Extract normalized text from an item (planned)
-owlie search   Search collection-provided fields   (planned)
-owlie process  Process documents with an LLM       (planned)
-owlie config   View and edit configuration         (planned)
-owlie doctor   Report local environment health
+owlie extract  Extract a transcript from a YouTube video   (v0.1)
+owlie process  Process text or a document with DeepSeek    (v0.1)
+owlie setup    Configure provider, model, and API key       (v0.1)
+owlie doctor   Report local environment health             (functional)
 owlie help     Show help
 ```
 
-Only `--help`, `--version`, and `doctor` are functional. Planned commands print
-a concise "not implemented yet" message and exit non-zero; they never pretend
-to process content.
+Until the v0.1 work lands, only `--help`, `--version`, and `doctor` are
+functional. `extract`, `process`, and `setup` are the v0.1 deliverables.
+`list`, `search`, and `config` are deferred; they print a concise "not
+implemented yet" message and exit non-zero (code 3), and never pretend to
+process content.
 
 ## Streams
 
-- **stdout** carries results (documents, search results, JSON output).
+- **stdout** carries the requested result only (raw text, or a single JSON
+  document with `--json`).
 - **stderr** carries diagnostics and progress.
 - JSON output is never mixed with progress text.
+
+## v0.1 command surface
+
+```text
+owlie extract URL [--json] [--language LANG]
+owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]
+```
+
+- `extract` reads a single YouTube video URL and writes the transcript text,
+  or a JSON `NormalizedDocument` with `--json`. `--language LANG` sets a
+  comma-separated language priority list (default `en`).
+- `process` reads exactly one input — a positional file, `--input FILE`, or
+  stdin — and rejects ambiguous multiple inputs (exit code 2). Empty piped
+  stdin is a clear error (exit code 1). `process` never fetches a URL: a URL
+  argument is treated as literal text or rejected, never fetched.
+- `process` requires a model selection via `--model` (or `DEEPSEEK_MODEL`).
+  v0.1 supports `deepseek-chat` (default) and `deepseek-reasoner`; a missing or
+  unsupported model is a clear configuration error (exit code 1).
 
 ## Conventions
 
@@ -31,6 +50,8 @@ to process content.
 - `--json` emits machine-readable JSON on stdout.
 - `--env-file PATH` loads an explicit environment file (reserved).
 - Commands support cancellation signals; libraries never call `process.exit`.
+- Broken pipes (`EPIPE`) terminate quietly (exit 0) rather than dumping a stack
+  trace.
 - Secrets are never printed.
 
 ## Exit codes
@@ -44,6 +65,7 @@ to process content.
 
 ## `owlie doctor`
 
-Reports Node version, OS and architecture, ffmpeg/ffprobe/Python availability,
-presence (never values) of supported provider environment variables, and
-whether the configuration and cache directories are writable.
+Reports Node version, OS and architecture, `DEEPSEEK_API_KEY` presence
+(never its value), the registered adapters, and functional vs deferred
+providers. It also checks whether the configuration and cache directories are
+writable.

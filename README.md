@@ -7,20 +7,40 @@ RSS/Atom entries into normalized text that can be searched, transcribed, and
 processed with an LLM — entirely on your machine.
 
 > **Status: scaffold.** This repository is the foundation of the open-source
-> core. It compiles, lints, and tests cleanly, but it does **not** yet extract,
-> search, transcribe, or process real content. See
+> core. It compiles, lints, and tests cleanly, but it does **not** yet extract
+> or process real content. The v0.1 milestone is the first functional slice:
+> `owlie extract` (YouTube transcripts) and `owlie process` (DeepSeek). See
 > [Product scope](docs/product-scope.md) for what works and what does not.
+
+## v0.1 (first functional milestone)
+
+v0.1 delivers a small, pipeable CLI:
+
+```bash
+# Extract a transcript from an individual YouTube video
+owlie extract "https://youtube.com/watch?v=..."
+
+# Process plain text or a normalized document with DeepSeek
+owlie extract "https://youtube.com/watch?v=..." |
+  owlie process --prompt "Summarize this"
+
+owlie process transcript.txt --prompt "Summarize this"
+cat transcript.txt | owlie process --prompt "Summarize this"
+```
+
+See [ADR 0005](docs/decisions/0005-v0-1-scope.md) for the full v0.1 scope and
+non-goals.
 
 ## Planned sources
 
 Individual items:
 
-- YouTube video
-- Podcast episode
-- Reddit post (discovered through a subreddit feed)
-- RSS/Atom entry
+- YouTube video (v0.1)
+- Podcast episode (deferred)
+- Reddit post, discovered through a subreddit feed (deferred)
+- RSS/Atom entry (deferred)
 
-Collections:
+Collections (deferred — not implemented in v0.1):
 
 - YouTube playlist
 - Subreddit (via Reddit's public Atom feeds)
@@ -28,29 +48,30 @@ Collections:
 
 ## Planned operations
 
-- `list` items in a collection
-- `extract` normalized text from an individual item
-- `extract` a transcript from audio or video
-- `process` an extracted document with an LLM
+- `extract` normalized text from an individual item (v0.1: YouTube transcripts)
+- `process` a document with an LLM (v0.1: DeepSeek)
+- `list` items in a collection (deferred)
 - `search` collection item titles, descriptions, and feed-provided content
-- optionally extract full item content before searching
-- `process` each item in a bounded collection with an LLM
+  (deferred)
+- `extract` a transcript from audio or video via Whisper (deferred)
+- `process` each item in a bounded collection with an LLM (deferred)
 
 Owlie CLI does **not** monitor sources or schedule recurring work.
 
 ## What currently works
 
-Only these commands are functional:
-
 ```bash
 owlie --help
 owlie --version
 owlie doctor
+owlie extract URL   # no external runtime dependencies
+owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
+owlie setup        # configure provider, model, and API key
 ```
 
-The planned commands (`list`, `extract`, `search`, `process`, `config`) are
-visible in help, return a concise "not implemented yet" message, and exit with a
-non-zero code. They never pretend to process content.
+The remaining planned commands (`list`, `search`, `config`) are visible in help
+and exit with a concise "not implemented yet" message and a non-zero code. They
+never pretend to process content.
 
 ## Non-goals
 
@@ -89,10 +110,10 @@ owlie-app  →  runs `owlie` CLI (container/subprocess)
 apps/cli/                    The owlie executable
 packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
-packages/adapter-youtube/    YouTube adapter
-packages/adapter-podcast/    Podcast adapter
-packages/adapter-rss/        RSS/Atom adapter
-packages/adapter-reddit/     Reddit adapter (Atom transport only)
+packages/adapter-youtube/    YouTube adapter (videos in v0.1)
+packages/adapter-podcast/    Podcast adapter (scaffold)
+packages/adapter-rss/        RSS/Atom adapter (scaffold)
+packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-openai/    OpenAI content processor (scaffold)
 packages/provider-whisper/   Local faster-whisper transcriber (scaffold)
 docs/                        Architecture, contracts, security, decisions
@@ -104,13 +125,16 @@ docs/                        Architecture, contracts, security, decisions
 | --------------------------- | ----------------------------------------------- |
 | `@owlieio/core`             | Types, contracts, errors, limits, orchestration |
 | `@owlieio/testing`          | Fakes, fixtures, contract-test helpers          |
-| `@owlieio/adapter-youtube`  | YouTube playlists and videos                    |
-| `@owlieio/adapter-podcast`  | Podcast episodes                                |
-| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries                      |
-| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds                |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                       |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber`              |
+| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)             |
+| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                     |
+| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (scaffold)           |
+| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)     |
+| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)            |
+| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)   |
 | `owlie`                     | The `owlie` command-line interface (published)  |
+
+v0.1 adds `@owlieio/provider-deepseek`, the only functional LLM provider in the
+milestone, implemented with `ai` and `@ai-sdk/deepseek`.
 
 Only `owlie` is published. The `@owlieio/*` packages are internal (private) —
 they organize the code and enforce dependency boundaries, and are bundled into

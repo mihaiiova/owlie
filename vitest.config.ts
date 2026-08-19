@@ -16,6 +16,7 @@ export default defineConfig({
       '@owlieio/adapter-rss': src('packages/adapter-rss/src/index.ts'),
       '@owlieio/adapter-reddit': src('packages/adapter-reddit/src/index.ts'),
       '@owlieio/provider-openai': src('packages/provider-openai/src/index.ts'),
+      '@owlieio/provider-deepseek': src('packages/provider-deepseek/src/index.ts'),
       '@owlieio/provider-whisper': src('packages/provider-whisper/src/index.ts'),
       owlie: src('apps/cli/src/index.ts'),
     },
@@ -23,6 +24,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.live.test.ts'],
   },
 });

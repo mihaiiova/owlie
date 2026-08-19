@@ -73,7 +73,9 @@ imports.
 
 1. A `NormalizedDocument` is wrapped in a `ProcessRequest` (instruction and
    optional output schema).
-2. A `ContentProcessor` (for example `@owlieio/provider-openai`) processes it.
+2. A `ContentProcessor` processes it. In v0.1 the functional processor is
+   `@owlieio/provider-deepseek`; `@owlieio/provider-openai` remains a
+   non-functional scaffold.
 3. The `ProcessResult` (`text` | `markdown` | `json`) is serialized by an
    `OutputSerializer` and written to stdout or a file.
 

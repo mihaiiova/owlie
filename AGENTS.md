@@ -15,7 +15,32 @@ This is a **scaffold**. Contracts compile, tests pass, and `pnpm check` is
 green. No real extraction, search, transcription, or processing exists yet.
 Only `owlie --help`, `owlie --version`, and `owlie doctor` are functional.
 
-## 3. v1 scope and non-goals
+The current milestone is **v0.1** (see
+[docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
+small, pipeable CLI that extracts transcripts from individual YouTube videos
+(`owlie extract`) and processes text or normalized documents with DeepSeek
+(`owlie process`). Treat the v0.1 decisions as authoritative where they differ
+from older v1 plans.
+
+## 3. v0.1 scope and v1 direction
+
+### v0.1 (current milestone)
+
+Functional commands: `owlie extract URL`, `owlie process [FILE] --prompt`,
+`owlie doctor`, `owlie --help`, `owlie --version`. In scope: individual
+YouTube video transcript extraction, a DeepSeek `ContentProcessor` (via `ai`
+and `@ai-sdk/deepseek`), pipe-first stream/output contracts, secure
+configuration, and the shared core and coding-agent harness.
+
+Explicit v0.1 non-goals: YouTube playlists/channels, RSS/Atom, Reddit,
+podcasts, Whisper/audio transcription, generic webpage extraction, collection
+listing/search, `process --each`, `owlie run`, scheduling/monitoring/cron,
+local database or persistent jobs, `owlie-app` integration, Owlie user
+authentication, billing/credits/analytics/notifications/hosted storage, and
+automatic publishing or deployment. Deferred scaffold packages are not
+deleted, but documentation must not imply they are functional.
+
+### v1 (later)
 
 In scope: collection/type contracts, source adapters, collection discovery,
 extraction, transcription interfaces, LLM processing interfaces, bounded
@@ -59,6 +84,9 @@ packages/provider-whisper/   @owlieio/provider-whisper
 docs/                        Architecture, contracts, security, decisions
 ```
 
+v0.1 adds `packages/provider-deepseek/` (`@owlieio/provider-deepseek`), the
+only functional LLM provider in the milestone.
+
 ## 6. Dependency-direction rules
 
 ```text
@@ -73,6 +101,10 @@ Documented exception: `adapter-reddit` may reuse public RSS/Atom parsing from
 `adapter-rss`. Reddit URL normalization and metadata interpretation stay in
 `adapter-reddit`. Do not create a generic `utils` package. `pnpm check:deps`
 enforces these rules automatically.
+
+Test-only exception: adapters and providers may declare `@owlieio/testing` as a
+`devDependency` to use its fakes and contract-test helpers; it is never a
+runtime dependency.
 
 ## 7. Canonical commands
 

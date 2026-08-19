@@ -14,6 +14,19 @@ mediaType, title?, text, publishedAt?, author?, metadata }`
 - `ProcessRequest` — `{ document, instruction?, outputSchema? }`
 - `ProcessResult` — `{ output, format: 'text'|'markdown'|'json', metadata }`
 
+### Transcript metadata (v0.1 convention)
+
+When a `NormalizedDocument` is a transcript (`mediaType: 'transcript'`), its
+`metadata` object carries, when available:
+
+- `videoId` — the source video ID (YouTube)
+- `language` — human-readable transcript language name
+- `languageCode` — language code (e.g. `en`, `en-US`)
+- `isGenerated` — `true` when captions were auto-generated
+
+These keys are a documented convention, not a closed set; adapters may add
+source-specific fields.
+
 ## Adapter contracts
 
 - `SourceAdapter` — `id`, `sourceType`, `recognize(locator)`.
@@ -41,8 +54,11 @@ mediaType, title?, text, publishedAt?, author?, metadata }`
 ## Errors
 
 Throw typed errors (`ConfigurationError`, `ExtractionError`,
-`TranscriptionError`, `ProcessingError`, `CancelledError`,
-`NotImplementedError`). Library packages never call `process.exit`.
+`CaptionsUnavailableError`, `TranscriptionError`, `ProcessingError`,
+`CancelledError`, `NotImplementedError`). Library packages never call
+`process.exit`. `CaptionsUnavailableError` extends `ExtractionError` and
+carries the code `CAPTIONS_UNAVAILABLE` for cases where extraction succeeds
+but the requested captions/transcript are not available.
 
 ## Orchestration
 

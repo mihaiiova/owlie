@@ -26,8 +26,18 @@ export class ValidationError extends OwlieError {
 }
 
 export class ExtractionError extends OwlieError {
+  constructor(message: string, options: { code?: string; cause?: unknown } = {}) {
+    super(message, { code: options.code ?? 'EXTRACTION_ERROR', cause: options.cause });
+  }
+}
+
+/**
+ * Raised when content extraction succeeds but the requested artifact (for
+ * example a YouTube transcript) is not available for the item.
+ */
+export class CaptionsUnavailableError extends ExtractionError {
   constructor(message: string, options: { cause?: unknown } = {}) {
-    super(message, { code: 'EXTRACTION_ERROR', cause: options.cause });
+    super(message, { code: 'CAPTIONS_UNAVAILABLE', cause: options.cause });
   }
 }
 

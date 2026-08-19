@@ -17,6 +17,7 @@ const PACKAGES = [
   { name: '@owlieio/adapter-rss', dir: 'packages/adapter-rss', publishable: false },
   { name: '@owlieio/adapter-reddit', dir: 'packages/adapter-reddit', publishable: false },
   { name: '@owlieio/provider-openai', dir: 'packages/provider-openai', publishable: false },
+  { name: '@owlieio/provider-deepseek', dir: 'packages/provider-deepseek', publishable: false },
   { name: '@owlieio/provider-whisper', dir: 'packages/provider-whisper', publishable: false },
   { name: 'owlie', dir: 'apps/cli', publishable: true },
 ];
@@ -27,7 +28,11 @@ const ADAPTERS = [
   '@owlieio/adapter-rss',
   '@owlieio/adapter-reddit',
 ];
-const PROVIDERS = ['@owlieio/provider-openai', '@owlieio/provider-whisper'];
+const PROVIDERS = [
+  '@owlieio/provider-openai',
+  '@owlieio/provider-deepseek',
+  '@owlieio/provider-whisper',
+];
 
 const ALLOWED = {
   '@owlieio/core': [],
@@ -38,14 +43,12 @@ const ALLOWED = {
   // Documented exception: reddit may reuse public RSS/Atom parsing from rss.
   '@owlieio/adapter-reddit': ['@owlieio/core', '@owlieio/adapter-rss'],
   '@owlieio/provider-openai': ['@owlieio/core'],
+  '@owlieio/provider-deepseek': ['@owlieio/core'],
   '@owlieio/provider-whisper': ['@owlieio/core'],
   owlie: ['@owlieio/core', ...ADAPTERS, ...PROVIDERS],
 };
 
-const scopedDeps = (pkg) =>
-  Object.keys({ ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }).filter((d) =>
-    d.startsWith('@owlieio/'),
-  );
+const scopedDeps = (deps) => Object.keys(deps ?? {}).filter((d) => d.startsWith('@owlieio/'));
 
 function* walkTsFiles(dir) {
   for (const entry of readdirSync(dir)) {
@@ -80,10 +83,17 @@ for (const { name, dir, publishable } of PACKAGES) {
     failures.push(`${dir}: expected package name ${name}, found ${pkg.name}`);
   }
 
-  // 1. Declared scoped dependencies must be allowed.
-  for (const dep of scopedDeps(pkg)) {
+  // 1. Declared scoped dependencies must be allowed. `@owlieio/testing` is a
+  // test-only package and may be a devDependency of any package.
+  for (const dep of scopedDeps(pkg.dependencies)) {
     if (!ALLOWED[name].includes(dep)) {
       failures.push(`${name}: depends on ${dep}, which is not allowed`);
+    }
+  }
+  for (const dep of scopedDeps(pkg.devDependencies)) {
+    if (dep === '@owlieio/testing') continue;
+    if (!ALLOWED[name].includes(dep)) {
+      failures.push(`${name}: dev-depends on ${dep}, which is not allowed`);
     }
   }
 

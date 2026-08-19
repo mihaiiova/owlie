@@ -20,6 +20,7 @@ const PACKAGES = [
   'packages/adapter-rss',
   'packages/adapter-reddit',
   'packages/provider-openai',
+  'packages/provider-deepseek',
   'packages/provider-whisper',
   'apps/cli',
 ];

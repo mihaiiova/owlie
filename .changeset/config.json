@@ -15,6 +15,7 @@
     "@owlieio/adapter-rss",
     "@owlieio/adapter-reddit",
     "@owlieio/provider-openai",
+    "@owlieio/provider-deepseek",
     "@owlieio/provider-whisper"
   ]
 }

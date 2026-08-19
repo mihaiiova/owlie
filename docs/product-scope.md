@@ -1,6 +1,6 @@
 # Product scope
 
-This document separates what exists now, what the first functional CLI will do,
+This document separates what exists now, what the v0.1 milestone will deliver,
 what is deferred, and what belongs to the hosted product.
 
 ## Scaffold scope (current)
@@ -8,28 +8,44 @@ what is deferred, and what belongs to the hosted product.
 - Monorepo tooling: pnpm workspaces, TypeScript, Vitest, ESLint, Prettier,
   Changesets, GitHub Actions CI.
 - `@owlieio/core` provider-neutral contracts and types.
-- Adapter scaffolds with pure, tested URL recognition/normalization.
+- Adapter scaffolds with pure, tested URL recognition/normalization (YouTube,
+  podcast, RSS/Atom, Reddit).
 - Provider scaffolds (OpenAI, local faster-whisper) with public config types
   and no network calls.
 - `@owlieio/testing` fakes, fixtures, and contract-test helpers.
 - `owlie` CLI with functional `--help`, `--version`, and `doctor`.
 - Full documentation and ADRs.
 
-## First functional CLI scope
+## v0.1 scope (the first functional milestone)
 
-- `owlie list` — list bounded items in a collection.
-- `owlie extract` — extract normalized text or a transcript from an item.
-- `owlie search` — search collection-provided fields (title, description,
-  author, feed text, metadata) with a default limit of 10.
-- `owlie process` — process a document (or each item in a bounded collection)
-  with an LLM.
-- `owlie config` — view and edit local configuration.
-- Output serialization to `text`, `markdown`, `json`, and `jsonl`.
+v0.1 is a deliberately small, pipe-first slice. The functional commands are:
+
+- `owlie extract URL` — extract an available transcript from an individual
+  YouTube video as a normalized document.
+- `owlie process [FILE] --prompt "..."` — process plain text or a normalized
+  document with DeepSeek, reading from a positional file, `--input FILE`, or
+  stdin.
+- `owlie doctor` — report whether required dependencies and variables are
+  present.
+- `owlie --help` / `owlie --version`.
+
+These compose over Unix pipes:
+
+```bash
+owlie extract URL | owlie process --prompt "Summarize this"
+owlie extract URL --json | owlie process --input-format json --prompt "..." --json
+```
+
+Output serialization in v0.1: `text` (raw), `markdown`, and `json`. `jsonl` is
+reserved for future collection streaming and is not used in v0.1.
 
 ## Deferred capabilities
 
-- Full-content extraction before search (`--content`, reserved).
+- Collection listing and search (`list`, `search`), `process --each`, and
+  `owlie run`.
 - Source monitoring and scheduled/recurring execution.
+- Whisper/audio transcription; podcasts; RSS/Atom; Reddit. Adapter/provider
+  scaffolds for these exist but are not functional.
 - A local database or persistent job records.
 - Reddit OAuth, credentials, comment-tree extraction, and HTML scraping.
 - Following external links from RSS entries and generic webpage extraction.
