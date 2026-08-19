@@ -16,7 +16,9 @@ normalized documents.
    work is approved; honor `AbortSignal`, `ProgressSink`, and bounded limits.
 6. Add pure-logic unit tests and, once list/extract exist, wire the
    `collectionAdapterContract` / `itemAdapterContract` helpers.
-7. Register the adapter so it is bundled into `owlie`. A new package must be
+7. Register the adapter once it is functional so it is bundled into `owlie`
+   and reported by `owlie doctor`. Scaffolds whose `list`/`extract` still throw
+   `NotImplementedError` must stay out of the registry. A new package must be
    added in all of these places:
 
    1. `apps/cli/src/registry.ts` — import the class, add its id to

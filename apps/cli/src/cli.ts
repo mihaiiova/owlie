@@ -1,6 +1,6 @@
 import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
-import { commandHelp, helpText, PLANNED_COMMANDS } from './commands/help.js';
+import { commandHelp, helpText } from './commands/help.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runProcessCommand, type ProcessDeps } from './commands/process.js';
@@ -120,16 +120,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
   return { args, options, helpRequested, versionRequested, usageError };
 }
 
-function notImplemented(command: string, options: CliOptions, io: CliIo): number {
-  const message = `${command} is not implemented yet`;
-  if (options.json) {
-    io.stdout.write(JSON.stringify({ command, status: 'not-implemented', error: message }) + '\n');
-  } else if (!options.quiet) {
-    io.stderr.write(`owlie: ${message}\n`);
-  }
-  return ExitCode.NotImplemented;
-}
-
 export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promise<number> {
   const parsed = parseArgs(argv);
   const options = parsed.options;
@@ -174,10 +164,6 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'setup') {
     return runSetupCommand(io, options, deps.setup);
-  }
-
-  if ((PLANNED_COMMANDS as readonly string[]).includes(command)) {
-    return notImplemented(command, options, io);
   }
 
   if (!options.quiet) {

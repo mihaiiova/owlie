@@ -16,7 +16,7 @@ const checks = [
     name: '--help',
     args: ['--help'],
     status: 0,
-    stdout: /list|extract|search|process|config|doctor/i,
+    stdout: /extract|process|setup|doctor/i,
     stderr: null,
   },
   {
@@ -34,11 +34,11 @@ const checks = [
     stderr: null,
   },
   {
-    name: 'list is not implemented',
+    name: 'list is an unknown command',
     args: ['list', 'https://example.com'],
-    status: 3,
+    status: 2,
     stdout: null,
-    stderr: /not implemented/i,
+    stderr: /unknown command/i,
   },
   {
     name: 'extract rejects an unsupported URL',

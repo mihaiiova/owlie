@@ -14,8 +14,10 @@ Providers implement `ContentProcessor` (LLM) or `Transcriber` (transcription).
 6. Wire the `processorContract` / `transcriberContract` helpers once real
    behavior exists.
 7. Add a fake to `@owlieio/testing` so consumers can test against it.
-8. Register the provider so it is bundled into `owlie`. A new package must be
-   added in all of these places:
+8. Register the provider once it is functional so it is bundled into `owlie`
+   and reported by `owlie doctor`. Scaffolds whose `process`/`transcribe` still
+   throw `NotImplementedError` must stay out of the registry. A new package
+   must be added in all of these places:
 
    1. `apps/cli/src/registry.ts` — import the class, add its id to
       `PROVIDER_IDS`.

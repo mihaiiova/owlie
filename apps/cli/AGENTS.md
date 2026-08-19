@@ -22,8 +22,10 @@ to this package's `devDependencies`.
    Command modules return exit codes; they never call `process.exit`.
 5. **Support cancellation.** Long-running commands must accept and honor
    `AbortSignal` from the process.
-6. **Planned commands fail honestly.** Anything not implemented returns
-   `ExitCode.NotImplemented` with a concise message and never pretends to work.
+6. **Only implemented commands are exposed.** Help and `doctor` report only the
+   functional adapters and providers. Deferred commands and scaffolds are not
+   registered, so they surface as an "unknown command" usage error (exit 2)
+   rather than pretending to work.
 7. **Environment-file loading lives here only.** Core, adapters, and providers
    receive explicit configuration objects.
 8. **Resolve `process` input at the shared seam.** Exactly one of a positional

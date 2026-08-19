@@ -28,11 +28,5 @@ export {
   writeUserConfig,
 } from './config.js';
 export type { DeepSeekEnvConfig, UserConfig } from './config.js';
-export {
-  ADAPTER_IDS,
-  FUNCTIONAL_PROVIDER_IDS,
-  PROVIDER_IDS,
-  listProviders,
-  resolveProcessor,
-} from './registry.js';
+export { ADAPTER_IDS, PROVIDER_IDS, listProviders, resolveProcessor } from './registry.js';
 export type { ProcessorConfig, ProviderInfo } from './registry.js';

@@ -32,13 +32,17 @@ const fakeDeps: CliDeps = {
 };
 
 describe('--help', () => {
-  it('lists all commands and exits 0', async () => {
+  it('lists only functional commands and exits 0', async () => {
     const { io, stdout, stderr } = capture();
     const code = await run(['--help'], io);
     expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toContain('list');
     expect(stdout()).toContain('extract');
+    expect(stdout()).toContain('process');
+    expect(stdout()).toContain('setup');
     expect(stdout()).toContain('doctor');
+    expect(stdout()).not.toContain('list');
+    expect(stdout()).not.toContain('search');
+    expect(stdout()).not.toContain('config');
     expect(stderr()).toBe('');
   });
 });
@@ -62,9 +66,9 @@ describe('doctor', () => {
     expect(stdout()).toContain('Node');
     expect(stdout()).toContain('DEEPSEEK_API_KEY: set');
     expect(stdout()).toContain('Model: set');
-    expect(stdout()).toContain('Adapters: youtube, podcast, rss, reddit');
+    expect(stdout()).toContain('Adapters: youtube');
     expect(stdout()).toContain('Providers: deepseek');
-    expect(stdout()).toContain('Deferred providers: openai, whisper-local');
+    expect(stdout()).not.toContain('Deferred');
   });
 
   it('supports --json on stdout', async () => {
@@ -75,42 +79,10 @@ describe('doctor', () => {
     expect(report.node).toContain('v');
     expect(report.deepSeekApiKey).toBe('set');
     expect(report.modelConfigured).toBe('set');
-    expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'reddit']);
+    expect(report.adapters).toEqual(['youtube']);
     expect(report.providers).toEqual(['deepseek']);
-    expect(report.deferredProviders).toEqual(['openai', 'whisper-local']);
+    expect(report.deferredProviders).toBeUndefined();
     expect(stderr()).toBe('');
-  });
-});
-
-describe('planned commands', () => {
-  it('fails honestly with a non-zero code', async () => {
-    const { io, stdout, stderr } = capture();
-    const code = await run(['list', 'https://example.com'], io);
-    expect(code).toBe(ExitCode.NotImplemented);
-    expect(stderr()).toContain('not implemented');
-    expect(stdout()).toBe('');
-  });
-
-  it('emits JSON status on stdout with --json', async () => {
-    const { io, stdout, stderr } = capture();
-    const code = await run(['list', 'https://example.com', '--json'], io);
-    expect(code).toBe(ExitCode.NotImplemented);
-    expect(JSON.parse(stdout())).toMatchObject({ command: 'list', status: 'not-implemented' });
-    expect(stderr()).toBe('');
-  });
-
-  it('honors --quiet by suppressing stderr diagnostics', async () => {
-    const { io, stderr } = capture();
-    const code = await run(['list', 'https://example.com', '--quiet'], io);
-    expect(code).toBe(ExitCode.NotImplemented);
-    expect(stderr()).toBe('');
-  });
-
-  it('shows per-command help', async () => {
-    const { io, stdout } = capture();
-    const code = await run(['list', '--help'], io);
-    expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toContain('List items');
   });
 });
 
@@ -120,5 +92,14 @@ describe('unknown commands', () => {
     const code = await run(['frobnicate'], io);
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('unknown command');
+  });
+
+  it('treats deferred commands as unknown', async () => {
+    for (const command of ['list', 'search', 'config']) {
+      const { io, stderr } = capture();
+      const code = await run([command], io);
+      expect(code).toBe(ExitCode.Usage);
+      expect(stderr()).toContain('unknown command');
+    }
   });
 });

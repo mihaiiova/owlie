@@ -1,18 +1,12 @@
-export const PLANNED_COMMANDS = ['list', 'search', 'config'] as const;
-export type PlannedCommand = (typeof PLANNED_COMMANDS)[number];
-
 const HELP = `owlie — local-first content extraction and processing
 
 Usage:
   owlie <command> [options]
 
 Commands:
-  list      List items in a collection             (planned)
   extract   Extract a transcript from a YouTube video
-  search    Search collection-provided fields      (planned)
   process   Process text or a document with an LLM
   setup     Configure providers and models interactively
-  config    View and edit configuration            (planned)
   doctor    Report local environment health
   help      Show this help
 
@@ -28,14 +22,6 @@ Options:
 Exit codes:
   0 success, 1 error, 2 usage error, 3 not implemented
 `;
-
-const COMMAND_HELP: Record<PlannedCommand, string> = {
-  list: 'owlie list <COLLECTION_URL> [--limit N] [--sort S] [--period P]\n\nList items in a collection. Planned; not implemented yet.',
-  search:
-    'owlie search <COLLECTION_URL> <QUERY> [--limit N] [--content]\n\nSearch collection-provided fields. Planned; not implemented yet.',
-  config:
-    'owlie config [get|set PATH VALUE]\n\nView and edit configuration. Planned; not implemented yet.',
-};
 
 const EXTRACT_HELP =
   'owlie extract URL [--json] [--language LANG]\n\n' +
@@ -54,6 +40,12 @@ const SETUP_HELP =
   'YouTube transcript fetching, interactively. The model list is fetched live\n' +
   'and choices are persisted for future commands.';
 
+const DOCTOR_HELP =
+  'owlie doctor [--json]\n\n' +
+  'Report local environment health: Node version, platform, DeepSeek API key\n' +
+  'presence, configured model, the functional adapter and provider, and the\n' +
+  'writable config and cache directories.';
+
 export function helpText(): string {
   return HELP;
 }
@@ -62,8 +54,6 @@ export function commandHelp(command: string): string {
   if (command === 'extract') return EXTRACT_HELP;
   if (command === 'process') return PROCESS_HELP;
   if (command === 'setup') return SETUP_HELP;
-  return (
-    COMMAND_HELP[command as PlannedCommand] ??
-    `owlie ${command}\n\nPlanned command; not implemented yet.`
-  );
+  if (command === 'doctor') return DOCTOR_HELP;
+  return `owlie ${command}\n\nUnknown command; run "owlie --help" for usage.`;
 }

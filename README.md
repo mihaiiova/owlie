@@ -69,9 +69,9 @@ owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
 owlie setup        # configure provider, model, and API key
 ```
 
-The remaining planned commands (`list`, `search`, `config`) are visible in help
-and exit with a concise "not implemented yet" message and a non-zero code. They
-never pretend to process content.
+The remaining planned commands (`list`, `search`, `config`) are not exposed:
+they report an "unknown command" usage error (exit code 2) rather than
+pretending to work.
 
 ## Non-goals
 

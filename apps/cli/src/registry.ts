@@ -1,30 +1,14 @@
 import type { ContentProcessor } from '@owlieio/core';
 import { ConfigurationError } from '@owlieio/core';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
-import { PodcastAdapter } from '@owlieio/adapter-podcast';
-import { RssAdapter } from '@owlieio/adapter-rss';
-import { RedditAdapter } from '@owlieio/adapter-reddit';
-import { OpenAIProcessor } from '@owlieio/provider-openai';
-import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 
 /**
- * The adapters and providers bundled into the `owlie` package. Importing the
- * classes here ensures they are included in the self-contained build and gives
- * `owlie doctor` something concrete to report.
+ * The functional adapters bundled into `owlie`. v0.1 ships only the YouTube
+ * video adapter; podcast, RSS, and Reddit remain deferred scaffolds and are
+ * deliberately not registered, so `owlie doctor` reports only what works.
  */
-export const ADAPTER_IDS: readonly string[] = [
-  YouTubeAdapter.id,
-  PodcastAdapter.id,
-  RssAdapter.id,
-  RedditAdapter.id,
-];
-
-export const PROVIDER_IDS: readonly string[] = [
-  OpenAIProcessor.id,
-  WhisperLocalTranscriber.id,
-  DeepSeekProcessor.id,
-];
+export const ADAPTER_IDS: readonly string[] = [YouTubeAdapter.id];
 
 /** Explicit configuration passed to a processor (loaded only by the CLI). */
 export interface ProcessorConfig {
@@ -58,9 +42,7 @@ const PROCESSOR_REGISTRY: readonly ProcessorRegistration[] = [
 ];
 
 /** Provider ids that are actually functional (used by `doctor`). */
-export const FUNCTIONAL_PROVIDER_IDS: readonly string[] = PROCESSOR_REGISTRY.map(
-  (provider) => provider.id,
-);
+export const PROVIDER_IDS: readonly string[] = PROCESSOR_REGISTRY.map((provider) => provider.id);
 
 /** Lists the functional providers and their known (fallback) models. */
 export function listProviders(): ProviderInfo[] {

@@ -13,11 +13,9 @@ owlie doctor   Report local environment health             (functional)
 owlie help     Show help
 ```
 
-Until the v0.1 work lands, only `--help`, `--version`, and `doctor` are
-functional. `extract`, `process`, and `setup` are the v0.1 deliverables.
-`list`, `search`, and `config` are deferred; they print a concise "not
-implemented yet" message and exit non-zero (code 3), and never pretend to
-process content.
+The commands above are the only ones `owlie` recognizes. Deferred commands
+(`list`, `search`, `config`) are not exposed: they report an "unknown command"
+usage error (code 2) rather than pretending to process content.
 
 ## Streams
 
@@ -66,6 +64,5 @@ owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [-
 ## `owlie doctor`
 
 Reports Node version, OS and architecture, `DEEPSEEK_API_KEY` presence
-(never its value), the registered adapters, and functional vs deferred
-providers. It also checks whether the configuration and cache directories are
-writable.
+(never its value), the functional adapter (YouTube) and provider (DeepSeek).
+It also checks whether the configuration and cache directories are writable.

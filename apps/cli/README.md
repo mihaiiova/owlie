@@ -5,18 +5,15 @@ The `owlie` command-line interface.
 ## Status
 
 `--help`, `--version`, `doctor`, `extract` (YouTube transcripts), and `process`
-(DeepSeek) are functional. The remaining planned commands (`list`, `search`,
-`config`) are visible in help and exit with a concise "not implemented yet"
-message and a non-zero code. They never pretend to process content.
+(DeepSeek) are functional. Help and `doctor` list only what is implemented;
+deferred adapters and providers are not exposed.
 
 ## Commands
 
 ```text
 owlie extract  Extract a transcript from a YouTube video
 owlie process  Process text or a document with an LLM
-owlie list     List items in a collection         (planned)
-owlie search   Search collection-provided fields   (planned)
-owlie config   View and edit configuration         (planned)
+owlie setup    Configure provider, model, and API key
 owlie doctor   Report local environment health
 owlie help     Show help
 ```

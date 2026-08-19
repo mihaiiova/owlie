@@ -5,7 +5,7 @@ import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, configDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
-import { ADAPTER_IDS, FUNCTIONAL_PROVIDER_IDS, PROVIDER_IDS } from '../registry.js';
+import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
 
 /** Injectable system probes so tests can run `doctor` without spawning. */
 export interface DoctorDeps {
@@ -38,7 +38,6 @@ export interface DoctorReport {
   modelConfigured: 'set' | 'not set';
   adapters: string[];
   providers: string[];
-  deferredProviders: string[];
   configDirectory: { path: string; writable: boolean };
   cacheDirectory: { path: string; writable: boolean };
 }
@@ -56,8 +55,7 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     deepSeekApiKey: deps.env[DEEPSEEK_API_KEY] || deps.readConfig?.().apiKey ? 'set' : 'not set',
     modelConfigured: deps.env['DEEPSEEK_MODEL'] || deps.readConfig?.().model ? 'set' : 'not set',
     adapters: [...ADAPTER_IDS],
-    providers: [...FUNCTIONAL_PROVIDER_IDS],
-    deferredProviders: PROVIDER_IDS.filter((id) => !FUNCTIONAL_PROVIDER_IDS.includes(id)),
+    providers: [...PROVIDER_IDS],
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
   };
@@ -73,9 +71,6 @@ function formatDoctorReport(report: DoctorReport): string {
     `  Adapters: ${report.adapters.join(', ')}`,
     `  Providers: ${report.providers.join(', ')}`,
   ];
-  if (report.deferredProviders.length > 0) {
-    lines.push(`  Deferred providers: ${report.deferredProviders.join(', ')}`);
-  }
   lines.push(
     `  Config directory: ${report.configDirectory.path} (${report.configDirectory.writable ? 'writable' : 'not writable'})`,
     `  Cache directory: ${report.cacheDirectory.path} (${report.cacheDirectory.writable ? 'writable' : 'not writable'})`,
