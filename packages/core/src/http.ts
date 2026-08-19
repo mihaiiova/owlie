@@ -213,7 +213,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
         if (!location) {
           throw new ExtractionError(`redirect response from ${current} has no Location header`);
         }
-        if (redirects + 1 >= maxRedirects) {
+        if (redirects >= maxRedirects) {
           throw new ExtractionError(`too many redirects (max ${maxRedirects}) for ${url}`);
         }
         current = new URL(location, current).toString();

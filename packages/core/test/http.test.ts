@@ -164,9 +164,11 @@ describe('DefaultHttpFetcher', () => {
     await expect(fetcher.fetchText('https://example.com/a')).rejects.toThrow(ExtractionError);
   });
 
-  it('caps redirects', async () => {
+  it('caps redirects and stops at the configured limit', async () => {
+    const visited: string[] = [];
     const fetchFn: HttpFetchFn = async (input) => {
       const url = String(input);
+      visited.push(url);
       const n = Number(url.split('/n')[1] ?? '0');
       return new Response('', {
         status: 302,
@@ -175,8 +177,14 @@ describe('DefaultHttpFetcher', () => {
     };
     const fetcher = new DefaultHttpFetcher(fetchFn);
     await expect(
-      fetcher.fetchText('https://example.com/n0', { policy: { maxRedirects: 3 } }),
+      fetcher.fetchText('https://example.com/n0', { policy: { maxRedirects: 2 } }),
     ).rejects.toThrow(ExtractionError);
+    // Two redirects followed (n0 -> n1 -> n2); the third is refused.
+    expect(visited).toEqual([
+      'https://example.com/n0',
+      'https://example.com/n1',
+      'https://example.com/n2',
+    ]);
   });
 
   it('maps HTTP errors to ExtractionError', async () => {
@@ -204,5 +212,19 @@ describe('DefaultHttpFetcher', () => {
     await expect(
       fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
     ).rejects.toThrow(CancelledError);
+  });
+
+  it('cancels on an external abort signal', async () => {
+    const fetchFn: HttpFetchFn = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('AbortError')), {
+          once: true,
+        });
+      });
+    const controller = new AbortController();
+    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const promise = fetcher.fetchText('https://example.com/', { signal: controller.signal });
+    controller.abort();
+    await expect(promise).rejects.toThrow(CancelledError);
   });
 });

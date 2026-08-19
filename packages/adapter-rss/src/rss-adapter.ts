@@ -60,7 +60,12 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
     if (!this.recognize(locator)) {
       throw new ConfigurationError(`not a recognized RSS/Atom feed URL: ${locator.url}`);
     }
-    const canonicalUrl = normalizeFeedUrl(locator.url);
+    let canonicalUrl: string;
+    try {
+      canonicalUrl = normalizeFeedUrl(locator.url);
+    } catch {
+      throw new ConfigurationError(`not a valid RSS/Atom feed URL: ${locator.url}`);
+    }
     return {
       id: `rss:feed:${canonicalUrl}`,
       sourceType: 'rss',
