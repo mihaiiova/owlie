@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { NotImplementedError } from '@owlieio/core';
 import { parseSubredditFeed, RedditAdapter } from '@owlieio/adapter-reddit';
 
 describe('RedditAdapter recognition and resolution', () => {
@@ -20,9 +19,10 @@ describe('RedditAdapter recognition and resolution', () => {
 
 describe('parseSubredditFeed reuse', () => {
   it('delegates to the RSS adapter parser', async () => {
-    // The delegated parser is a scaffold stub and must throw NotImplementedError.
-    await expect(parseSubredditFeed('<feed xmlns="http://www.w3.org/2005/Atom"/>')).rejects.toThrow(
-      NotImplementedError,
+    const feed = await parseSubredditFeed(
+      '<feed xmlns="http://www.w3.org/2005/Atom"><title>r/LocalLLaMA</title></feed>',
     );
+    expect(feed.format).toBe('atom');
+    expect(feed.title).toBe('r/LocalLLaMA');
   });
 });

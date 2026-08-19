@@ -23,7 +23,9 @@
     "test": "vitest run --config ../../vitest.config.ts packages/adapter-rss"
   },
   "dependencies": {
-    "@owlieio/core": "workspace:*"
+    "@owlieio/core": "workspace:*",
+    "entities": "^8.0.0",
+    "fast-xml-parser": "^5.11.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

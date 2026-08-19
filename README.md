@@ -112,7 +112,7 @@ packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-podcast/    Podcast adapter (scaffold)
-packages/adapter-rss/        RSS/Atom adapter (scaffold)
+packages/adapter-rss/        RSS/Atom adapter (parsing implemented; list/extract deferred)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-openai/    OpenAI content processor (scaffold)
 packages/provider-whisper/   Local faster-whisper transcriber (scaffold)
@@ -121,17 +121,17 @@ docs/                        Architecture, contracts, security, decisions
 
 ## Packages
 
-| Package                     | Purpose                                         |
-| --------------------------- | ----------------------------------------------- |
-| `@owlieio/core`             | Types, contracts, errors, limits, orchestration |
-| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers          |
-| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)             |
-| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                     |
-| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (scaffold)           |
-| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)     |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)            |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)   |
-| `owlie`                     | The `owlie` command-line interface (published)  |
+| Package                     | Purpose                                                |
+| --------------------------- | ------------------------------------------------------ |
+| `@owlieio/core`             | Types, contracts, errors, limits, orchestration        |
+| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                 |
+| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                    |
+| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                            |
+| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (parsing; network deferred) |
+| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)            |
+| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)                   |
+| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)          |
+| `owlie`                     | The `owlie` command-line interface (published)         |
 
 v0.1 adds `@owlieio/provider-deepseek`, the only functional LLM provider in the
 milestone, implemented with `ai` and `@ai-sdk/deepseek`.
