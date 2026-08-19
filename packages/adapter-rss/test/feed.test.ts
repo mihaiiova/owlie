@@ -8,7 +8,7 @@ import {
   parseFeed,
   RssAdapter,
 } from '@owlieio/adapter-rss';
-import { ExtractionError } from '@owlieio/core';
+import { ConfigurationError, ExtractionError } from '@owlieio/core';
 import { ATOM, BILLION_LAUGHS, REDDIT_ATOM, RSS10, RSS20 } from './fixtures.js';
 
 describe('detectFeedFormat (content-aware)', () => {
@@ -120,6 +120,13 @@ describe('parseFeed (RSS 2.0)', () => {
     expect(feed.entries[1]!.id).toBe('https://example.com/2');
     expect(feed.entries[1]!.title).toBe('Second post');
   });
+
+  it('derives a stable hash id when an entry has neither guid nor link', async () => {
+    const feed = await parseFeed(
+      '<rss version="2.0"><channel><title>t</title><item><title>X</title><description>d</description></item></channel></rss>',
+    );
+    expect(feed.entries[0]!.id).toMatch(/^entry-[0-9a-f]+$/);
+  });
 });
 
 describe('parseFeed (Atom)', () => {
@@ -206,5 +213,12 @@ describe('RssAdapter', () => {
     const collection = await adapter.resolve({ url: 'https://example.com/feed.xml#top' });
     expect(collection.canonicalUrl).toBe('https://example.com/feed.xml');
     expect(collection.id).toBe('rss:feed:https://example.com/feed.xml');
+  });
+
+  it('rejects a malformed URL even with an rss hint', async () => {
+    const adapter = new RssAdapter();
+    await expect(adapter.resolve({ url: 'not a url', hint: 'rss' })).rejects.toThrow(
+      ConfigurationError,
+    );
   });
 });
