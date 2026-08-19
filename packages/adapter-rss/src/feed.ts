@@ -1,4 +1,5 @@
 import { ExtractionError } from '@owlieio/core';
+import type { ContentItem, NormalizedDocument } from '@owlieio/core';
 import { decodeHTML } from 'entities';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -38,14 +39,19 @@ export function decodeXmlEntities(input: string): string {
 
 /**
  * Converts feed-provided HTML (e.g. `content:encoded` or Atom `content`) into
- * plain text: scripts and styles are removed, remaining markup is stripped,
- * and character references are decoded.
+ * plain text: scripts and styles are removed, block boundaries become spaces,
+ * remaining inline markup is stripped without introducing spurious spaces, and
+ * character references are decoded.
  */
+const BLOCK_BREAK_PATTERN =
+  /<\/(?:p|div|section|article|li|ul|ol|h[1-6]|tr|table|blockquote|pre)[^>]*>|<br\s*\/?>/gi;
+
 export function htmlToText(html: string): string {
   return decodeHTML(html)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+    .replace(BLOCK_BREAK_PATTERN, ' ')
+    .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -420,4 +426,60 @@ export function isFeedUrl(input: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Maps a parsed feed entry to a {@link ContentItem}. The item id is
+ * `rss:entry:<entryId>`; the display `description` is HTML-stripped, while the
+ * raw HTML-bearing `content`/`description` and the feed URL are carried in
+ * `metadata` so {@link RssAdapter.extract} can normalize text without refetching.
+ */
+export function entryToItem(entry: ParsedEntry, feedUrl: string): ContentItem {
+  const item: ContentItem = {
+    id: `rss:entry:${entry.id}`,
+    sourceType: 'rss',
+    canonicalUrl: entry.url ?? feedUrl,
+    metadata: { entryId: entry.id, feedUrl },
+  };
+  if (entry.title) item.title = entry.title;
+  if (entry.description) item.description = htmlToText(entry.description);
+  if (entry.publishedAt) item.publishedAt = entry.publishedAt;
+  if (entry.author) item.author = entry.author;
+  if (entry.content !== undefined) item.metadata.content = entry.content;
+  if (entry.description !== undefined) item.metadata.description = entry.description;
+  return item;
+}
+
+/**
+ * Builds a `mediaType: 'text'` {@link NormalizedDocument} from an RSS item,
+ * preferring full `content` over `description` (both HTML-stripped). Returns
+ * `null` when the item carries no text so callers can attempt a re-fetch.
+ */
+export function documentFromItem(item: ContentItem): NormalizedDocument | null {
+  const rawContent = typeof item.metadata.content === 'string' ? item.metadata.content : undefined;
+  const rawDescription =
+    typeof item.metadata.description === 'string' ? item.metadata.description : undefined;
+
+  let text: string | undefined;
+  if (rawContent !== undefined) text = htmlToText(rawContent);
+  else if (rawDescription !== undefined) text = htmlToText(rawDescription);
+  else if (typeof item.description === 'string') text = item.description;
+
+  if (!text) return null;
+
+  const document: NormalizedDocument = {
+    schemaVersion: 1,
+    id: item.id,
+    sourceType: 'rss',
+    canonicalUrl: item.canonicalUrl,
+    mediaType: 'text',
+    text,
+    metadata: {},
+  };
+  if (item.title) document.title = item.title;
+  if (item.publishedAt) document.publishedAt = item.publishedAt;
+  if (item.author) document.author = item.author;
+  if (typeof item.metadata.entryId === 'string') document.metadata.entryId = item.metadata.entryId;
+  if (typeof item.metadata.feedUrl === 'string') document.metadata.feedUrl = item.metadata.feedUrl;
+  return document;
 }

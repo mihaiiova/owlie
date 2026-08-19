@@ -132,6 +132,9 @@ importers:
         specifier: ^5.11.0
         version: 5.11.0
     devDependencies:
+      '@owlieio/testing':
+        specifier: workspace:*
+        version: link:../testing
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
