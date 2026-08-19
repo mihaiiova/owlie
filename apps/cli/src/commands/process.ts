@@ -9,6 +9,8 @@ import type { ProcessInputSource } from '../input.js';
 import { resolveDeepSeekConfig } from '../config.js';
 import type { DeepSeekEnvConfig } from '../config.js';
 import { resolveProcessor } from '../registry.js';
+import { Spinner } from '../spinner.js';
+import type { SpinnerLike } from '../spinner.js';
 
 export interface ProcessDeps {
   signal?: AbortSignal;
@@ -16,6 +18,7 @@ export interface ProcessDeps {
   processor?: ContentProcessor;
   /** Injected for tests; bypasses environment loading. */
   config?: DeepSeekEnvConfig;
+  spinner?: SpinnerLike;
 }
 
 async function readInputFile(path: string): Promise<string> {
@@ -89,6 +92,14 @@ export async function runProcessCommand(
   options: CliOptions,
   deps: ProcessDeps = {},
 ): Promise<number> {
+  const spinner =
+    deps.spinner ??
+    new Spinner({
+      write: (text) => {
+        if (!options.quiet) io.stderr.write(text);
+      },
+    });
+
   try {
     const stdinPiped = !io.stdin.isTTY;
     const needsStdinRead = stdinPiped && args[0] === undefined && options.input === undefined;
@@ -106,7 +117,9 @@ export async function runProcessCommand(
     const processor = deps.processor ?? resolveConfiguredProcessor(config);
 
     const request: ProcessRequest = { document, instruction: options.prompt };
+    spinner.start('processing');
     const result = await processor.process(request, { signal: deps.signal });
+    spinner.stop();
 
     if (options.json) {
       io.stdout.write(JSON.stringify(result) + '\n');
@@ -115,6 +128,7 @@ export async function runProcessCommand(
     }
     return ExitCode.Success;
   } catch (error) {
+    spinner.stop();
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
       io.stderr.write(`owlie: ${message}\n`);

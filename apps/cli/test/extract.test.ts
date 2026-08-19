@@ -110,4 +110,24 @@ describe('extract command', () => {
     expect(stdout()).toBe('');
     expect(stderr()).toContain('No transcripts for this video');
   });
+
+  it('starts and stops a progress spinner', async () => {
+    const starts: string[] = [];
+    let stopped = 0;
+    const { io } = capture();
+    const code = await run(['extract', URL], io, {
+      extract: {
+        adapter: makeFakeAdapter(),
+        spinner: {
+          start: (message) => starts.push(message),
+          stop: () => {
+            stopped += 1;
+          },
+        },
+      },
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(starts).toEqual(['extracting youtube:video:test']);
+    expect(stopped).toBe(1);
+  });
 });

@@ -5,6 +5,13 @@ export { ExitCode, exitCodeForError } from './io.js';
 export type { CliIo, Stdin } from './io.js';
 export { resolveProcessInput } from './input.js';
 export type { ProcessInputSource, StdinSource } from './input.js';
+export {
+  DEFAULT_SPINNER_FRAMES,
+  DEFAULT_SPINNER_INTERVAL_MS,
+  Spinner,
+  spinnerLine,
+} from './spinner.js';
+export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { parseLanguages } from './commands/extract.js';
 export type { ExtractDeps } from './commands/extract.js';

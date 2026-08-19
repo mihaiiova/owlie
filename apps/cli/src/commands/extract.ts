@@ -6,11 +6,14 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
+import { Spinner } from '../spinner.js';
+import type { SpinnerLike } from '../spinner.js';
 
 export interface ExtractDeps {
   adapter?: ItemAdapter;
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
+  spinner?: SpinnerLike;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -43,6 +46,13 @@ export async function runExtractCommand(
   const adapter =
     deps.adapter ??
     new YouTubeAdapter({ languages: parseLanguages(options.language), proxy: readConfig().proxy });
+  const spinner =
+    deps.spinner ??
+    new Spinner({
+      write: (text) => {
+        if (!options.quiet) io.stderr.write(text);
+      },
+    });
 
   try {
     const item = await resolveItem(adapter, { url });
@@ -50,13 +60,13 @@ export async function runExtractCommand(
       signal: deps.signal,
       progress: {
         emit: (event) => {
-          if (options.quiet) return;
           if (event.type === 'started') {
-            io.stderr.write(`owlie: extracting ${event.target}\n`);
+            spinner.start(`extracting ${event.target}`);
           }
         },
       },
     });
+    spinner.stop();
 
     if (options.json) {
       io.stdout.write(JSON.stringify(document) + '\n');
@@ -65,6 +75,7 @@ export async function runExtractCommand(
     }
     return ExitCode.Success;
   } catch (error) {
+    spinner.stop();
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
       io.stderr.write(`owlie: ${message}\n`);

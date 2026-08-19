@@ -12,3 +12,6 @@ __pycache__/
 .vscode/
 *.tsbuildinfo
 .pi/
+
+.agents/
+skills-lock.json

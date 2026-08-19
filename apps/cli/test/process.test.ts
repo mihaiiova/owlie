@@ -157,4 +157,25 @@ describe('process command', () => {
     expect(stdout()).toBe('');
     expect(stderr()).toContain('boom');
   });
+
+  it('starts and stops a progress spinner', async () => {
+    const starts: string[] = [];
+    let stopped = 0;
+    const { processor } = makeFakeProcessor();
+    const { io } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(['process', '--prompt', 'x'], io, {
+      process: {
+        processor,
+        spinner: {
+          start: (message) => starts.push(message),
+          stop: () => {
+            stopped += 1;
+          },
+        },
+      },
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(starts).toEqual(['processing']);
+    expect(stopped).toBe(1);
+  });
 });
