@@ -3,16 +3,38 @@ import type {
   CollectionAdapter,
   CollectionListOptions,
   ContentItem,
+  HttpFetcher,
   ItemAdapter,
   NormalizedDocument,
 } from '@owlieio/core';
 import { ExtractionError } from '@owlieio/core';
+import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
 const FEED_URL = 'https://example.com/feed.xml';
 const YT_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const ARTICLE_URL = 'https://example.com/story-one';
+
+/** Sanitized RSS 2.0 fixture (no credentials, user data, or network content). */
+const RSS20 = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Example Channel</title>
+  <link>https://example.com/</link>
+  <description>A sample feed</description>
+  <item>
+    <title>A video</title>
+    <link>https://www.youtube.com/watch?v=dQw4w9WgXcQ</link>
+    <guid isPermaLink="false">post-1</guid>
+    <description>Summary &amp; teaser</description>
+  </item>
+  <item>
+    <title>A story</title>
+    <link>https://example.com/story-one</link>
+    <guid isPermaLink="false">post-2</guid>
+    <description>Summary</description>
+  </item>
+</channel></rss>`;
 
 function capture() {
   let stdout = '';
@@ -310,6 +332,41 @@ describe('extract — feed batch', () => {
     expect(extractions).toBe(1);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('cancelled');
+  });
+
+  it('extracts a real RSS feed end-to-end through RssAdapter with injected item extractors', async () => {
+    const fetcher: HttpFetcher = {
+      async fetch(url) {
+        return { url, contentType: 'application/rss+xml', text: RSS20 };
+      },
+      async fetchText() {
+        return RSS20;
+      },
+    };
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const { io, stdout } = capture();
+    const code = await run(['extract', FEED_URL], io, {
+      extract: {
+        itemAdapters: [youtube.adapter, article.adapter],
+        feedAdapter: new RssAdapter({ fetcher }),
+      },
+    });
+    expect(code).toBe(ExitCode.Success);
+    const envelope = JSON.parse(stdout());
+    expect(envelope.collection).toMatchObject({
+      id: 'rss:feed:https://example.com/feed.xml',
+      sourceType: 'rss',
+      canonicalUrl: FEED_URL,
+    });
+    expect(envelope.items.map((item: { title: string }) => item.title)).toEqual([
+      'A video',
+      'A story',
+    ]);
+    expect(
+      envelope.items.map((item: { document: { sourceType: string } }) => item.document.sourceType),
+    ).toEqual(['youtube', 'article']);
+    expect(envelope.truncated).toBe(false);
   });
 });
 
