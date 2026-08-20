@@ -236,6 +236,24 @@ describe('DefaultHttpFetcher', () => {
     ).rejects.toThrow(CancelledError);
   });
 
+  it('cancels a response body that stalls after headers arrive', async () => {
+    let cancelled = false;
+    const fetchFn: HttpFetchFn = async () => {
+      const body = new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+        },
+      });
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn);
+
+    await expect(
+      fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
+    ).rejects.toThrow(CancelledError);
+    expect(cancelled).toBe(true);
+  });
+
   it('cancels on an external abort signal', async () => {
     const fetchFn: HttpFetchFn = (_input, init) =>
       new Promise((_resolve, reject) => {

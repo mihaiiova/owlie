@@ -3,7 +3,7 @@ import { ArticleAdapter } from '@owlieio/adapter-article';
 import { CancelledError, ExtractionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
-import { CLEAN_ARTICLE } from './fixtures.js';
+import { CLEAN_ARTICLE, MALFORMED_ARTICLE } from './fixtures.js';
 
 const fetcher: HttpFetcher = {
   async fetch() {
@@ -52,7 +52,9 @@ describe('ArticleAdapter.extract', () => {
     const adapter = new ArticleAdapter({ fetcher });
     const item = await adapter.resolveItem({ url: 'https://example.com/articles/useful-story' });
 
-    await expect(adapter.extract(item)).resolves.toMatchObject({
+    const document = await adapter.extract(item);
+
+    expect(document).toMatchObject({
       schemaVersion: 1,
       id: 'article:https://example.com/articles/useful-story',
       sourceType: 'article',
@@ -63,6 +65,7 @@ describe('ArticleAdapter.extract', () => {
       publishedAt: '2025-08-19T10:00:00Z',
       text: expect.stringContaining('This is a deliberately substantial first paragraph'),
     });
+    expect(document.text).toContain('links & controls');
   });
 
   it('uses the final post-redirect URL for the document identity', async () => {
@@ -100,6 +103,39 @@ describe('ArticleAdapter.extract', () => {
     const item = await adapter.resolveItem({ url: 'https://example.com/file.pdf' });
 
     await expect(adapter.extract(item)).rejects.toBeInstanceOf(ExtractionError);
+  });
+
+  it('rejects a missing content type before parsing', async () => {
+    const missingTypeFetcher: HttpFetcher = {
+      ...fetcher,
+      async fetch() {
+        return { url: 'https://example.com/no-type', contentType: null, text: CLEAN_ARTICLE };
+      },
+    };
+    const adapter = new ArticleAdapter({ fetcher: missingTypeFetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/no-type' });
+
+    await expect(adapter.extract(item)).rejects.toBeInstanceOf(ExtractionError);
+  });
+
+  it('extracts readable text from malformed static HTML', async () => {
+    const malformedFetcher: HttpFetcher = {
+      ...fetcher,
+      async fetch() {
+        return {
+          url: 'https://example.com/malformed',
+          contentType: 'text/html',
+          text: MALFORMED_ARTICLE,
+        };
+      },
+    };
+    const adapter = new ArticleAdapter({ fetcher: malformedFetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/malformed' });
+
+    await expect(adapter.extract(item)).resolves.toMatchObject({
+      title: 'Malformed story',
+      text: expect.stringContaining('deliberately unclosed paragraph'),
+    });
   });
 
   it('maps no readable static content to an extraction error', async () => {

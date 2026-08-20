@@ -138,24 +138,44 @@ function isRedirect(status: number): boolean {
   return status >= 300 && status < 400;
 }
 
-async function readBody(response: Response, maxBytes: number): Promise<string> {
+async function readBody(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+): Promise<string> {
   const body = response.body;
   if (!body) return '';
+  if (signal.aborted) throw new CancelledError('fetch timed out or was cancelled');
+
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  let text = '';
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new ExtractionError(`response body exceeded ${maxBytes} bytes`);
+  let rejectAbort: ((reason: CancelledError) => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const onAbort = () => {
+    rejectAbort?.(new CancelledError('fetch timed out or was cancelled'));
+    void reader.cancel();
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    let text = '';
+    let total = 0;
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new ExtractionError(`response body exceeded ${maxBytes} bytes`);
+      }
+      text += decoder.decode(value, { stream: true });
     }
-    text += decoder.decode(value, { stream: true });
+    return text + decoder.decode();
+  } finally {
+    signal.removeEventListener('abort', onAbort);
   }
-  return text + decoder.decode();
 }
 
 function describe(error: unknown): string {
@@ -203,14 +223,40 @@ export class DefaultHttpFetcher implements HttpFetcher {
         options.signal.addEventListener('abort', onAbort, { once: true });
       }
 
-      let response: Response;
       try {
-        response = await this.fetchFn(current, {
+        const response = await this.fetchFn(current, {
           redirect: 'manual',
           signal: controller.signal,
           headers: { 'user-agent': userAgent },
         });
+
+        if (isRedirect(response.status)) {
+          const location = response.headers.get('location');
+          if (!location) {
+            throw new ExtractionError(`redirect response from ${current} has no Location header`);
+          }
+          if (redirects >= maxRedirects) {
+            throw new ExtractionError(`too many redirects (max ${maxRedirects}) for ${url}`);
+          }
+          current = new URL(location, current).toString();
+          redirects += 1;
+          await response.body?.cancel();
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new ExtractionError(
+            `HTTP ${response.status} ${response.statusText} for ${current}`,
+          );
+        }
+
+        return {
+          url: current,
+          contentType: response.headers.get('content-type'),
+          text: await readBody(response, maxResponseBytes, controller.signal),
+        };
       } catch (error) {
+        if (error instanceof CancelledError || error instanceof ExtractionError) throw error;
         if (controller.signal.aborted) {
           throw new CancelledError('fetch timed out or was cancelled', { cause: error });
         }
@@ -221,30 +267,6 @@ export class DefaultHttpFetcher implements HttpFetcher {
         clearTimeout(timer);
         options.signal?.removeEventListener('abort', onAbort);
       }
-
-      if (isRedirect(response.status)) {
-        const location = response.headers.get('location');
-        if (!location) {
-          throw new ExtractionError(`redirect response from ${current} has no Location header`);
-        }
-        if (redirects >= maxRedirects) {
-          throw new ExtractionError(`too many redirects (max ${maxRedirects}) for ${url}`);
-        }
-        current = new URL(location, current).toString();
-        redirects += 1;
-        await response.body?.cancel();
-        continue;
-      }
-
-      if (!response.ok) {
-        throw new ExtractionError(`HTTP ${response.status} ${response.statusText} for ${current}`);
-      }
-
-      return {
-        url: current,
-        contentType: response.headers.get('content-type'),
-        text: await readBody(response, maxResponseBytes),
-      };
     }
   }
 

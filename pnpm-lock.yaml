@@ -93,6 +93,9 @@ importers:
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core
+      entities:
+        specifier: ^8.0.0
+        version: 8.0.0
     devDependencies:
       '@owlieio/testing':
         specifier: workspace:*

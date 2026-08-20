@@ -1,4 +1,5 @@
 import { extractFromHtml } from '@extractus/article-extractor';
+import { decodeHTML } from 'entities';
 import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } from '@owlieio/core';
 import {
   assertSafeHttpUrl,
@@ -30,7 +31,7 @@ function isHtmlContentType(contentType: string | null): boolean {
 }
 
 function plainText(html: string): string {
-  return html
+  return decodeHTML(html)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
     .replace(/<[^>]+>/g, ' ')

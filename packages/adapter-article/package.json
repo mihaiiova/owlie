@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "@extractus/article-extractor": "^9.0.0",
-    "@owlieio/core": "workspace:*"
+    "@owlieio/core": "workspace:*",
+    "entities": "^8.0.0"
   },
   "devDependencies": {
     "@owlieio/testing": "workspace:*",
