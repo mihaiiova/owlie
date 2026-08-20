@@ -345,13 +345,13 @@ describe('process --each (feed collection mode)', () => {
     const { processor } = makeProcessor();
     const { io, stdout, stderr } = capture({ isTTY: false });
     const code = await run(
-      ['process', '--each', '--prompt', 'x'],
+      ['process', FEED_URL, '--each', '--prompt', 'x'],
       io,
       feedDeps([article.adapter], feed.adapter, processor),
     );
     expect(code).toBe(ExitCode.Usage);
     expect(stdout()).toBe('');
-    expect(stderr()).toContain('--each');
+    expect(stderr()).toContain('piped stdin');
   });
 
   it('rejects --each without a feed URL as a usage error', async () => {

@@ -14,9 +14,9 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (YouTube transcripts, static articles, and bounded RSS/Atom
-feed batches), `owlie list`, `owlie process` (DeepSeek), `owlie doctor`,
-`owlie --help`, and `owlie --version`. Search and audio transcription remain
-deferred.
+feed batches), `owlie list`, `owlie process` (DeepSeek; single document or
+feed `--each` batches), `owlie doctor`, `owlie --help`, and `owlie --version`.
+Search and audio transcription remain deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -31,17 +31,20 @@ from older v1 plans.
 
 Functional commands: `owlie extract URL` (a YouTube video, a static article,
 or a bounded RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE]
---prompt`, `owlie doctor`, `owlie --help`, `owlie --version`. In scope:
-individual YouTube video transcript extraction, static article extraction via
-the universal `extract` dispatch, bounded RSS/Atom listing and linked-item
-feed extraction, a DeepSeek `ContentProcessor` (via `ai` and
-`@ai-sdk/deepseek`), pipe-first stream/output contracts, secure configuration,
-and the shared core and coding-agent harness.
+--prompt`, `owlie process FEED_URL --each [--limit N] --prompt "..."`,
+`owlie doctor`, `owlie --help`, `owlie --version`. In scope: individual
+YouTube video transcript extraction, static article extraction via the
+universal `extract` dispatch, bounded RSS/Atom listing, linked-item feed
+extraction, and linked-item feed processing (`process --each`), a DeepSeek
+`ContentProcessor` (via `ai` and `@ai-sdk/deepseek`), pipe-first
+stream/output contracts, secure configuration, and the shared core and
+coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcasts,
 Whisper/audio transcription, generic webpage crawling, collection search,
-`process --each`, `owlie run`, scheduling/monitoring/cron, local database or
-persistent jobs, `owlie-app` integration, Owlie user authentication,
+`process --each` for non-feed collections, `owlie run`,
+scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
+integration, Owlie user authentication,
 billing/credits/analytics/notifications/hosted storage, and automatic
 publishing or deployment. Deferred scaffold packages are not deleted, but
 documentation must not imply they are functional.
@@ -219,9 +222,10 @@ or snapshots. `.env.example` must contain only empty, documented variables.
 ## 19. Definition of done
 
 A change is done when: it compiles, `pnpm check` passes, tests cover the
-behavior, documentation and ADRs are updated, dependency rules hold, no
-credentials or hosted concepts were introduced, and nothing was committed,
-pushed, or published.
+behavior, documentation is updated and internally consistent — including the
+governing status in §2/§3 and any ADR whose decisions the change reverses
+(see §14) — dependency rules hold, no credentials or hosted concepts were
+introduced, and nothing was committed, pushed, or published.
 
 ## 20. Prefer existing contracts
 

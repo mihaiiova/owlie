@@ -8,20 +8,18 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import { CancelledError, ConfigurationError, OwlieError, listCollection } from '@owlieio/core';
-import { ArticleAdapter } from '@owlieio/adapter-article';
 import { RssAdapter } from '@owlieio/adapter-rss';
-import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { resolveProcessInput } from '../input.js';
 import type { ProcessInputSource } from '../input.js';
 import { readUserConfig, resolveDeepSeekConfig } from '../config.js';
-import type { DeepSeekEnvConfig } from '../config.js';
+import type { DeepSeekEnvConfig, UserConfig } from '../config.js';
 import { parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { resolveProcessor } from '../registry.js';
+import { defaultItemAdapters, resolveProcessor } from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 
@@ -35,6 +33,7 @@ export interface ProcessDeps {
   itemAdapters?: readonly ItemAdapter[];
   /** Collection adapter used to recognize and list RSS/Atom feeds. */
   feedAdapter?: CollectionAdapter;
+  readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
 }
 
@@ -183,13 +182,13 @@ async function runFeedProcessing(
     return ExitCode.Usage;
   }
 
-  const itemAdapters = deps.itemAdapters ?? [
-    new YouTubeAdapter({
+  const readConfig = deps.readConfig ?? readUserConfig;
+  const itemAdapters =
+    deps.itemAdapters ??
+    defaultItemAdapters({
       languages: parseLanguages(options.language),
-      proxy: readUserConfig().proxy,
-    }),
-    new ArticleAdapter(),
-  ];
+      proxy: readConfig().proxy,
+    });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
 
   if (!feedAdapter.recognize({ url })) {

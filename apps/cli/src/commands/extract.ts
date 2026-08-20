@@ -11,9 +11,7 @@ import {
   listCollection,
   resolveItem,
 } from '@owlieio/core';
-import { ArticleAdapter } from '@owlieio/adapter-article';
 import { RssAdapter } from '@owlieio/adapter-rss';
-import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -22,6 +20,7 @@ import type { UserConfig } from '../config.js';
 import { selectItemAdapter } from '../dispatch.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
+import { defaultItemAdapters } from '../registry.js';
 import { summarizeCollection } from './list.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
@@ -89,10 +88,12 @@ export async function runExtractCommand(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters = deps.itemAdapters ?? [
-    new YouTubeAdapter({ languages: parseLanguages(options.language), proxy: readConfig().proxy }),
-    new ArticleAdapter(),
-  ];
+  const itemAdapters =
+    deps.itemAdapters ??
+    defaultItemAdapters({
+      languages: parseLanguages(options.language),
+      proxy: readConfig().proxy,
+    });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
   const spinner =
     deps.spinner ??
