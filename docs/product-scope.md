@@ -48,7 +48,10 @@ reserved for future collection streaming and is not used in v0.1.
   scaffolds for these exist but are not functional.
 - A local database or persistent job records.
 - Reddit OAuth, credentials, comment-tree extraction, and HTML scraping.
-- Following external links from RSS entries and generic webpage extraction.
+- Following external links from RSS entries, generic crawling, and browser-rendered
+  webpage extraction. The reusable static `article` adapter is the narrow
+  exception: it extracts a directly supplied safe HTTP(S) editorial page from
+  server-rendered HTML only; CLI URL dispatch is delivered separately.
 - Automatic package publishing and Windows support guarantees.
 
 ## Hosted-app responsibilities (`owlie-app`)

@@ -7,31 +7,37 @@ fixed the redirect-cap off-by-one, wrapped `resolve` URL normalization in a
 typed error, and closed two coverage gaps.
 
 ## History Checked
+
 - No prior revision logs
 
 ## Recurring Patterns
+
 - None found
 
 ## Scores
-| Dimension | Score |
-|-----------|-------|
-| Friction | 0.3 |
-| Repetition | 0.3 |
-| Missing capability | 0.2 |
-| Knowledge gap | 0.2 |
-| Fragility | 0.3 |
+
+| Dimension          | Score |
+| ------------------ | ----- |
+| Friction           | 0.3   |
+| Repetition         | 0.3   |
+| Missing capability | 0.2   |
+| Knowledge gap      | 0.2   |
+| Fragility          | 0.3   |
 
 ## Suggestions
-| # | Category | Suggestion | Score | Accepted? |
-|---|----------|------------|-------|-----------|
-|   |          |            |       |           |
+
+| #   | Category | Suggestion | Score | Accepted? |
+| --- | -------- | ---------- | ----- | --------- |
+|     |          |            |       |           |
 
 No significant improvement opportunities found.
 
 ## Changes Made
+
 - None (no suggestion crossed the 0.6 threshold)
 
 ## Notes
+
 - Two review findings were real and fixed: the redirect cap was off-by-one
   (`redirects + 1 >= maxRedirects` rejected one redirect early), and
   `RssAdapter.resolve` leaked a raw `TypeError` for a malformed URL paired with

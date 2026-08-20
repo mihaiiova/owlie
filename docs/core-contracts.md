@@ -5,6 +5,7 @@ and the CLI build on. See `packages/core/src/` for the canonical definitions.
 
 ## Data types
 
+- `SourceType` — `youtube`, `podcast`, `reddit`, `rss`, or the narrow static `article` source.
 - `ContentLocator` — `{ url, hint? }`
 - `ContentCollection` — `{ id, sourceType, canonicalUrl, title?, metadata }`
 - `ContentItem` — `{ id, sourceType, canonicalUrl, title?, description?,
@@ -33,7 +34,9 @@ source-specific fields.
 - `CollectionAdapter` — `resolve(locator)` → `ContentCollection`, and
   `list(collection, options)` → `{ collection, items, truncated }`.
 - `ItemAdapter` — `resolveItem?(locator)` → `ContentItem`, and
-  `extract(item, options)` → `NormalizedDocument`.
+  `extract(item, options)` → `NormalizedDocument`. `ArticleAdapter` uses the
+  safe `HttpFetcher` response (`text`, final validated `url`, and declared
+  `contentType`) before passing bounded HTML to its extractor.
 - `ContentExtractor` — reusable `extract` strategy (Reddit reuses RSS parsing
   via this seam).
 - `CollectionDiscovery` — reserved for future discovery of collections.

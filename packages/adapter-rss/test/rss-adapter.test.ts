@@ -10,6 +10,11 @@ import { collectionAdapterContract } from '@owlieio/testing/contract-tests';
 import { RSS20 } from './fixtures.js';
 
 const fakeFetcher: HttpFetcher = {
+  fetch: async () => ({
+    url: 'https://example.com/feed.xml',
+    contentType: 'application/rss+xml',
+    text: RSS20,
+  }),
   fetchText: async () => RSS20,
 };
 

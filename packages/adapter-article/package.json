@@ -1,0 +1,36 @@
+{
+  "name": "@owlieio/adapter-article",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static article source adapter for Owlie CLI",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts packages/adapter-article"
+  },
+  "dependencies": {
+    "@extractus/article-extractor": "^9.0.0",
+    "@owlieio/core": "workspace:*",
+    "entities": "^8.0.0"
+  },
+  "devDependencies": {
+    "@owlieio/testing": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

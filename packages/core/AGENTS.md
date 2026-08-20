@@ -17,7 +17,10 @@ provider, and the CLI — never the other way around.
    `provider-openai` and `owlie-app`, respectively.
 3. **No environment-variable loading.** Configuration arrives as explicit
    objects. Only the `owlie` CLI loads environment files.
-4. **No network access.** Core is pure contracts plus small pure helpers.
+4. **No adapter/provider network clients.** Core is pure contracts and helpers,
+   except `http.ts`, which owns the explicit, injectable `DefaultHttpFetcher`
+   safe-HTTP boundary defined by ADR 0010. It must not read environment
+   variables or introduce source-specific network behavior.
 5. **Never call `process.exit`.** Throw typed errors (`errors.ts`) instead.
 6. **Prefer discriminated unions** (like `ProgressEvent`) where they improve
    safety.

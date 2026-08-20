@@ -116,6 +116,28 @@ describe('DefaultHttpFetcher', () => {
     expect(calls[0]!.headers['user-agent']).toBe('owlie-cli');
   });
 
+  it('returns bounded text with the final URL and declared media type', async () => {
+    const fetchFn: HttpFetchFn = async (input) => {
+      const url = String(input);
+      if (url === 'https://example.com/start') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://example.com/article' },
+        });
+      }
+      return ok('<article>Readable text</article>', {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn);
+
+    await expect(fetcher.fetch('https://example.com/start')).resolves.toEqual({
+      text: '<article>Readable text</article>',
+      url: 'https://example.com/article',
+      contentType: 'text/html; charset=utf-8',
+    });
+  });
+
   it('honors a custom User-Agent', async () => {
     const calls: Array<string | null> = [];
     const fetchFn: HttpFetchFn = async (_input, init) => {
@@ -212,6 +234,24 @@ describe('DefaultHttpFetcher', () => {
     await expect(
       fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
     ).rejects.toThrow(CancelledError);
+  });
+
+  it('cancels a response body that stalls after headers arrive', async () => {
+    let cancelled = false;
+    const fetchFn: HttpFetchFn = async () => {
+      const body = new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+        },
+      });
+      return new Response(body, { headers: { 'content-type': 'text/html' } });
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn);
+
+    await expect(
+      fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
+    ).rejects.toThrow(CancelledError);
+    expect(cancelled).toBe(true);
   });
 
   it('cancels on an external abort signal', async () => {

@@ -7,7 +7,7 @@
  */
 
 /** The kind of source a locator, collection, item, or document came from. */
-export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss';
+export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss' | 'article';
 
 /**
  * The kind of media a normalized document contains. Not every document is a
