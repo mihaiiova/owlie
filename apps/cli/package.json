@@ -31,6 +31,7 @@
     "test": "vitest run --config ../../vitest.config.ts apps/cli"
   },
   "devDependencies": {
+    "@owlieio/adapter-article": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",
     "@owlieio/adapter-rss": "workspace:*",

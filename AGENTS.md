@@ -11,9 +11,12 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 
 ## 2. Current implementation status
 
-This is a **scaffold**. Contracts compile, tests pass, and `pnpm check` is
-green. No real extraction, search, transcription, or processing exists yet.
-Only `owlie --help`, `owlie --version`, and `owlie doctor` are functional.
+This is a **scaffold** that is progressively becoming functional. Contracts
+compile, tests pass, and `pnpm check` is green. Functional commands today:
+`owlie extract` (YouTube transcripts, static articles, and bounded RSS/Atom
+feed batches), `owlie list`, `owlie process` (DeepSeek), `owlie doctor`,
+`owlie --help`, and `owlie --version`. Search and audio transcription remain
+deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -26,19 +29,22 @@ from older v1 plans.
 
 ### v0.1 (current milestone)
 
-Functional commands: `owlie extract URL`, `owlie process [FILE] --prompt`,
-`owlie doctor`, `owlie --help`, `owlie --version`. In scope: individual
-YouTube video transcript extraction, a DeepSeek `ContentProcessor` (via `ai`
-and `@ai-sdk/deepseek`), pipe-first stream/output contracts, secure
-configuration, and the shared core and coding-agent harness.
+Functional commands: `owlie extract URL` (a YouTube video, a static article,
+or a bounded RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE]
+--prompt`, `owlie doctor`, `owlie --help`, `owlie --version`. In scope:
+individual YouTube video transcript extraction, static article extraction via
+the universal `extract` dispatch, bounded RSS/Atom listing and linked-item
+feed extraction, a DeepSeek `ContentProcessor` (via `ai` and
+`@ai-sdk/deepseek`), pipe-first stream/output contracts, secure configuration,
+and the shared core and coding-agent harness.
 
-Explicit v0.1 non-goals: YouTube playlists/channels, RSS/Atom, Reddit,
-podcasts, Whisper/audio transcription, generic webpage extraction, collection
-listing/search, `process --each`, `owlie run`, scheduling/monitoring/cron,
-local database or persistent jobs, `owlie-app` integration, Owlie user
-authentication, billing/credits/analytics/notifications/hosted storage, and
-automatic publishing or deployment. Deferred scaffold packages are not
-deleted, but documentation must not imply they are functional.
+Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcasts,
+Whisper/audio transcription, generic webpage crawling, collection search,
+`process --each`, `owlie run`, scheduling/monitoring/cron, local database or
+persistent jobs, `owlie-app` integration, Owlie user authentication,
+billing/credits/analytics/notifications/hosted storage, and automatic
+publishing or deployment. Deferred scaffold packages are not deleted, but
+documentation must not imply they are functional.
 
 ### v1 (later)
 
@@ -178,6 +184,11 @@ Add unit tests for pure logic and contract tests for adapters/providers using
 When behavior or architecture changes, update the relevant file in `docs/`,
 the README, the CHANGELOG, and add an ADR under `docs/decisions/` for
 architectural decisions. Keep docs internally consistent.
+
+When a change makes a previously deferred capability functional, also update
+the governing status in this file (§2 "Current implementation status" and
+§3 "v0.1 scope" functional-command/non-goal lists) and supersede any ADR whose
+decisions the change reverses — in the same change, not only at review time.
 
 ## 15. Migration workflow from `owlie-app`
 

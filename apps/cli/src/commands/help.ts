@@ -4,7 +4,7 @@ Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract a transcript from a YouTube video
+  extract   Extract content from a YouTube video, an article, or an RSS/Atom feed
   list      List entries in an RSS/Atom feed
   process   Process text or a document with an LLM
   setup     Configure providers and models interactively
@@ -18,7 +18,7 @@ Options:
   --json           Emit machine-readable JSON on stdout
   --model MODEL    Select the model (e.g. deepseek-chat)
   --language LANG  Select transcript languages (comma-separated; default en)
-  --limit N        Bound collection listing (positive integer, max 500)
+  --limit N        Bound collection listing and feed extraction (max 500)
   --env-file PATH  Load an explicit environment file (reserved)
 
 Exit codes:
@@ -26,10 +26,13 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--json] [--language LANG]\n\n' +
-  'Extract a transcript from a YouTube video. Writes the transcript text to\n' +
-  'stdout, or a JSON NormalizedDocument with --json. --language sets a\n' +
-  'comma-separated language priority list (default en).';
+  'owlie extract URL [--json] [--language LANG] [--limit N]\n\n' +
+  'Extract content from a URL. A YouTube video or static article writes its\n' +
+  'normalized text to stdout, or a JSON NormalizedDocument with --json. An\n' +
+  'RSS/Atom feed URL writes a single JSON envelope of its bounded linked items,\n' +
+  'each with its URL, title, and normalized document or structured error.\n' +
+  '--limit bounds feed extraction (default 10, max 500). --language sets a\n' +
+  'comma-separated language priority list for YouTube transcripts (default en).';
 
 const LIST_HELP =
   'owlie list FEED_URL [--limit N] [--json]\n\n' +
@@ -51,8 +54,8 @@ const SETUP_HELP =
 const DOCTOR_HELP =
   'owlie doctor [--json]\n\n' +
   'Report local environment health: Node version, platform, DeepSeek API key\n' +
-  'presence, configured model, the functional adapter and provider, and the\n' +
-  'writable config and cache directories.';
+  'presence, configured model, the functional adapters (YouTube, RSS, article)\n' +
+  'and provider (DeepSeek), and the writable config and cache directories.';
 
 export function helpText(): string {
   return HELP;

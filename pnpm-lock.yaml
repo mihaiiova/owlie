@@ -48,6 +48,9 @@ importers:
         specifier: ^7.0.0
         version: 7.29.0
     devDependencies:
+      '@owlieio/adapter-article':
+        specifier: workspace:*
+        version: link:../../packages/adapter-article
       '@owlieio/adapter-podcast':
         specifier: workspace:*
         version: link:../../packages/adapter-podcast
