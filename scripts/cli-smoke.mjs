@@ -16,7 +16,7 @@ const checks = [
     name: '--help',
     args: ['--help'],
     status: 0,
-    stdout: /extract|process|setup|doctor/i,
+    stdout: /extract|list|process|setup|doctor/i,
     stderr: null,
   },
   {
@@ -34,11 +34,18 @@ const checks = [
     stderr: null,
   },
   {
-    name: 'list is an unknown command',
-    args: ['list', 'https://example.com'],
+    name: 'list requires a URL',
+    args: ['list'],
     status: 2,
     stdout: null,
-    stderr: /unknown command/i,
+    stderr: /requires a URL/i,
+  },
+  {
+    name: 'list rejects a non-feed URL',
+    args: ['list', 'https://example.com'],
+    status: 1,
+    stdout: null,
+    stderr: /not a recognized RSS\/Atom feed URL/i,
   },
   {
     name: 'extract rejects an unsupported URL',

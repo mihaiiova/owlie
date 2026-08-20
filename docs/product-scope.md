@@ -22,6 +22,8 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
 - `owlie extract URL` — extract an available transcript from an individual
   YouTube video as a normalized document.
+- `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
+  RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
   document with DeepSeek, reading from a positional file, `--input FILE`, or
   stdin.
@@ -41,11 +43,11 @@ reserved for future collection streaming and is not used in v0.1.
 
 ## Deferred capabilities
 
-- Collection listing and search (`list`, `search`), `process --each`, and
-  `owlie run`.
+- Collection search (`search`), `process --each`, and `owlie run`. Bounded
+  RSS/Atom `list` is functional; collection search remains deferred.
 - Source monitoring and scheduled/recurring execution.
-- Whisper/audio transcription; podcasts; RSS/Atom; Reddit. Adapter/provider
-  scaffolds for these exist but are not functional.
+- Whisper/audio transcription; podcasts; Reddit. RSS/Atom entry extraction
+  (the adapter's `extract`) remains deferred; its bounded `list` is functional.
 - A local database or persistent job records.
 - Reddit OAuth, credentials, comment-tree extraction, and HTML scraping.
 - Following external links from RSS entries, generic crawling, and browser-rendered

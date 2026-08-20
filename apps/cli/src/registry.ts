@@ -1,14 +1,15 @@
 import type { ContentProcessor } from '@owlieio/core';
 import { ConfigurationError } from '@owlieio/core';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
+import { RssAdapter } from '@owlieio/adapter-rss';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 
 /**
- * The functional adapters bundled into `owlie`. v0.1 ships only the YouTube
- * video adapter; podcast, RSS, and Reddit remain deferred scaffolds and are
- * deliberately not registered, so `owlie doctor` reports only what works.
+ * The functional adapters bundled into `owlie`: the YouTube video adapter and
+ * the RSS/Atom collection adapter (bounded `list`). Podcast and Reddit remain
+ * deferred scaffolds and are deliberately not registered.
  */
-export const ADAPTER_IDS: readonly string[] = [YouTubeAdapter.id];
+export const ADAPTER_IDS: readonly string[] = [YouTubeAdapter.id, RssAdapter.id];
 
 /** Explicit configuration passed to a processor (loaded only by the CLI). */
 export interface ProcessorConfig {
