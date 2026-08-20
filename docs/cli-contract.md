@@ -7,6 +7,7 @@ exit codes.
 
 ```text
 owlie extract  Extract a transcript from a YouTube video   (v0.1)
+owlie list     List entries in an RSS/Atom feed            (functional)
 owlie process  Process text or a document with DeepSeek    (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
 owlie doctor   Report local environment health             (functional)
@@ -14,8 +15,8 @@ owlie help     Show help
 ```
 
 The commands above are the only ones `owlie` recognizes. Deferred commands
-(`list`, `search`, `config`) are not exposed: they report an "unknown command"
-usage error (code 2) rather than pretending to process content.
+(`search`, `config`) are not exposed: they report an "unknown command" usage
+error (code 2) rather than pretending to process content.
 
 ## Streams
 
@@ -28,12 +29,18 @@ usage error (code 2) rather than pretending to process content.
 
 ```text
 owlie extract URL [--json] [--language LANG]
+owlie list FEED_URL [--limit N] [--json]
 owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]
 ```
 
 - `extract` reads a single YouTube video URL and writes the transcript text,
   or a JSON `NormalizedDocument` with `--json`. `--language LANG` sets a
   comma-separated language priority list (default `en`).
+- `list` resolves an RSS/Atom feed URL and writes a bounded, line-oriented
+  summary of its entries to stdout, or a single JSON envelope with `--json`
+  (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
+  listing (default 10, maximum 500); invalid or oversized limits fail with a
+  clear error. Raw entry HTML is never written to stdout.
 - `process` reads exactly one input — a positional file, `--input FILE`, or
   stdin — and rejects ambiguous multiple inputs (exit code 2). Empty piped
   stdin is a clear error (exit code 1). `process` never fetches a URL: a URL
@@ -64,5 +71,6 @@ owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [-
 ## `owlie doctor`
 
 Reports Node version, OS and architecture, `DEEPSEEK_API_KEY` presence
-(never its value), the functional adapter (YouTube) and provider (DeepSeek).
-It also checks whether the configuration and cache directories are writable.
+(never its value), the functional adapters (YouTube, RSS) and provider
+(DeepSeek). It also checks whether the configuration and cache directories are
+writable.

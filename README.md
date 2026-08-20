@@ -20,6 +20,9 @@ v0.1 delivers a small, pipeable CLI:
 # Extract a transcript from an individual YouTube video
 owlie extract "https://youtube.com/watch?v=..."
 
+# List entries in an RSS/Atom feed (bounded)
+owlie list "https://example.com/feed.xml" --limit 20
+
 # Process plain text or a normalized document with DeepSeek
 owlie extract "https://youtube.com/watch?v=..." |
   owlie process --prompt "Summarize this"
@@ -45,13 +48,13 @@ Collections (deferred — not implemented in v0.1):
 
 - YouTube playlist
 - Subreddit (via Reddit's public Atom feeds)
-- RSS/Atom feed
+- RSS/Atom feed (bounded `owlie list` is functional; per-entry extraction deferred)
 
 ## Planned operations
 
 - `extract` normalized text from an individual item (v0.1: YouTube transcripts)
 - `process` a document with an LLM (v0.1: DeepSeek)
-- `list` items in a collection (deferred)
+- `list` items in a collection (RSS/Atom feeds)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
 - `extract` a transcript from audio or video via Whisper (deferred)
@@ -66,16 +69,17 @@ owlie --help
 owlie --version
 owlie doctor
 owlie extract URL   # no external runtime dependencies
+owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
 owlie setup        # configure provider, model, and API key
 ```
 
-The remaining planned commands (`list`, `search`, `config`) are not exposed:
-they report an "unknown command" usage error (exit code 2) rather than
-pretending to work.
+The remaining planned commands (`search`, `config`) are not exposed: they
+report an "unknown command" usage error (exit code 2) rather than pretending
+to work.
 
-At the library level, `@owlieio/adapter-rss` now implements bounded `list` and
-`extract` (safe fetch + parsing + normalization); no CLI command exposes them yet.
+`owlie list` exposes the RSS adapter's bounded listing. Single-entry RSS
+`extract` remains library-only until universal extraction lands.
 
 ## Non-goals
 
@@ -119,7 +123,7 @@ packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast adapter (scaffold)
-packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; no CLI command yet)
+packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-openai/    OpenAI content processor (scaffold)
 packages/provider-whisper/   Local faster-whisper transcriber (scaffold)
