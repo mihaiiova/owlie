@@ -4,7 +4,7 @@ import type {
   ContentCollection,
   ContentItem,
 } from '@owlieio/core';
-import { listCollection, resolveLimit } from '@owlieio/core';
+import { ConfigurationError, listCollection, resolveLimit } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -52,7 +52,11 @@ export interface ListEnvelope {
  * values with a {@link ConfigurationError}.
  */
 export function parseListLimit(raw: string | undefined): number {
-  return resolveLimit(raw === undefined ? undefined : Number(raw));
+  if (raw === undefined) return resolveLimit(undefined);
+  if (!/^\d+$/.test(raw)) {
+    throw new ConfigurationError(`limit must be a positive integer, received "${raw}"`);
+  }
+  return resolveLimit(Number(raw));
 }
 
 export function summarizeCollection(collection: ContentCollection): ListCollectionSummary {

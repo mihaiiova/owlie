@@ -76,6 +76,8 @@ describe('parseListLimit', () => {
     expect(() => parseListLimit('0')).toThrow();
     expect(() => parseListLimit('abc')).toThrow();
     expect(() => parseListLimit('2.5')).toThrow();
+    expect(() => parseListLimit('1e2')).toThrow();
+    expect(() => parseListLimit('0x10')).toThrow();
     expect(() => parseListLimit('501')).toThrow();
   });
 });
