@@ -28,6 +28,9 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
   document with DeepSeek, reading from a positional file, `--input FILE`, or
   stdin.
+- `owlie process FEED_URL --each [--limit N] --prompt "..."` — process the
+  bounded linked items of an RSS/Atom feed sequentially, streaming one JSONL
+  record per attempted item.
 - `owlie doctor` — report whether required dependencies and variables are
   present.
 - `owlie --help` / `owlie --version`.
@@ -39,13 +42,14 @@ owlie extract URL | owlie process --prompt "Summarize this"
 owlie extract URL --json | owlie process --input-format json --prompt "..." --json
 ```
 
-Output serialization in v0.1: `text` (raw), `markdown`, and `json`. `jsonl` is
-reserved for future collection streaming and is not used in v0.1.
+Output serialization in v0.1: `text` (raw), `markdown`, and `json`. `jsonl`
+is used by `process --each` to stream one record per attempted feed item;
+other commands do not use `jsonl`.
 
 ## Deferred capabilities
 
-- Collection search (`search`), `process --each`, and `owlie run`. Bounded
-  RSS/Atom `list` is functional; collection search remains deferred.
+- Collection search (`search`) and `owlie run`. Bounded RSS/Atom `list` and
+  `process --each` are functional; collection search remains deferred.
 - Source monitoring and scheduled/recurring execution.
 - Whisper/audio transcription; podcasts; Reddit. RSS/Atom entry extraction
   (the adapter's `extract`) remains deferred; its bounded `list` is functional.
