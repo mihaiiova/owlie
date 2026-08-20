@@ -13,7 +13,7 @@ provider-neutral core.
                                │ bundles │
         ┌──────────────┬───────┴────┐ ┌────┴───────────────┐
         ▼              ▼            ▼ ▼                    ▼
- adapter-youtube   adapter-…   adapter-reddit    provider-openai
+ adapter-youtube   adapter-article  adapter-reddit    provider-openai
  adapter-podcast                            provider-whisper
         │              │            │  │           │
         └──────────────┴───┬────────┘  └─────┬─────┘
@@ -56,7 +56,9 @@ imports.
    stable identity; an `ItemAdapter.resolveItem` produces a `ContentItem`.
 4. A collection adapter `list`s bounded items with stable identities and
    metadata.
-5. An item adapter `extract`s an item into a `NormalizedDocument`.
+5. An item adapter `extract`s an item into a `NormalizedDocument`. The article
+   adapter uses core's bounded `HttpFetcher` response, then extracts only the
+   fetched static HTML; it never delegates URL retrieval to an extractor.
 
 ## Extraction lifecycle
 

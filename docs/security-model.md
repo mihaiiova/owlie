@@ -29,8 +29,12 @@ and processing must be built.
   bodies.
 - **Safe HTML-to-text conversion** — strip scripts and dangerous markup when
   converting feed content to text.
-- **No silent fallback to HTML scraping** — if a feed fails, surface the error;
-  never scrape Reddit or other sites as a fallback.
+- **Narrow static article extraction** — accept only bounded `text/html` or
+  XHTML obtained through the safe HTTP seam; never let an article extractor
+  fetch URLs itself, execute scripts, render JavaScript, authenticate, or
+  bypass paywalls.
+- **No silent fallback to HTML scraping** — if a feed or static article fails,
+  surface the error; never scrape Reddit or use browser-rendering as a fallback.
 
 ## Files and processes
 

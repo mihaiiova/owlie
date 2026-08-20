@@ -14,8 +14,22 @@ export interface HttpFetchPolicy {
   userAgent?: string;
 }
 
-/** A seam for fetching the text body of an HTTP(S) URL. */
+/** A bounded text response from an HTTP(S) URL. */
+export interface HttpTextResponse {
+  /** Final, validated URL after redirects. */
+  url: string;
+  /** Declared `Content-Type` header, if the server provided one. */
+  contentType: string | null;
+  /** Decoded response body, capped by the fetch policy. */
+  text: string;
+}
+
+/** A seam for safely fetching bounded text from an HTTP(S) URL. */
 export interface HttpFetcher {
+  fetch(
+    url: string,
+    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
+  ): Promise<HttpTextResponse>;
   fetchText(
     url: string,
     options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
@@ -160,10 +174,10 @@ export class DefaultHttpFetcher implements HttpFetcher {
     this.fetchFn = fetchFn;
   }
 
-  async fetchText(
+  async fetch(
     url: string,
     options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<string> {
+  ): Promise<HttpTextResponse> {
     const policy = options.policy ?? {};
     const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
     const maxResponseBytes = policy.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
@@ -226,7 +240,18 @@ export class DefaultHttpFetcher implements HttpFetcher {
         throw new ExtractionError(`HTTP ${response.status} ${response.statusText} for ${current}`);
       }
 
-      return await readBody(response, maxResponseBytes);
+      return {
+        url: current,
+        contentType: response.headers.get('content-type'),
+        text: await readBody(response, maxResponseBytes),
+      };
     }
+  }
+
+  async fetchText(
+    url: string,
+    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+  ): Promise<string> {
+    return (await this.fetch(url, options)).text;
   }
 }

@@ -36,6 +36,7 @@ non-goals.
 Individual items:
 
 - YouTube video (v0.1)
+- Static article (reusable adapter; CLI dispatch deferred)
 - Podcast episode (deferred)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (deferred)
@@ -84,7 +85,9 @@ Owlie CLI does not provide:
 - source monitoring, schedules, or cron
 - a local database or persistent job records
 - Reddit OAuth, comment-tree extraction, or HTML scraping
-- generic webpage extraction
+- generic webpage crawling or browser-rendered extraction (the reusable
+  `article` adapter is limited to directly supplied, server-rendered editorial
+  HTML obtained through Owlie's safe HTTP fetcher)
 - telemetry
 
 Those responsibilities — where they exist at all — belong to the private,
@@ -114,6 +117,7 @@ apps/cli/                    The owlie executable
 packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
+packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast adapter (scaffold)
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; no CLI command yet)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
@@ -129,6 +133,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/core`             | Types, contracts, errors, limits, safe HTTP fetch, orchestration |
 | `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                           |
 | `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                              |
+| `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction            |
 | `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                                      |
 | `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)                |
 | `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                      |

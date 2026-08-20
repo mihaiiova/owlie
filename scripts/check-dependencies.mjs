@@ -15,6 +15,7 @@ const PACKAGES = [
   { name: '@owlieio/adapter-youtube', dir: 'packages/adapter-youtube', publishable: false },
   { name: '@owlieio/adapter-podcast', dir: 'packages/adapter-podcast', publishable: false },
   { name: '@owlieio/adapter-rss', dir: 'packages/adapter-rss', publishable: false },
+  { name: '@owlieio/adapter-article', dir: 'packages/adapter-article', publishable: false },
   { name: '@owlieio/adapter-reddit', dir: 'packages/adapter-reddit', publishable: false },
   { name: '@owlieio/provider-openai', dir: 'packages/provider-openai', publishable: false },
   { name: '@owlieio/provider-deepseek', dir: 'packages/provider-deepseek', publishable: false },
@@ -26,6 +27,7 @@ const ADAPTERS = [
   '@owlieio/adapter-youtube',
   '@owlieio/adapter-podcast',
   '@owlieio/adapter-rss',
+  '@owlieio/adapter-article',
   '@owlieio/adapter-reddit',
 ];
 const PROVIDERS = [
@@ -40,6 +42,7 @@ const ALLOWED = {
   '@owlieio/adapter-youtube': ['@owlieio/core'],
   '@owlieio/adapter-podcast': ['@owlieio/core'],
   '@owlieio/adapter-rss': ['@owlieio/core'],
+  '@owlieio/adapter-article': ['@owlieio/core'],
   // Documented exception: reddit may reuse public RSS/Atom parsing from rss.
   '@owlieio/adapter-reddit': ['@owlieio/core', '@owlieio/adapter-rss'],
   '@owlieio/provider-openai': ['@owlieio/core'],
