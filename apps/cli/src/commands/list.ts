@@ -4,11 +4,12 @@ import type {
   ContentCollection,
   ContentItem,
 } from '@owlieio/core';
-import { ConfigurationError, listCollection, resolveLimit } from '@owlieio/core';
+import { listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import { parseCollectionLimit } from '../limits.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 
@@ -50,13 +51,12 @@ export interface ListEnvelope {
  * Parses a raw `--limit` value into a bounded positive integer, defaulting to
  * the core collection limit when absent and rejecting invalid or oversized
  * values with a {@link ConfigurationError}.
+ *
+ * @deprecated Use {@link parseCollectionLimit} directly; kept for the public
+ * CLI API and existing callers.
  */
 export function parseListLimit(raw: string | undefined): number {
-  if (raw === undefined) return resolveLimit(undefined);
-  if (!/^\d+$/.test(raw)) {
-    throw new ConfigurationError(`limit must be a positive integer, received "${raw}"`);
-  }
-  return resolveLimit(Number(raw));
+  return parseCollectionLimit(raw);
 }
 
 export function summarizeCollection(collection: ContentCollection): ListCollectionSummary {

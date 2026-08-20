@@ -13,6 +13,8 @@ export {
 } from './spinner.js';
 export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export type { DoctorDeps } from './commands/doctor.js';
+export { selectItemAdapter } from './dispatch.js';
+export { parseCollectionLimit } from './limits.js';
 export { parseLanguages } from './commands/extract.js';
 export type { ExtractDeps } from './commands/extract.js';
 export { parseListLimit } from './commands/list.js';

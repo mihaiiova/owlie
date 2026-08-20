@@ -54,7 +54,7 @@ function makeFakeAdapter(
 }
 
 function deps(adapter: ItemAdapter): CliDeps {
-  return { extract: { adapter } };
+  return { extract: { itemAdapters: [adapter] } };
 }
 
 describe('extract command', () => {
@@ -117,7 +117,7 @@ describe('extract command', () => {
     const { io } = capture();
     const code = await run(['extract', URL], io, {
       extract: {
-        adapter: makeFakeAdapter(),
+        itemAdapters: [makeFakeAdapter()],
         spinner: {
           start: (message) => starts.push(message),
           stop: () => {

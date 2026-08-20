@@ -72,7 +72,7 @@ describe('extract | process pipeline', () => {
   it('pipes raw transcript text into process', async () => {
     const extractRun = makeIo();
     const extractCode = await run(['extract', URL], extractRun.io, {
-      extract: { adapter: makeFakeAdapter() },
+      extract: { itemAdapters: [makeFakeAdapter()] },
     });
     expect(extractCode).toBe(ExitCode.Success);
     // stdout carries only the transcript text (progress stays on stderr)
@@ -92,7 +92,7 @@ describe('extract | process pipeline', () => {
   it('round-trips a JSON NormalizedDocument through process', async () => {
     const extractRun = makeIo();
     const extractCode = await run(['extract', URL, '--json'], extractRun.io, {
-      extract: { adapter: makeFakeAdapter() },
+      extract: { itemAdapters: [makeFakeAdapter()] },
     });
     expect(extractCode).toBe(ExitCode.Success);
     const docJson = extractRun.stdout();
@@ -119,7 +119,7 @@ describe('extract | process pipeline', () => {
   it('emits valid JSON at every pipeline stage', async () => {
     const extractRun = makeIo();
     await run(['extract', URL, '--json'], extractRun.io, {
-      extract: { adapter: makeFakeAdapter() },
+      extract: { itemAdapters: [makeFakeAdapter()] },
     });
     expect(() => JSON.parse(extractRun.stdout())).not.toThrow();
 
