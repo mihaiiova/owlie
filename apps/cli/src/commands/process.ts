@@ -1,13 +1,26 @@
 import { readFile } from 'node:fs/promises';
-import type { ContentProcessor, NormalizedDocument, ProcessRequest } from '@owlieio/core';
-import { ConfigurationError, OwlieError } from '@owlieio/core';
+import type {
+  CollectionAdapter,
+  ContentProcessor,
+  ItemAdapter,
+  NormalizedDocument,
+  ProcessRequest,
+  ProgressSink,
+} from '@owlieio/core';
+import { CancelledError, ConfigurationError, OwlieError, listCollection } from '@owlieio/core';
+import { ArticleAdapter } from '@owlieio/adapter-article';
+import { RssAdapter } from '@owlieio/adapter-rss';
+import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { resolveProcessInput } from '../input.js';
 import type { ProcessInputSource } from '../input.js';
-import { resolveDeepSeekConfig } from '../config.js';
+import { readUserConfig, resolveDeepSeekConfig } from '../config.js';
 import type { DeepSeekEnvConfig } from '../config.js';
+import { parseLanguages } from './extract.js';
+import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import { parseCollectionLimit } from '../limits.js';
 import { resolveProcessor } from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
@@ -18,6 +31,10 @@ export interface ProcessDeps {
   processor?: ContentProcessor;
   /** Injected for tests; bypasses environment loading. */
   config?: DeepSeekEnvConfig;
+  /** Ordered item adapters for linked-item dispatch (`--each` mode). */
+  itemAdapters?: readonly ItemAdapter[];
+  /** Collection adapter used to recognize and list RSS/Atom feeds. */
+  feedAdapter?: CollectionAdapter;
   spinner?: SpinnerLike;
 }
 
@@ -101,6 +118,10 @@ export async function runProcessCommand(
     });
 
   try {
+    if (options.each) {
+      return await runFeedProcessing(args, io, options, deps, spinner);
+    }
+
     const stdinPiped = !io.stdin.isTTY;
     const needsStdinRead = stdinPiped && args[0] === undefined && options.input === undefined;
     const stdinContent = needsStdinRead ? await io.stdin.read() : undefined;
@@ -135,4 +156,96 @@ export async function runProcessCommand(
     }
     return exitCodeForError(error);
   }
+}
+
+async function runFeedProcessing(
+  args: string[],
+  io: CliIo,
+  options: CliOptions,
+  deps: ProcessDeps,
+  spinner: SpinnerLike,
+): Promise<number> {
+  const [url, extra] = args;
+  if (url === undefined) {
+    if (!options.quiet) io.stderr.write('owlie: --each requires a feed URL\n');
+    return ExitCode.Usage;
+  }
+  if (extra !== undefined) {
+    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    return ExitCode.Usage;
+  }
+  if (options.input !== undefined) {
+    if (!options.quiet) io.stderr.write('owlie: --each cannot be combined with --input\n');
+    return ExitCode.Usage;
+  }
+  if (!io.stdin.isTTY) {
+    if (!options.quiet) io.stderr.write('owlie: --each cannot be combined with piped stdin\n');
+    return ExitCode.Usage;
+  }
+
+  const itemAdapters = deps.itemAdapters ?? [
+    new YouTubeAdapter({
+      languages: parseLanguages(options.language),
+      proxy: readUserConfig().proxy,
+    }),
+    new ArticleAdapter(),
+  ];
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+
+  if (!feedAdapter.recognize({ url })) {
+    if (!options.quiet)
+      io.stderr.write(`owlie: --each requires an RSS/Atom feed URL, received "${url}"\n`);
+    return ExitCode.Usage;
+  }
+
+  const config = deps.config ?? resolveDeepSeekConfig(options);
+  const processor = deps.processor ?? resolveConfiguredProcessor(config);
+
+  const limit = parseCollectionLimit(options.limit);
+  spinner.start(`processing ${url}`);
+  const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
+
+  let failed = false;
+  const progress: ProgressSink = {
+    emit: (event) => {
+      if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
+    },
+  };
+
+  for (const entry of result.items) {
+    if (deps.signal?.aborted) throw new CancelledError('processing cancelled');
+    const entryUrl = entry.canonicalUrl;
+    const ref = itemRef(entryUrl, entry.title);
+    try {
+      const { document } = await extractLinkedItem({
+        url: entryUrl,
+        title: entry.title,
+        itemAdapters,
+        signal: deps.signal,
+        progress,
+      });
+      try {
+        const procResult = await processor.process(
+          { document, instruction: options.prompt },
+          { signal: deps.signal },
+        );
+        io.stdout.write(JSON.stringify({ item: ref, document, result: procResult }) + '\n');
+      } catch (error) {
+        if (error instanceof CancelledError || deps.signal?.aborted) throw error;
+        failed = true;
+        io.stdout.write(
+          JSON.stringify({ item: ref, error: toBatchError(error, 'processing') }) + '\n',
+        );
+      }
+    } catch (error) {
+      if (error instanceof CancelledError || deps.signal?.aborted) throw error;
+      failed = true;
+      io.stdout.write(
+        JSON.stringify({ item: ref, error: toBatchError(error, 'extraction') }) + '\n',
+      );
+    }
+  }
+
+  spinner.stop();
+  return failed ? ExitCode.Error : ExitCode.Success;
 }

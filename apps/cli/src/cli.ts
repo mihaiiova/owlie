@@ -11,6 +11,7 @@ import { VERSION } from './version.js';
 export interface CliOptions {
   quiet: boolean;
   json: boolean;
+  each: boolean;
   envFile?: string;
   input?: string;
   inputFormat?: 'text' | 'json';
@@ -37,7 +38,7 @@ export interface ParsedArgs {
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
-  const options: CliOptions = { quiet: false, json: false };
+  const options: CliOptions = { quiet: false, json: false, each: false };
   const args: string[] = [];
   let helpRequested = false;
   let versionRequested = false;
@@ -105,6 +106,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--json':
         options.json = true;
+        break;
+      case '--each':
+        options.each = true;
         break;
       default: {
         if (KNOWN_VALUE_FLAGS.includes(arg)) {

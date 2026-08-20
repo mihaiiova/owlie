@@ -6,7 +6,7 @@ Usage:
 Commands:
   extract   Extract content from a YouTube video, an article, or an RSS/Atom feed
   list      List entries in an RSS/Atom feed
-  process   Process text or a document with an LLM
+  process   Process text, a document, or a feed's linked items with an LLM
   setup     Configure providers and models interactively
   doctor    Report local environment health
   help      Show this help
@@ -19,6 +19,7 @@ Options:
   --model MODEL    Select the model (e.g. deepseek-chat)
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
+  --each           Process each linked item of an RSS/Atom feed (process only)
   --env-file PATH  Load an explicit environment file (reserved)
 
 Exit codes:
@@ -41,9 +42,14 @@ const LIST_HELP =
   'metadata, item metadata, and truncation state with --json.';
 
 const PROCESS_HELP =
-  'owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n\n' +
+  'owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
+  'owlie process FEED_URL --each [--limit N] --prompt "..."\n\n' +
   'Process plain text or a normalized document with an LLM. Reads exactly one\n' +
-  'input: a positional file, --input FILE, or stdin. Never fetches a URL.';
+  'input: a positional file, --input FILE, or stdin. Never fetches a URL in\n' +
+  'single-input mode. With --each and a feed URL, processes each bounded\n' +
+  'linked item sequentially and streams one JSONL record per attempted entry\n' +
+  '(success: item, document, result; failure: item, error). --limit bounds the\n' +
+  'batch (default 10, max 500).';
 
 const SETUP_HELP =
   'owlie setup\n\n' +

@@ -57,6 +57,12 @@ describe('parseArgs', () => {
     expect(parseArgs(['--limit=25']).options.limit).toBe('25');
   });
 
+  it('parses --each', () => {
+    expect(parseArgs(['--each']).options.each).toBe(true);
+    expect(parseArgs(['process', 'feed.xml', '--each']).options.each).toBe(true);
+    expect(parseArgs([]).options.each).toBe(false);
+  });
+
   it('rejects a missing --limit value', () => {
     expect(parseArgs(['--limit']).usageError).toContain('--limit');
   });
