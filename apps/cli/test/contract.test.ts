@@ -6,7 +6,7 @@ import {
   OwlieError,
   ValidationError,
 } from '@owlieio/core';
-import { ExitCode, exitCodeForError, parseArgs, resolveProcessInput } from 'owlie';
+import { ExitCode, exitCodeForError, parseArgs, parseListLimit, resolveProcessInput } from 'owlie';
 
 describe('parseArgs', () => {
   it('parses the process input flags', () => {
@@ -50,6 +50,33 @@ describe('parseArgs', () => {
   it('parses --language', () => {
     expect(parseArgs(['--language', 'de,en']).options.language).toBe('de,en');
     expect(parseArgs(['--language=fr']).options.language).toBe('fr');
+  });
+
+  it('parses --limit', () => {
+    expect(parseArgs(['--limit', '5']).options.limit).toBe('5');
+    expect(parseArgs(['--limit=25']).options.limit).toBe('25');
+  });
+
+  it('rejects a missing --limit value', () => {
+    expect(parseArgs(['--limit']).usageError).toContain('--limit');
+  });
+});
+
+describe('parseListLimit', () => {
+  it('defaults to 10 when absent', () => {
+    expect(parseListLimit(undefined)).toBe(10);
+  });
+
+  it('accepts a bounded positive integer', () => {
+    expect(parseListLimit('3')).toBe(3);
+    expect(parseListLimit('500')).toBe(500);
+  });
+
+  it('rejects non-positive, non-integer, and oversized values', () => {
+    expect(() => parseListLimit('0')).toThrow();
+    expect(() => parseListLimit('abc')).toThrow();
+    expect(() => parseListLimit('2.5')).toThrow();
+    expect(() => parseListLimit('501')).toThrow();
   });
 });
 

@@ -3,6 +3,7 @@ import { ExitCode } from './io.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
+import { runListCommand, type ListDeps } from './commands/list.js';
 import { runProcessCommand, type ProcessDeps } from './commands/process.js';
 import { runSetupCommand, type SetupDeps } from './commands/setup.js';
 import { VERSION } from './version.js';
@@ -16,11 +17,13 @@ export interface CliOptions {
   prompt?: string;
   model?: string;
   language?: string;
+  limit?: string;
 }
 
 export interface CliDeps {
   doctor?: DoctorDeps;
   extract?: ExtractDeps;
+  list?: ListDeps;
   process?: ProcessDeps;
   setup?: SetupDeps;
 }
@@ -47,6 +50,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--prompt',
     '--model',
     '--language',
+    '--limit',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -76,6 +80,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--language':
         options.language = value;
+        break;
+      case '--limit':
+        options.limit = value;
         break;
     }
   };
@@ -156,6 +163,10 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'extract') {
     return runExtractCommand(parsed.args.slice(1), io, options, deps.extract);
+  }
+
+  if (command === 'list') {
+    return runListCommand(parsed.args.slice(1), io, options, deps.list);
   }
 
   if (command === 'process') {

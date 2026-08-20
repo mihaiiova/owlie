@@ -15,6 +15,8 @@ export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { parseLanguages } from './commands/extract.js';
 export type { ExtractDeps } from './commands/extract.js';
+export { parseListLimit } from './commands/list.js';
+export type { ListDeps } from './commands/list.js';
 export type { ProcessDeps } from './commands/process.js';
 export type { SetupDeps } from './commands/setup.js';
 export { VERSION } from './version.js';
