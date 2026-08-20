@@ -11,6 +11,7 @@
     "@owlieio/core",
     "@owlieio/testing",
     "@owlieio/adapter-youtube",
+    "@owlieio/adapter-article",
     "@owlieio/adapter-podcast",
     "@owlieio/adapter-rss",
     "@owlieio/adapter-reddit",

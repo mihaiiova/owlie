@@ -6,7 +6,7 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract a transcript from a YouTube video   (v0.1)
+owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
 owlie list     List entries in an RSS/Atom feed            (functional)
 owlie process  Process text or a document with DeepSeek    (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
@@ -28,14 +28,22 @@ error (code 2) rather than pretending to process content.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--json] [--language LANG]
+owlie extract URL [--json] [--language LANG] [--limit N]
 owlie list FEED_URL [--limit N] [--json]
 owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]
 ```
 
-- `extract` reads a single YouTube video URL and writes the transcript text,
-  or a JSON `NormalizedDocument` with `--json`. `--language LANG` sets a
-  comma-separated language priority list (default `en`).
+- `extract` dispatches a direct URL through the registry: YouTube video URLs
+  to the YouTube adapter, then any other safe HTTP(S) URL to the article
+  adapter. It writes the transcript/article text, or a JSON
+  `NormalizedDocument` with `--json`. `--language LANG` sets a comma-separated
+  language priority list for YouTube transcripts (default `en`).
+- `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
+  extraction and always writes a single JSON envelope (regardless of `--json`)
+  with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
+  It carries on after per-item extraction errors and exits 1 if any item
+  failed. `--limit N` bounds the batch (default 10, maximum 500); invalid or
+  oversized limits fail with a clear error.
 - `list` resolves an RSS/Atom feed URL and writes a bounded, line-oriented
   summary of its entries to stdout, or a single JSON envelope with `--json`
   (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
@@ -71,6 +79,6 @@ owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [-
 ## `owlie doctor`
 
 Reports Node version, OS and architecture, `DEEPSEEK_API_KEY` presence
-(never its value), the functional adapters (YouTube, RSS) and provider
-(DeepSeek). It also checks whether the configuration and cache directories are
-writable.
+(never its value), the functional adapters (YouTube, RSS, article) and
+provider (DeepSeek). It also checks whether the configuration and cache
+directories are writable.

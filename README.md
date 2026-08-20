@@ -9,7 +9,8 @@ processed with an LLM — entirely on your machine.
 > **Status: scaffold.** This repository is the foundation of the open-source
 > core. It compiles, lints, and tests cleanly, but it does **not** yet extract
 > or process real content. The v0.1 milestone is the first functional slice:
-> `owlie extract` (YouTube transcripts) and `owlie process` (DeepSeek). See
+> `owlie extract` (YouTube transcripts, articles, and feed batches) and
+> `owlie process` (DeepSeek). See
 > [Product scope](docs/product-scope.md) for what works and what does not.
 
 ## v0.1 (first functional milestone)
@@ -19,6 +20,12 @@ v0.1 delivers a small, pipeable CLI:
 ```bash
 # Extract a transcript from an individual YouTube video
 owlie extract "https://youtube.com/watch?v=..."
+
+# Extract the readable text of a static article
+owlie extract "https://example.com/story"
+
+# Extract a bounded feed's linked items into one JSON envelope
+owlie extract "https://example.com/feed.xml" --limit 20
 
 # List entries in an RSS/Atom feed (bounded)
 owlie list "https://example.com/feed.xml" --limit 20
@@ -39,20 +46,21 @@ non-goals.
 Individual items:
 
 - YouTube video (v0.1)
-- Static article (reusable adapter; CLI dispatch deferred)
+- Static article (v0.1, via universal `extract`)
 - Podcast episode (deferred)
 - Reddit post, discovered through a subreddit feed (deferred)
-- RSS/Atom entry (deferred)
+- RSS/Atom entry (bounded feed extraction via `owlie extract`)
 
 Collections (deferred — not implemented in v0.1):
 
 - YouTube playlist
 - Subreddit (via Reddit's public Atom feeds)
-- RSS/Atom feed (bounded `owlie list` is functional; per-entry extraction deferred)
+- RSS/Atom feed (bounded `owlie list` and `owlie extract` are functional)
 
 ## Planned operations
 
-- `extract` normalized text from an individual item (v0.1: YouTube transcripts)
+- `extract` normalized text from an individual item (YouTube video or static
+  article) or the bounded linked items of an RSS/Atom feed
 - `process` a document with an LLM (v0.1: DeepSeek)
 - `list` items in a collection (RSS/Atom feeds)
 - `search` collection item titles, descriptions, and feed-provided content
@@ -68,7 +76,7 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor
-owlie extract URL   # no external runtime dependencies
+owlie extract URL   # YouTube video, article, or bounded feed (no external runtime dependencies)
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
 owlie setup        # configure provider, model, and API key
@@ -78,8 +86,9 @@ The remaining planned commands (`search`, `config`) are not exposed: they
 report an "unknown command" usage error (exit code 2) rather than pretending
 to work.
 
-`owlie list` exposes the RSS adapter's bounded listing. Single-entry RSS
-`extract` remains library-only until universal extraction lands.
+`owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
+dispatches a direct URL to the YouTube or article adapter — or, for a feed
+URL, extracts its bounded linked items into one JSON envelope.
 
 ## Non-goals
 

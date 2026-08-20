@@ -21,7 +21,8 @@ what is deferred, and what belongs to the hosted product.
 v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
 - `owlie extract URL` — extract an available transcript from an individual
-  YouTube video as a normalized document.
+  YouTube video, the readable text of a static article, or the bounded linked
+  items of an RSS/Atom feed, as normalized documents.
 - `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
   RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
@@ -53,7 +54,8 @@ reserved for future collection streaming and is not used in v0.1.
 - Following external links from RSS entries, generic crawling, and browser-rendered
   webpage extraction. The reusable static `article` adapter is the narrow
   exception: it extracts a directly supplied safe HTTP(S) editorial page from
-  server-rendered HTML only; CLI URL dispatch is delivered separately.
+  server-rendered HTML only. Universal `extract` dispatch (YouTube video,
+  article, or bounded feed) is functional in v0.1.
 - Automatic package publishing and Windows support guarantees.
 
 ## Hosted-app responsibilities (`owlie-app`)

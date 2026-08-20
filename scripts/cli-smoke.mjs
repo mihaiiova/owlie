@@ -52,7 +52,7 @@ const checks = [
     args: ['extract', 'not-a-url'],
     status: 1,
     stdout: null,
-    stderr: /not a supported YouTube video URL/i,
+    stderr: /no adapter recognizes URL/i,
   },
   {
     name: 'process with empty stdin errors',
