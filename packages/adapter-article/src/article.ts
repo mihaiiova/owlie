@@ -57,7 +57,7 @@ export class ArticleAdapter implements ItemAdapter {
 
   recognize(locator: ContentLocator): boolean {
     try {
-      assertSafeHttpUrl(locator.url);
+      assertSafeHttpUrl(locator.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
       return true;
     } catch {
       return false;

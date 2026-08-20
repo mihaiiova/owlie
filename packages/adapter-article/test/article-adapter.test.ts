@@ -35,6 +35,14 @@ describe('ArticleAdapter.resolveItem', () => {
       canonicalUrl: 'https://example.com/articles/useful-story?ref=rss',
     });
   });
+
+  it('honors the explicit private-host opt-in while resolving an article URL', async () => {
+    const adapter = new ArticleAdapter({ fetcher, policy: { allowPrivateHosts: true } });
+
+    await expect(adapter.resolveItem({ url: 'http://localhost:8080/story' })).resolves.toMatchObject({
+      canonicalUrl: 'http://localhost:8080/story',
+    });
+  });
 });
 
 describe('ArticleAdapter.extract', () => {
