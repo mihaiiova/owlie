@@ -8,7 +8,7 @@ exit codes.
 ```text
 owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
 owlie list     List entries in an RSS/Atom feed            (functional)
-owlie process  Process text or a document with DeepSeek    (v0.1)
+owlie process  Process text, a document, or a feed's linked items with DeepSeek   (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
 owlie doctor   Report local environment health             (functional)
 owlie help     Show help
@@ -20,8 +20,9 @@ error (code 2) rather than pretending to process content.
 
 ## Streams
 
-- **stdout** carries the requested result only (raw text, or a single JSON
-  document with `--json`).
+- **stdout** carries the requested result only (raw text, a single JSON
+  document with `--json`, or one JSONL record per attempted item with
+  `process --each`).
 - **stderr** carries diagnostics and progress.
 - JSON output is never mixed with progress text.
 
@@ -31,6 +32,7 @@ error (code 2) rather than pretending to process content.
 owlie extract URL [--json] [--language LANG] [--limit N]
 owlie list FEED_URL [--limit N] [--json]
 owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]
+owlie process FEED_URL --each [--limit N] --prompt "..."
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
@@ -53,6 +55,16 @@ owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [-
   stdin — and rejects ambiguous multiple inputs (exit code 2). Empty piped
   stdin is a clear error (exit code 1). `process` never fetches a URL: a URL
   argument is treated as literal text or rejected, never fetched.
+- `process FEED_URL --each` is the collection-processing mode. It resolves the
+  feed, then lists, extracts (through the same universal dispatch), and
+  processes each bounded linked item sequentially in feed order, streaming one
+  JSONL record per attempted entry to stdout. Success records carry
+  `{ item: { url, title }, document, result }`; failures carry
+  `{ item: { url, title }, error: { code, message, stage } }` where `stage` is
+  `extraction` or `processing`. It retains successful items, exits 1 if any
+  record is an error, and `--limit N` bounds the batch (default 10, maximum
+  500). `--each` rejects `--input`, piped stdin, and non-feed URLs as usage
+  errors (exit code 2).
 - `process` requires a model selection via `--model` (or `DEEPSEEK_MODEL`).
   v0.1 supports `deepseek-chat` (default) and `deepseek-reasoner`; a missing or
   unsupported model is a clear configuration error (exit code 1).

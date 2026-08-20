@@ -36,6 +36,9 @@ owlie extract "https://youtube.com/watch?v=..." |
 
 owlie process transcript.txt --prompt "Summarize this"
 cat transcript.txt | owlie process --prompt "Summarize this"
+
+# Process each linked item of a feed, streaming one JSONL record per item
+owlie process "https://example.com/feed.xml" --each --prompt "Summarize this"
 ```
 
 See [ADR 0005](docs/decisions/0005-v0-1-scope.md) for the full v0.1 scope and
@@ -62,11 +65,13 @@ Collections (deferred — not implemented in v0.1):
 - `extract` normalized text from an individual item (YouTube video or static
   article) or the bounded linked items of an RSS/Atom feed
 - `process` a document with an LLM (v0.1: DeepSeek)
+- `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
+  JSONL record per item
 - `list` items in a collection (RSS/Atom feeds)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
 - `extract` a transcript from audio or video via Whisper (deferred)
-- `process` each item in a bounded collection with an LLM (deferred)
+- `process` each item in other (non-feed) collections with an LLM (deferred)
 
 Owlie CLI does **not** monitor sources or schedule recurring work.
 
@@ -79,6 +84,7 @@ owlie doctor
 owlie extract URL   # YouTube video, article, or bounded feed (no external runtime dependencies)
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
+owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
 owlie setup        # configure provider, model, and API key
 ```
 

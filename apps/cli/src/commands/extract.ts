@@ -7,22 +7,20 @@ import type {
 import {
   CancelledError,
   ConfigurationError,
-  ExtractionError,
-  OwlieError,
   extractItem,
   listCollection,
   resolveItem,
 } from '@owlieio/core';
-import { ArticleAdapter } from '@owlieio/adapter-article';
 import { RssAdapter } from '@owlieio/adapter-rss';
-import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { selectItemAdapter } from '../dispatch.js';
+import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
+import { defaultItemAdapters } from '../registry.js';
 import { summarizeCollection } from './list.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
@@ -70,14 +68,7 @@ export interface ExtractBatchEnvelope {
 }
 
 function toExtractError(error: unknown): ExtractBatchError {
-  const code = error instanceof OwlieError ? error.code : 'EXTRACTION_ERROR';
-  const message = error instanceof Error ? error.message : String(error);
-  return { code, message, stage: 'extraction' };
-}
-
-/** A `{ url, title }` base record; title is omitted when absent. */
-function baseItemRecord(url: string, title: string | undefined): { url: string; title?: string } {
-  return title === undefined ? { url } : { url, title };
+  return toBatchError(error, 'extraction');
 }
 
 export async function runExtractCommand(
@@ -97,10 +88,12 @@ export async function runExtractCommand(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters = deps.itemAdapters ?? [
-    new YouTubeAdapter({ languages: parseLanguages(options.language), proxy: readConfig().proxy }),
-    new ArticleAdapter(),
-  ];
+  const itemAdapters =
+    deps.itemAdapters ??
+    defaultItemAdapters({
+      languages: parseLanguages(options.language),
+      proxy: readConfig().proxy,
+    });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
   const spinner =
     deps.spinner ??
@@ -182,20 +175,18 @@ async function runFeedExtraction(
     if (deps.signal?.aborted) throw new CancelledError('extraction cancelled');
     const entryUrl = entry.canonicalUrl;
     try {
-      const adapter = selectItemAdapter(itemAdapters, { url: entryUrl });
-      if (!adapter) {
-        throw new ExtractionError(`no adapter recognizes linked URL: ${entryUrl}`);
-      }
-      const item = await resolveItem(adapter, { url: entryUrl });
-      const document = await extractItem(adapter, item, {
+      const outcome = await extractLinkedItem({
+        url: entryUrl,
+        title: entry.title,
+        itemAdapters,
         signal: deps.signal,
         progress,
       });
-      items.push({ ...baseItemRecord(entryUrl, entry.title), document });
+      items.push(outcome);
     } catch (error) {
       if (error instanceof CancelledError || deps.signal?.aborted) throw error;
       failed = true;
-      items.push({ ...baseItemRecord(entryUrl, entry.title), error: toExtractError(error) });
+      items.push({ ...itemRef(entryUrl, entry.title), error: toExtractError(error) });
     }
   }
 

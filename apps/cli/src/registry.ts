@@ -1,8 +1,9 @@
-import type { ContentProcessor } from '@owlieio/core';
+import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
 import { ConfigurationError } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
+import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 
 /**
@@ -13,6 +14,20 @@ import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
  * registered.
  */
 export const ADAPTER_IDS: readonly string[] = [YouTubeAdapter.id, RssAdapter.id, ArticleAdapter.id];
+
+/**
+ * The default ordered item adapters for universal `extract` dispatch: the
+ * specialized YouTube adapter first, then the article fallback for any other
+ * safe HTTP(S) URL. The CLI passes explicit language/proxy configuration.
+ */
+export function defaultItemAdapters(
+  options: { languages?: string[]; proxy?: TranscriptProxy } = {},
+): ItemAdapter[] {
+  return [
+    new YouTubeAdapter({ languages: options.languages, proxy: options.proxy }),
+    new ArticleAdapter(),
+  ];
+}
 
 /** Explicit configuration passed to a processor (loaded only by the CLI). */
 export interface ProcessorConfig {
