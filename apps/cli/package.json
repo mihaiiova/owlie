@@ -40,9 +40,9 @@
     "@owlieio/provider-deepseek": "workspace:*",
     "@owlieio/provider-openai": "workspace:*",
     "@owlieio/provider-whisper": "workspace:*",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.2.0",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }
