@@ -25,6 +25,94 @@ function canonicalizeArticleUrl(input: string): string {
   return url.toString();
 }
 
+/**
+ * Tags {@link https://github.com/extractus/article-extractor | article-extractor}
+ * keeps while sanitizing Readability output. It ships with a default allowlist
+ * that omits several standard HTML elements, and its `cleanify` step removes a
+ * disallowed element *together with its subtree*. When Readability retains a
+ * `<main>` (or another semantic wrapper) around an article body, the default
+ * allowlist therefore silently drops the entire article. We pass the full
+ * default list plus the standard elements Readability may emit so content is
+ * preserved rather than discarded.
+ */
+const ARTICLE_EXTRACTOR_ALLOWED_TAGS = [
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'u',
+  'b',
+  'i',
+  'em',
+  'strong',
+  'small',
+  'sup',
+  'sub',
+  'div',
+  'span',
+  'p',
+  'article',
+  'blockquote',
+  'section',
+  'details',
+  'summary',
+  'pre',
+  'code',
+  'ul',
+  'ol',
+  'li',
+  'dd',
+  'dl',
+  'table',
+  'caption',
+  'col',
+  'colgroup',
+  'th',
+  'tr',
+  'td',
+  'thead',
+  'tbody',
+  'tfoot',
+  'fieldset',
+  'legend',
+  'figure',
+  'figcaption',
+  'img',
+  'picture',
+  'video',
+  'audio',
+  'source',
+  'iframe',
+  'progress',
+  'br',
+  'hr',
+  'label',
+  'abbr',
+  'a',
+  'svg',
+  'main',
+  'time',
+  'header',
+  'footer',
+  'nav',
+  'aside',
+  'address',
+  'mark',
+  'data',
+  'output',
+  'del',
+  'ins',
+  's',
+  'q',
+  'cite',
+  'var',
+  'samp',
+  'kbd',
+  'wbr',
+];
+
 function isHtmlContentType(contentType: string | null): boolean {
   const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
   return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
@@ -95,7 +183,9 @@ export class ArticleAdapter implements ItemAdapter {
       }
       if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
 
-      const article = await extractFromHtml(response.text, response.url);
+      const article = await extractFromHtml(response.text, response.url, {
+        allowedTags: ARTICLE_EXTRACTOR_ALLOWED_TAGS,
+      });
       if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
       const text = plainText(article?.content ?? '');
       if (!text) {

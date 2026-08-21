@@ -3,7 +3,7 @@ import { ArticleAdapter } from '@owlieio/adapter-article';
 import { CancelledError, ExtractionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
-import { CLEAN_ARTICLE, MALFORMED_ARTICLE } from './fixtures.js';
+import { CLEAN_ARTICLE, MAIN_WRAPPED_ARTICLE, MALFORMED_ARTICLE } from './fixtures.js';
 
 const fetcher: HttpFetcher = {
   async fetch() {
@@ -136,6 +136,28 @@ describe('ArticleAdapter.extract', () => {
       title: 'Malformed story',
       text: expect.stringContaining('deliberately unclosed paragraph'),
     });
+  });
+
+  it('extracts article bodies Readability keeps inside a <main> wrapper', async () => {
+    const mainWrappedFetcher: HttpFetcher = {
+      ...fetcher,
+      async fetch() {
+        return {
+          url: 'https://example.com/articles/short-update',
+          contentType: 'text/html',
+          text: MAIN_WRAPPED_ARTICLE,
+        };
+      },
+    };
+    const adapter = new ArticleAdapter({ fetcher: mainWrappedFetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/articles/short-update' });
+
+    await expect(adapter.extract(item)).resolves.toMatchObject({
+      title: 'Short update wrapped in main',
+      text: expect.stringContaining('body lives inside a main element'),
+    });
+    const document = await adapter.extract(item);
+    expect(document.text).toContain('second paragraph adds the concrete detail');
   });
 
   it('maps no readable static content to an extraction error', async () => {
