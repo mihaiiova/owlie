@@ -1,39 +1,43 @@
 # owlie
 
-The `owlie` command-line interface.
+Local-first content extraction and processing, as a command-line tool.
 
 ## Status
 
-`--help`, `--version`, `doctor`, `extract` (YouTube transcripts), and `process`
-(DeepSeek) are functional. Help and `doctor` list only what is implemented;
-deferred adapters and providers are not exposed.
+v0.1 is functional: `extract` (YouTube transcripts, static articles, and
+bounded RSS/Atom feed batches), `list` (bounded feed entries), `process`
+(DeepSeek; single document or `--each` feed batches), `setup`, `doctor`,
+`--help`, and `--version`.
 
 ## Commands
 
 ```text
-owlie extract  Extract a transcript from a YouTube video
-owlie process  Process text or a document with an LLM
-owlie setup    Configure provider, model, and API key
-owlie doctor   Report local environment health
-owlie help     Show help
+owlie extract URL   # YouTube video, static article, or bounded RSS/Atom feed
+owlie list FEED_URL # list bounded entries of an RSS/Atom feed
+owlie process ...   # process text or a document with an LLM
+owlie setup         # configure provider, model, and API key interactively
+owlie doctor        # report local environment health
+owlie help          # show help
 ```
 
-## Rules
+Run `owlie --help` or `owlie <command> --help` for full usage.
+
+## Pipe-first contract
 
 - Results go to stdout; diagnostics and progress go to stderr.
-- `--json` output is never mixed with progress text.
-- Secrets are never printed.
-- No telemetry.
-- Only the entry point translates failures into exit codes; libraries throw.
+- `extract` writes normalized text for a direct URL (`--json` for the
+  `NormalizedDocument`) or a single JSON envelope for a feed URL.
+- `list` writes a line-oriented summary, or a JSON envelope with `--json`.
+- `process` writes plain text (`--json` for the `ProcessResult`) in
+  single-input mode; `--each` streams one JSONL record per feed item.
+- `--quiet` suppresses progress output.
+- Secrets are never printed. No telemetry.
 
-## Development
+## Configuration
 
-Run from the repository root:
+Set `DEEPSEEK_API_KEY` (or run `owlie setup`) to use `owlie process`.
+Configuration is persisted to `~/.config/owlie/config.json`.
 
-```bash
-pnpm build
-pnpm cli --help
-pnpm cli --version
-pnpm cli doctor
-pnpm test
-```
+## License
+
+Apache-2.0. See the `LICENSE` file in this package.

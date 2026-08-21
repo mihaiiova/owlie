@@ -23,6 +23,11 @@ would invite crawling, browser automation, and an unsafe second HTTP client.
 - The adapter accepts only `text/html` and `application/xhtml+xml`, then calls
   `@extractus/article-extractor`'s `extractFromHtml(html, finalUrl)`. It never
   calls that library's URL-fetching helper.
+- The extractor is invoked with an explicit `allowedTags` allowlist that
+  extends the library default with standard semantic elements (`main`, `time`,
+  and friends). The library's sanitizer removes a disallowed element together
+  with its subtree, so omitting `main` silently discards articles whose body
+  Readability keeps inside a `<main>` wrapper.
 - Empty readable output is an `ExtractionError`; cancellation remains a
   `CancelledError`.
 
