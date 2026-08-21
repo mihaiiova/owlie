@@ -1,0 +1,37 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: '30 1 * * *'
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          stale-issue-message: >
+            This issue has been marked stale because it has had no activity for
+            60 days. It will be closed in 14 days if there is no further
+            activity.
+          stale-pr-message: >
+            This pull request has been marked stale because it has had no
+            activity for 60 days. It will be closed in 14 days if there is no
+            further activity.
+          # Keep planning artifacts, onboarding labels, and security-sensitive
+          # work out of automation. The spec:* labels mirror the spec lifecycle
+          # (spec:epic, spec:ready, spec:in-progress, spec:reviewed, spec:done).
+          exempt-issue-labels: >
+            good first issue,help wanted,security,pinned,epic,idea,v0.1,
+            spec:epic,spec:ready,spec:in-progress,spec:reviewed,spec:done
+          exempt-pr-labels: >
+            good first issue,help wanted,security,pinned,epic,idea,v0.1,
+            spec:epic,spec:ready,spec:in-progress,spec:reviewed,spec:done
