@@ -43,7 +43,9 @@ check, build, package export validation, and CLI smoke tests.
 3. Implement in the correct package (see the dependency rules in `AGENTS.md`).
 4. Update documentation and ADRs if behavior or architecture changes.
 5. Run `pnpm check` and fix everything before opening a PR.
-6. Record user-facing changes with `pnpm changeset`.
+6. Record user-facing changes with `pnpm changeset`. A PR that touches
+   `apps/cli` or package `src` without a changeset fails CI unless it carries
+   the `no-changeset` label (for docs-only, config-only, or test-only changes).
 
 ## Dependency rules
 
@@ -60,6 +62,18 @@ check, build, package export validation, and CLI smoke tests.
 - Keep fixtures sanitized; never commit credentials, tokens, or user data.
 - Opt-in live tests (`OWLIE_LIVE_TESTS=1 pnpm test:live`) make real network
   calls and are excluded from default CI.
+
+## CI automation
+
+In addition to `pnpm check`, CI runs on every pull request:
+
+- **Secret scanning** (gitleaks) — fails on leaked credentials in the diff or history.
+- **Coverage** (Codecov) — fails only when coverage drops below the baseline.
+- **PR title lint** — enforces the Conventional Commits title format.
+- **Changeset presence** — fails user-facing PRs without a `.changeset/*.md`.
+
+Dependabot opens weekly, grouped dependency-update PRs. Stale automation labels
+inactive issues and PRs after 60 days and closes them 14 days later.
 
 ## Security
 
