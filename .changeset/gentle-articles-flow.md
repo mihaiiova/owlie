@@ -1,5 +1,5 @@
 ---
-"owlie": patch
+'owlie': patch
 ---
 
 Static article extraction no longer drops article bodies that Readability keeps
