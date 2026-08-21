@@ -1,5 +1,7 @@
 # Owlie CLI
 
+[![codecov](https://codecov.io/gh/mihaiiova/owlie-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie-cli)
+
 Local-first content extraction and processing, as a command-line tool.
 
 Owlie CLI turns sources like YouTube videos, podcast episodes, Reddit posts, and

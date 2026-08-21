@@ -1,0 +1,29 @@
+name: Changeset check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changeset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check for changeset
+        env:
+          HAS_NO_CHANGESET_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+        run: |
+          if [ "$HAS_NO_CHANGESET_LABEL" = "true" ]; then
+            echo "no-changeset label present; skipping check"
+            exit 0
+          fi
+          git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD" | node scripts/check-changeset.mjs

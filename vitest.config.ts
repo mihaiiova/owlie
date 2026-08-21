@@ -24,7 +24,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.ts'],
+    include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.live.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['packages/**/src/**/*.ts', 'apps/**/src/**/*.ts'],
+    },
   },
 });
