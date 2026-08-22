@@ -235,7 +235,7 @@ release notes.
 These live in GitHub settings or secrets, not in the repository:
 
 - The repository is **public** (done).
-- Configure **branch protection** per §6.
+- Branch protection on `main` is configured (done).
 - `CODECOV_TOKEN` is configured (done); Dependabot and gitleaks need no secrets.
 - Keep the npm owner list small; publishing stays human-gated.
 
