@@ -7,11 +7,13 @@ and processing must be built.
 
 ## Network and SSRF
 
-- **SSRF protection** — block unsafe local and private network destinations by
-  default (loopback, link-local, private ranges, metadata endpoints) unless the
-  user explicitly opts in. Hostnames are resolved to their IP address(es) and
-  validated on every redirect hop (best-effort: a DNS record can still change
-  between the check and the connect).
+- **SSRF protection** — allow only globally routable unicast destinations by
+  default. Canonically classify IPv4, IPv6, and IPv4-mapped IPv6; block private,
+  local, metadata, multicast, reserved, and other special-purpose ranges.
+  `allowPrivateHosts` opts into private/local ranges only, not a blanket bypass.
+  Hostnames are resolved to their IP address(es) and validated on every redirect
+  hop (best-effort: a DNS record can still change between the check and the
+  connect).
 - **Redirect limits** — cap redirects and validate each hop against the same
   destination policy.
 - **Request timeouts** — enforce connect and total read timeouts on every
@@ -54,8 +56,9 @@ and processing must be built.
 ## Secrets and privacy
 
 - **Secret redaction** — never print API keys, tokens, or env values.
-- **No credentials in URLs or logs** — strip or refuse credentials embedded in
-  URLs and never log them.
+- **No credentials in URLs or logs** — reject HTTP(S) URL userinfo on initial
+  and redirect URLs. Safe-fetch diagnostics include only origin and path,
+  omitting userinfo, query, and fragment.
 - **Sanitized fixtures** — test fixtures contain no real credentials or user
   data.
 - **No telemetry** — the CLI never phones home with usage or content.

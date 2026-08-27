@@ -41,6 +41,16 @@ source-specific fields.
   via this seam).
 - `CollectionDiscovery` — reserved for future discovery of collections.
 
+## Safe HTTP contracts
+
+- `HttpFetcher` / `DefaultHttpFetcher` — bounded text fetching with canonical
+  IP classification, per-hop DNS and redirect validation, unconditional URL
+  userinfo rejection, and origin-plus-path diagnostics. Destinations must be
+  globally routable unicast by default; `allowPrivateHosts` permits only the
+  documented private/local categories.
+- `HttpFetchPolicy` — timeout, redirect, response-size, private/local opt-in,
+  and user-agent policy shared by HTTP-backed adapters.
+
 ## Processing contracts
 
 - `Transcriber` — `id`, `transcribe(input, options?)` → `TranscriptionResult`.

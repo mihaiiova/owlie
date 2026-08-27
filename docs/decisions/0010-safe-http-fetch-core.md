@@ -1,6 +1,6 @@
 # ADR 0010 — Safe HTTP fetch primitive in `@owlieio/core`
 
-- **Status:** Accepted
+- **Status:** Accepted (address parsing, credential handling, and the runtime-dependency consequence refined by [ADR 0016](0016-canonical-safe-http-destinations.md))
 - **Date:** 2026-08-19
 
 ## Context
@@ -35,8 +35,9 @@ future media download all need it.
 - Core now owns the SSRF destination policy as a pure, unit-tested primitive;
   adapters receive it via explicit `HttpFetcher`/`HttpFetchPolicy` configuration
   (no environment loading in core).
-- `@owlieio/core` gains no new dependencies (`fetch`, `Response`, `AbortController`,
-  `TextDecoder` are platform globals).
+- The initial implementation added no dependency because `fetch`, `Response`,
+  `AbortController`, and `TextDecoder` are platform globals. ADR 0016 later adds
+  a focused IP parser after handwritten address classification proved unsafe.
 - The pure host check covers literal IPv4/IPv6 and reserved hostname suffixes
   (`localhost`, `.local`, `.internal`, `.home.arpa`). DNS-resolution-based SSRF
   (an attacker-controlled hostname that resolves to a private address) is a

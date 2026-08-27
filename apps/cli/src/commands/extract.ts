@@ -160,7 +160,7 @@ async function runFeedExtraction(
   deps: ExtractDeps,
 ): Promise<number> {
   const limit = parseCollectionLimit(options.limit);
-  spinner.start(`extracting ${url}`);
+  spinner.start('extracting feed');
   const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
 
   const items: ExtractBatchItem[] = [];

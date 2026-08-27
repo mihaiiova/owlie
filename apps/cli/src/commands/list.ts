@@ -130,7 +130,7 @@ export async function runListCommand(
 
   try {
     const limit = parseListLimit(options.limit);
-    spinner.start(`listing ${url}`);
+    spinner.start('listing feed');
     const result = await listCollection(adapter, { url }, { limit, signal: deps.signal });
     const envelope = buildEnvelope(result);
     spinner.stop();
