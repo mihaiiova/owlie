@@ -9,7 +9,9 @@ and processing must be built.
 
 - **SSRF protection** — block unsafe local and private network destinations by
   default (loopback, link-local, private ranges, metadata endpoints) unless the
-  user explicitly opts in.
+  user explicitly opts in. Hostnames are resolved to their IP address(es) and
+  validated on every redirect hop (best-effort: a DNS record can still change
+  between the check and the connect).
 - **Redirect limits** — cap redirects and validate each hop against the same
   destination policy.
 - **Request timeouts** — enforce connect and total read timeouts on every

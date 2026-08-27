@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+
 import { CancelledError, ConfigurationError, ExtractionError } from './errors.js';
 
 /** Policy applied to every HTTP fetch. All fields are optional. */
@@ -38,6 +40,9 @@ export interface HttpFetcher {
 
 /** The platform fetch signature, injectable for offline tests. */
 export type HttpFetchFn = typeof fetch;
+
+/** Resolves a hostname to its IP address literals. Injectable for offline tests. */
+export type DnsResolver = (hostname: string) => Promise<string[]>;
 
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const BLOCKED_HOSTNAME_SUFFIXES = ['.localhost', '.local', '.internal', '.home.arpa'];
@@ -102,6 +107,52 @@ export function isBlockedHost(hostname: string): boolean {
 
   const octets = parseIpv4(host);
   return octets !== null && isBlockedIpv4(octets);
+}
+
+/** Whether an IP address literal is a private/local destination. */
+export function isBlockedIp(address: string): boolean {
+  const ip = address.trim().toLowerCase();
+  if (ip.includes(':')) return isBlockedIpv6(ip);
+  const octets = parseIpv4(ip);
+  return octets !== null && isBlockedIpv4(octets);
+}
+
+function isIpLiteral(host: string): boolean {
+  const h = host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  return h.includes(':') || parseIpv4(h) !== null;
+}
+
+const defaultResolver: DnsResolver = async (hostname) =>
+  (await lookup(hostname, { all: true })).map((record) => record.address);
+
+/**
+ * Resolves a hostname and throws if any resolved address is a private/local
+ * destination. Best-effort: the check runs before connect, so a DNS record can
+ * still change afterwards (the documented TOCTOU window). Literal IPs are
+ * skipped — they are already validated synchronously.
+ */
+export async function assertSafeResolvedHost(
+  hostname: string,
+  resolve: DnsResolver,
+): Promise<void> {
+  if (isIpLiteral(hostname)) return;
+
+  let addresses: string[];
+  try {
+    addresses = await resolve(hostname);
+  } catch (error) {
+    throw new ExtractionError(`failed to resolve hostname: ${hostname}`, { cause: error });
+  }
+
+  const blocked = addresses.find((address) => isBlockedIp(address));
+  if (blocked !== undefined) {
+    throw new ExtractionError(
+      `refusing to fetch a private or local host: ${hostname} (resolves to ${blocked})`,
+    );
+  }
 }
 
 export interface SafeUrlOptions {
@@ -189,9 +240,11 @@ function describe(error: unknown): string {
  */
 export class DefaultHttpFetcher implements HttpFetcher {
   private readonly fetchFn: HttpFetchFn;
+  private readonly resolve: DnsResolver;
 
-  constructor(fetchFn: HttpFetchFn = fetch) {
+  constructor(fetchFn: HttpFetchFn = fetch, resolve: DnsResolver = defaultResolver) {
     this.fetchFn = fetchFn;
+    this.resolve = resolve;
   }
 
   async fetch(
@@ -209,7 +262,10 @@ export class DefaultHttpFetcher implements HttpFetcher {
     let redirects = 0;
 
     for (;;) {
-      assertSafeHttpUrl(current, { allowPrivateHosts });
+      const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
+      if (!allowPrivateHosts) {
+        await assertSafeResolvedHost(safeUrl.hostname, this.resolve);
+      }
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);

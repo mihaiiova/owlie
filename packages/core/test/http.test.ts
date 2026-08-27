@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertSafeHttpUrl,
+  assertSafeResolvedHost,
   CancelledError,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
   isBlockedHost,
+  isBlockedIp,
+  type DnsResolver,
   type HttpFetchFn,
 } from '@owlieio/core';
 
@@ -97,10 +100,77 @@ describe('assertSafeHttpUrl', () => {
   });
 });
 
+describe('isBlockedIp', () => {
+  it('blocks private IPv4 and IPv6 address literals', () => {
+    expect(isBlockedIp('192.168.1.50')).toBe(true);
+    expect(isBlockedIp('10.0.0.1')).toBe(true);
+    expect(isBlockedIp('172.16.0.1')).toBe(true);
+    expect(isBlockedIp('169.254.169.254')).toBe(true);
+    expect(isBlockedIp('127.0.0.1')).toBe(true);
+    expect(isBlockedIp('fe80::1')).toBe(true);
+    expect(isBlockedIp('fd12:3456::')).toBe(true);
+    expect(isBlockedIp('::1')).toBe(true);
+  });
+
+  it('allows public IPv4 and IPv6 address literals', () => {
+    expect(isBlockedIp('8.8.8.8')).toBe(false);
+    expect(isBlockedIp('1.1.1.1')).toBe(false);
+    expect(isBlockedIp('2001:4860:4860::8888')).toBe(false);
+  });
+});
+
+describe('assertSafeResolvedHost', () => {
+  const resolveTo =
+    (addresses: string[]): DnsResolver =>
+    async () =>
+      addresses;
+
+  it('rejects a hostname resolving to a private IPv4 address', async () => {
+    await expect(
+      assertSafeResolvedHost('evil.example.com', resolveTo(['192.168.1.50'])),
+    ).rejects.toThrow(ExtractionError);
+  });
+
+  it('rejects a hostname resolving to the metadata service', async () => {
+    await expect(
+      assertSafeResolvedHost('evil.example.com', resolveTo(['169.254.169.254'])),
+    ).rejects.toThrow(ExtractionError);
+  });
+
+  it('rejects when any resolved address is private, even in a mixed record', async () => {
+    await expect(
+      assertSafeResolvedHost('evil.example.com', resolveTo(['8.8.8.8', '10.0.0.1'])),
+    ).rejects.toThrow(ExtractionError);
+  });
+
+  it('rejects a hostname resolving to a private IPv6 address', async () => {
+    await expect(
+      assertSafeResolvedHost('evil.example.com', resolveTo(['fe80::1'])),
+    ).rejects.toThrow(ExtractionError);
+  });
+
+  it('allows a hostname resolving only to public addresses', async () => {
+    await expect(
+      assertSafeResolvedHost('example.com', resolveTo(['8.8.8.8', '1.1.1.1'])),
+    ).resolves.toBeUndefined();
+  });
+
+  it('surfaces a resolution failure as ExtractionError', async () => {
+    const fail: DnsResolver = async () => {
+      throw new Error('ENOTFOUND evil.example.com');
+    };
+    await expect(assertSafeResolvedHost('missing.example.com', fail)).rejects.toThrow(
+      ExtractionError,
+    );
+  });
+});
+
 describe('DefaultHttpFetcher', () => {
   function ok(body: string, init: { status?: number; headers?: Record<string, string> } = {}) {
     return new Response(body, { status: init.status ?? 200, headers: init.headers });
   }
+
+  const publicResolver: DnsResolver = async () => ['8.8.8.8'];
 
   it('returns the response body and sends an identifying User-Agent', async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];
@@ -111,7 +181,7 @@ describe('DefaultHttpFetcher', () => {
       });
       return ok('<rss/>');
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(fetcher.fetchText('https://example.com/feed.xml')).resolves.toBe('<rss/>');
     expect(calls[0]!.headers['user-agent']).toBe('owlie-cli');
   });
@@ -129,7 +199,7 @@ describe('DefaultHttpFetcher', () => {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     await expect(fetcher.fetch('https://example.com/start')).resolves.toEqual({
       text: '<article>Readable text</article>',
@@ -144,7 +214,7 @@ describe('DefaultHttpFetcher', () => {
       calls.push(new Headers(init?.headers).get('user-agent'));
       return ok('body');
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await fetcher.fetchText('https://example.com/', { policy: { userAgent: 'test-agent' } });
     expect(calls[0]).toBe('test-agent');
   });
@@ -155,7 +225,7 @@ describe('DefaultHttpFetcher', () => {
       called = true;
       return ok('body');
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(fetcher.fetchText('http://169.254.169.254/latest/meta-data')).rejects.toThrow(
       ExtractionError,
     );
@@ -170,7 +240,7 @@ describe('DefaultHttpFetcher', () => {
       }
       return ok('final');
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(fetcher.fetchText('https://example.com/a')).resolves.toBe('final');
   });
 
@@ -182,7 +252,7 @@ describe('DefaultHttpFetcher', () => {
       }
       return ok('final');
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(fetcher.fetchText('https://example.com/a')).rejects.toThrow(ExtractionError);
   });
 
@@ -197,7 +267,7 @@ describe('DefaultHttpFetcher', () => {
         headers: { location: `https://example.com/n${n + 1}` },
       });
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(
       fetcher.fetchText('https://example.com/n0', { policy: { maxRedirects: 2 } }),
     ).rejects.toThrow(ExtractionError);
@@ -211,13 +281,13 @@ describe('DefaultHttpFetcher', () => {
 
   it('maps HTTP errors to ExtractionError', async () => {
     const fetchFn: HttpFetchFn = async () => ok('oops', { status: 500 });
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(fetcher.fetchText('https://example.com/')).rejects.toThrow(ExtractionError);
   });
 
   it('enforces a response size limit', async () => {
     const fetchFn: HttpFetchFn = async () => ok('a'.repeat(100));
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(
       fetcher.fetchText('https://example.com/', { policy: { maxResponseBytes: 10 } }),
     ).rejects.toThrow(ExtractionError);
@@ -230,7 +300,7 @@ describe('DefaultHttpFetcher', () => {
           once: true,
         });
       });
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(
       fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
     ).rejects.toThrow(CancelledError);
@@ -246,7 +316,7 @@ describe('DefaultHttpFetcher', () => {
       });
       return new Response(body, { headers: { 'content-type': 'text/html' } });
     };
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     await expect(
       fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
@@ -262,9 +332,66 @@ describe('DefaultHttpFetcher', () => {
         });
       });
     const controller = new AbortController();
-    const fetcher = new DefaultHttpFetcher(fetchFn);
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     const promise = fetcher.fetchText('https://example.com/', { signal: controller.signal });
     controller.abort();
     await expect(promise).rejects.toThrow(CancelledError);
+  });
+
+  it('rejects a hostname that resolves to a private address before fetching', async () => {
+    let called = false;
+    const fetchFn: HttpFetchFn = async () => {
+      called = true;
+      return ok('body');
+    };
+    const resolver: DnsResolver = async () => ['192.168.1.50'];
+    const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+    await expect(fetcher.fetchText('https://evil.example.com/feed')).rejects.toThrow(
+      ExtractionError,
+    );
+    expect(called).toBe(false);
+  });
+
+  it('resolves the hostname before fetching a public URL', async () => {
+    const resolved: string[] = [];
+    const fetchFn: HttpFetchFn = async () => ok('body');
+    const resolver: DnsResolver = async (hostname) => {
+      resolved.push(hostname);
+      return ['8.8.8.8'];
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+    await expect(fetcher.fetchText('https://example.com/feed')).resolves.toBe('body');
+    expect(resolved).toEqual(['example.com']);
+  });
+
+  it('rejects a redirect to a hostname that resolves to a private address', async () => {
+    const fetchFn: HttpFetchFn = async (input) => {
+      const url = String(input);
+      if (url === 'https://example.com/a') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://evil.example.com/b' },
+        });
+      }
+      return ok('final');
+    };
+    const resolver: DnsResolver = async (hostname) =>
+      hostname === 'evil.example.com' ? ['10.0.0.1'] : ['8.8.8.8'];
+    const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+    await expect(fetcher.fetchText('https://example.com/a')).rejects.toThrow(ExtractionError);
+  });
+
+  it('skips DNS resolution when allowPrivateHosts is set', async () => {
+    let resolved = false;
+    const fetchFn: HttpFetchFn = async () => ok('body');
+    const resolver: DnsResolver = async () => {
+      resolved = true;
+      return ['8.8.8.8'];
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+    await expect(
+      fetcher.fetchText('https://example.com/', { policy: { allowPrivateHosts: true } }),
+    ).resolves.toBe('body');
+    expect(resolved).toBe(false);
   });
 });
