@@ -96,7 +96,10 @@ to work.
 
 `owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
 dispatches a direct URL to the YouTube or article adapter — or, for a feed
-URL, extracts its bounded linked items into one JSON envelope.
+URL, extracts its bounded linked items into one JSON envelope. Remote text
+fetches allow only globally routable destinations by default, canonically
+classify IPv4/IPv6 addresses, reject URL userinfo, and omit URL query and
+fragment data from diagnostics.
 
 ## Non-goals
 
@@ -149,18 +152,18 @@ docs/                        Architecture, contracts, security, decisions
 
 ## Packages
 
-| Package                     | Purpose                                                          |
-| --------------------------- | ---------------------------------------------------------------- |
-| `@owlieio/core`             | Types, contracts, errors, limits, safe HTTP fetch, orchestration |
-| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                           |
-| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                              |
-| `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction            |
-| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                                      |
-| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)                |
-| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                      |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)                             |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)                    |
-| `owlie`                     | The `owlie` command-line interface (published)                   |
+| Package                     | Purpose                                                         |
+| --------------------------- | --------------------------------------------------------------- |
+| `@owlieio/core`             | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
+| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                          |
+| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                             |
+| `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction           |
+| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                                     |
+| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
+| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
+| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)                            |
+| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)                   |
+| `owlie`                     | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek`, the only functional LLM provider in the
 milestone, implemented with `ai` and `@ai-sdk/deepseek`.

@@ -1,6 +1,6 @@
 # ADR 0015 — DNS-resolution SSRF protection in the safe HTTP fetch
 
-- **Status:** Accepted
+- **Status:** Accepted (address classification and private-host opt-in refined by [ADR 0016](0016-canonical-safe-http-destinations.md))
 - **Date:** 2026-08-27
 
 ## Context
@@ -21,9 +21,10 @@ through the core `DefaultHttpFetcher`, so this gap affected all of them.
 - Introduce an injectable `DnsResolver` seam (`(hostname) => Promise<string[]>`),
   defaulting to Node's `dns.promises.lookup(host, { all: true })`, mirroring the
   existing `HttpFetchFn` seam so the default test suite stays network-free.
-- Reuse the existing pure `isBlockedIpv4`/`isBlockedIpv6` logic via a new
-  `isBlockedIp(address)` predicate; `allowPrivateHosts` continues to bypass all
-  checks, and a failed lookup is an `ExtractionError`.
+- The initial implementation reused the pure `isBlockedIpv4`/`isBlockedIpv6`
+  logic via a new `isBlockedIp(address)` predicate, and `allowPrivateHosts`
+  bypassed all checks. ADR 0016 replaces that handwritten classification and
+  narrows the opt-in; a failed lookup remains an `ExtractionError`.
 - Accept and document the TOCTOU window (a DNS record changing between the check
   and the connect). Connect-time enforcement (a custom undici Agent/dispatcher)
   is deferred as a possible later hardening.

@@ -201,7 +201,7 @@ async function runFeedProcessing(
   const processor = deps.processor ?? resolveConfiguredProcessor(config);
 
   const limit = parseCollectionLimit(options.limit);
-  spinner.start(`processing ${url}`);
+  spinner.start('processing feed');
   const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
 
   let failed = false;

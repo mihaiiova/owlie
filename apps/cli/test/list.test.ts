@@ -3,9 +3,11 @@ import type {
   CollectionAdapter,
   CollectionListOptions,
   ContentItem,
+  DnsResolver,
   HttpFetcher,
+  HttpFetchFn,
 } from '@owlieio/core';
-import { CancelledError, ExtractionError } from '@owlieio/core';
+import { CancelledError, DefaultHttpFetcher, ExtractionError } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
@@ -178,6 +180,36 @@ describe('list command', () => {
     expect(stderr()).toContain('boom');
   });
 
+  it('does not expose URL query or fragment secrets in fetch diagnostics', async () => {
+    const fetchFn: HttpFetchFn = async () => new Response('', { status: 500 });
+    const resolver: DnsResolver = async () => ['8.8.8.8'];
+    const adapter = new RssAdapter({ fetcher: new DefaultHttpFetcher(fetchFn, resolver) });
+    const url = 'https://example.com/feed.xml?token=query-secret#fragment-secret';
+    const { io, stdout, stderr } = capture();
+
+    const code = await run(['list', url], io, deps(adapter));
+
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('https://example.com/feed.xml');
+    expect(stderr()).not.toContain('query-secret');
+    expect(stderr()).not.toContain('fragment-secret');
+  });
+
+  it('rejects credential-bearing item URLs before rendering them', async () => {
+    const { adapter } = makeAdapter({
+      items: [makeItem({ canonicalUrl: 'https://alice:feed-secret@example.com/article' })],
+    });
+    const { io, stdout, stderr } = capture();
+
+    const code = await run(['list', FEED_URL, '--json'], io, deps(adapter));
+
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).not.toContain('alice');
+    expect(stderr()).not.toContain('feed-secret');
+  });
+
   it('maps cancellation to exit code 1', async () => {
     const { adapter } = makeAdapter({ listError: new CancelledError('cancelled') });
     const { io, stdout, stderr } = capture();
@@ -272,7 +304,7 @@ describe('list command', () => {
       },
     });
     expect(code).toBe(ExitCode.Success);
-    expect(starts).toEqual([`listing ${FEED_URL}`]);
+    expect(starts).toEqual(['listing feed']);
     expect(stopped).toBe(1);
   });
 });

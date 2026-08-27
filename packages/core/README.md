@@ -4,7 +4,9 @@ Provider-neutral contracts, types, and orchestration primitives for Owlie CLI.
 
 This package is the canonical owner of the shared vocabulary that every adapter,
 provider, and the CLI build on. It contains no SDK-specific types, no model
-names, no environment-variable loading, and no network access.
+names, no environment-variable loading, and no source-specific network clients.
+Its injectable safe-HTTP module owns shared destination policy and bounded text
+fetching.
 
 ## Contents
 
@@ -20,6 +22,8 @@ names, no environment-variable loading, and no network access.
   `MAX_COLLECTION_LIMIT = 500`).
 - `output.ts` — the reserved output formats.
 - `orchestration.ts` — `listCollection`, `resolveItem`, and `extractItem`.
+- `http.ts` — bounded text fetching, canonical public/private destination
+  policy, DNS validation, redirect checks, and credential-safe diagnostics.
 
 ## Dependency rules
 

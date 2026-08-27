@@ -1,4 +1,5 @@
 import { lookup } from 'node:dns/promises';
+import ipaddr from 'ipaddr.js';
 
 import { CancelledError, ConfigurationError, ExtractionError } from './errors.js';
 
@@ -10,7 +11,7 @@ export interface HttpFetchPolicy {
   maxRedirects?: number;
   /** Maximum response body size in bytes. */
   maxResponseBytes?: number;
-  /** Opt in to fetching private/local hosts (SSRF protection is on by default). */
+  /** Opt in to private/local hosts; invalid, multicast, and reserved hosts remain blocked. */
   allowPrivateHosts?: boolean;
   /** Identifying User-Agent header value. */
   userAgent?: string;
@@ -44,99 +45,72 @@ export type HttpFetchFn = typeof fetch;
 /** Resolves a hostname to its IP address literals. Injectable for offline tests. */
 export type DnsResolver = (hostname: string) => Promise<string[]>;
 
-const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const BLOCKED_HOSTNAME_SUFFIXES = ['.localhost', '.local', '.internal', '.home.arpa'];
 
-function parseIpv4(host: string): number[] | null {
-  const match = IPV4_PATTERN.exec(host);
-  if (!match) return null;
-  const octets = [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4])];
-  return octets.every((o) => Number.isInteger(o) && o >= 0 && o <= 255) ? octets : null;
-}
-
-function isBlockedIpv4(octets: number[]): boolean {
-  const a = octets[0];
-  const b = octets[1];
-  if (a === undefined || b === undefined) return false;
-  if (a === 0 || a === 10 || a === 127) return true; // "this network", private, loopback
-  if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
-  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
-  if (a === 192 && b === 168) return true; // 192.168.0.0/16
-  return false;
-}
-
-function isBlockedIpv6(host: string): boolean {
-  const h = host.toLowerCase();
-  if (h === '::' || h === '::1') return true;
-
-  const mapped = h.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-  if (mapped) {
-    const ipv4 = mapped[1];
-    if (!ipv4) return true;
-    const octets = parseIpv4(ipv4);
-    return octets === null || isBlockedIpv4(octets);
-  }
-
-  const first = h.split(':')[0];
-  if (first === undefined) return false;
-  const value = Number.parseInt(first, 16);
-  if (Number.isNaN(value)) return false;
-  if ((value & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
-  if ((value & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
-  return false;
-}
-
-/**
- * Whether a hostname or IP literal resolves into a non-public destination that
- * must be blocked by default (SSRF protection). Pure; makes no network calls.
- * Literal IPv4/IPv6 are checked directly; reserved hostname suffixes
- * (`localhost`, `.local`, `.internal`, `.home.arpa`) are blocked by name.
- */
-export function isBlockedHost(hostname: string): boolean {
-  const host = hostname
+function normalizeHost(hostname: string): string {
+  return hostname
     .trim()
     .toLowerCase()
     .replace(/^\[|\]$/g, '')
     .replace(/\.$/, '');
-
-  if (host === 'localhost' || BLOCKED_HOSTNAME_SUFFIXES.some((s) => host.endsWith(s))) {
-    return true;
-  }
-
-  if (host.includes(':')) return isBlockedIpv6(host);
-
-  const octets = parseIpv4(host);
-  return octets !== null && isBlockedIpv4(octets);
 }
 
-/** Whether an IP address literal is a private/local destination. */
+const PRIVATE_LOCAL_RANGES = new Set([
+  'private',
+  'carrierGradeNat',
+  'loopback',
+  'linkLocal',
+  'uniqueLocal',
+]);
+
+function isAllowedIp(address: string, allowPrivateHosts = false): boolean {
+  if (!ipaddr.isValid(address)) return false;
+  const range = ipaddr.process(address).range();
+  return range === 'unicast' || (allowPrivateHosts && PRIVATE_LOCAL_RANGES.has(range));
+}
+
+function isBlockedDestinationHost(hostname: string, allowPrivateHosts = false): boolean {
+  const host = normalizeHost(hostname);
+  if (host === 'localhost' || BLOCKED_HOSTNAME_SUFFIXES.some((s) => host.endsWith(s))) {
+    return !allowPrivateHosts;
+  }
+  return ipaddr.isValid(host) && !isAllowedIp(host, allowPrivateHosts);
+}
+
+/**
+ * Whether a hostname or IP literal is a non-public destination that must be
+ * blocked by default (SSRF protection). Pure; makes no network calls. Literal
+ * IPv4/IPv6 addresses are parsed canonically, including IPv4-mapped IPv6;
+ * reserved hostname suffixes (`localhost`, `.local`, `.internal`, `.home.arpa`)
+ * are blocked by name.
+ */
+export function isBlockedHost(hostname: string): boolean {
+  return isBlockedDestinationHost(hostname);
+}
+
+/** Whether an IP address is invalid or outside globally routable unicast space. */
 export function isBlockedIp(address: string): boolean {
-  const ip = address.trim().toLowerCase();
-  if (ip.includes(':')) return isBlockedIpv6(ip);
-  const octets = parseIpv4(ip);
-  return octets !== null && isBlockedIpv4(octets);
+  return !isAllowedIp(normalizeHost(address));
 }
 
 function isIpLiteral(host: string): boolean {
-  const h = host
-    .trim()
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '');
-  return h.includes(':') || parseIpv4(h) !== null;
+  return ipaddr.isValid(normalizeHost(host));
 }
 
 const defaultResolver: DnsResolver = async (hostname) =>
   (await lookup(hostname, { all: true })).map((record) => record.address);
 
 /**
- * Resolves a hostname and throws if any resolved address is a private/local
- * destination. Best-effort: the check runs before connect, so a DNS record can
+ * Resolves a hostname and throws if any resolved address is outside the
+ * applicable public or explicit private/local policy. Best-effort: the check
+ * runs before connect, so a DNS record can
  * still change afterwards (the documented TOCTOU window). Literal IPs are
  * skipped — they are already validated synchronously.
  */
 export async function assertSafeResolvedHost(
   hostname: string,
   resolve: DnsResolver,
+  options: SafeUrlOptions = {},
 ): Promise<void> {
   if (isIpLiteral(hostname)) return;
 
@@ -147,10 +121,12 @@ export async function assertSafeResolvedHost(
     throw new ExtractionError(`failed to resolve hostname: ${hostname}`, { cause: error });
   }
 
-  const blocked = addresses.find((address) => isBlockedIp(address));
+  const blocked = addresses.find(
+    (address) => !isAllowedIp(normalizeHost(address), options.allowPrivateHosts),
+  );
   if (blocked !== undefined) {
     throw new ExtractionError(
-      `refusing to fetch a private or local host: ${hostname} (resolves to ${blocked})`,
+      `refusing to fetch a disallowed host: ${hostname} (resolves to ${blocked})`,
     );
   }
 }
@@ -159,23 +135,32 @@ export interface SafeUrlOptions {
   allowPrivateHosts?: boolean;
 }
 
+/** Parses a URL and rejects userinfo without reproducing malformed or credential-bearing input. */
+export function assertNoUrlCredentials(url: string | URL): URL {
+  let parsed: URL;
+  try {
+    parsed = typeof url === 'string' ? new URL(url) : url;
+  } catch {
+    throw new ConfigurationError('invalid URL');
+  }
+  if (parsed.username !== '' || parsed.password !== '') {
+    throw new ExtractionError('refusing a URL containing credentials');
+  }
+  return parsed;
+}
+
 /**
  * Validates that a URL is an HTTP(S) URL whose destination is safe to fetch.
  * Throws {@link ConfigurationError} for malformed or non-HTTP(S) URLs and
- * {@link ExtractionError} for blocked hosts. Returns the parsed URL.
+ * {@link ExtractionError} for blocked hosts or URL credentials. Returns the parsed URL.
  */
 export function assertSafeHttpUrl(url: string, options: SafeUrlOptions = {}): URL {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new ConfigurationError(`invalid URL: ${url}`);
-  }
+  const parsed = assertNoUrlCredentials(url);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new ConfigurationError(`unsupported URL protocol: ${parsed.protocol}`);
   }
-  if (!options.allowPrivateHosts && isBlockedHost(parsed.hostname)) {
-    throw new ExtractionError(`refusing to fetch a private or local host: ${parsed.hostname}`);
+  if (isBlockedDestinationHost(parsed.hostname, options.allowPrivateHosts)) {
+    throw new ExtractionError(`refusing to fetch a disallowed host: ${parsed.hostname}`);
   }
   return parsed;
 }
@@ -233,6 +218,15 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function formatDiagnosticUrl(url: string | URL): string {
+  try {
+    const parsed = typeof url === 'string' ? new URL(url) : url;
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+  } catch {
+    return '[invalid URL]';
+  }
+}
+
 /**
  * Default {@link HttpFetcher} over `globalThis.fetch`. Enforces the SSRF
  * destination policy per hop, a redirect cap, a timeout, a response-size cap,
@@ -263,9 +257,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
 
     for (;;) {
       const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
-      if (!allowPrivateHosts) {
-        await assertSafeResolvedHost(safeUrl.hostname, this.resolve);
-      }
+      await assertSafeResolvedHost(safeUrl.hostname, this.resolve, { allowPrivateHosts });
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -289,10 +281,14 @@ export class DefaultHttpFetcher implements HttpFetcher {
         if (isRedirect(response.status)) {
           const location = response.headers.get('location');
           if (!location) {
-            throw new ExtractionError(`redirect response from ${current} has no Location header`);
+            throw new ExtractionError(
+              `redirect response from ${formatDiagnosticUrl(current)} has no Location header`,
+            );
           }
           if (redirects >= maxRedirects) {
-            throw new ExtractionError(`too many redirects (max ${maxRedirects}) for ${url}`);
+            throw new ExtractionError(
+              `too many redirects (max ${maxRedirects}) for ${formatDiagnosticUrl(url)}`,
+            );
           }
           current = new URL(location, current).toString();
           redirects += 1;
@@ -302,7 +298,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
 
         if (!response.ok) {
           throw new ExtractionError(
-            `HTTP ${response.status} ${response.statusText} for ${current}`,
+            `HTTP ${response.status} ${response.statusText} for ${formatDiagnosticUrl(current)}`,
           );
         }
 
@@ -316,9 +312,12 @@ export class DefaultHttpFetcher implements HttpFetcher {
         if (controller.signal.aborted) {
           throw new CancelledError('fetch timed out or was cancelled', { cause: error });
         }
-        throw new ExtractionError(`failed to fetch ${current}: ${describe(error)}`, {
-          cause: error,
-        });
+        throw new ExtractionError(
+          `failed to fetch ${formatDiagnosticUrl(current)}: ${describe(error)}`,
+          {
+            cause: error,
+          },
+        );
       } finally {
         clearTimeout(timer);
         options.signal?.removeEventListener('abort', onAbort);

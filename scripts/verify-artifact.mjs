@@ -62,10 +62,10 @@ try {
     { name: '--help', args: ['--help'], status: 0, stdout: /extract|process|doctor/i },
     { name: 'doctor', args: ['doctor'], status: 0, stdout: /node/i },
     {
-      name: 'extract rejects an unsupported URL',
+      name: 'extract rejects an invalid URL',
       args: ['extract', 'not-a-url'],
       status: 1,
-      stderr: /no adapter recognizes URL/i,
+      stderr: /invalid URL/i,
     },
     {
       name: 'process with empty stdin errors',

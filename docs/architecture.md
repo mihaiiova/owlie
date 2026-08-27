@@ -38,7 +38,8 @@ owlie-app  →  runs `owlie` CLI (container/subprocess)
 `owlie-app` does not import `owlie-cli` packages as libraries. Within the
 monorepo:
 
-- `@owlieio/core` has no Owlie dependencies.
+- `@owlieio/core` has no Owlie dependencies; its safe-HTTP implementation uses
+  the generic `ipaddr.js` parser for canonical destination classification.
 - Adapters depend only on `@owlieio/core` (Reddit also reuses
   `@owlieio/adapter-rss` parsing).
 - Providers depend only on `@owlieio/core`.
@@ -58,7 +59,10 @@ imports.
    metadata.
 5. An item adapter `extract`s an item into a `NormalizedDocument`. The article
    adapter uses core's bounded `HttpFetcher` response, then extracts only the
-   fetched static HTML; it never delegates URL retrieval to an extractor.
+   fetched static HTML; it never delegates URL retrieval to an extractor. The
+   fetcher permits only globally routable unicast destinations by default,
+   applies a narrow private/local opt-in, rejects URL userinfo, and omits query
+   and fragment data from diagnostics.
 
 ## Extraction lifecycle
 

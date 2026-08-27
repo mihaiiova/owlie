@@ -5,6 +5,7 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import {
+  assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
   extractItem,
@@ -126,6 +127,7 @@ async function runDirectExtraction(
   options: CliOptions,
   deps: ExtractDeps,
 ): Promise<number> {
+  assertNoUrlCredentials(url);
   const adapter = selectItemAdapter(itemAdapters, { url });
   if (!adapter) {
     throw new ConfigurationError(`no adapter recognizes URL: ${url}`);
@@ -160,7 +162,7 @@ async function runFeedExtraction(
   deps: ExtractDeps,
 ): Promise<number> {
   const limit = parseCollectionLimit(options.limit);
-  spinner.start(`extracting ${url}`);
+  spinner.start('extracting feed');
   const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
 
   const items: ExtractBatchItem[] = [];
