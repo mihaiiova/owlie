@@ -45,7 +45,8 @@ source-specific fields.
 
 - `HttpFetcher` / `DefaultHttpFetcher` — bounded text fetching with canonical
   IP classification, per-hop DNS and redirect validation, unconditional URL
-  userinfo rejection, and origin-plus-path diagnostics. Destinations must be
+  userinfo rejection, and origin-plus-path diagnostics. `assertNoUrlCredentials`
+  applies the same userinfo rule to URLs rendered before a fetch. Destinations must be
   globally routable unicast by default; `allowPrivateHosts` permits only the
   documented private/local categories.
 - `HttpFetchPolicy` — timeout, redirect, response-size, private/local opt-in,

@@ -196,6 +196,20 @@ describe('list command', () => {
     expect(stderr()).not.toContain('fragment-secret');
   });
 
+  it('rejects credential-bearing item URLs before rendering them', async () => {
+    const { adapter } = makeAdapter({
+      items: [makeItem({ canonicalUrl: 'https://alice:feed-secret@example.com/article' })],
+    });
+    const { io, stdout, stderr } = capture();
+
+    const code = await run(['list', FEED_URL, '--json'], io, deps(adapter));
+
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).not.toContain('alice');
+    expect(stderr()).not.toContain('feed-secret');
+  });
+
   it('maps cancellation to exit code 1', async () => {
     const { adapter } = makeAdapter({ listError: new CancelledError('cancelled') });
     const { io, stdout, stderr } = capture();

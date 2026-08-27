@@ -135,23 +135,29 @@ export interface SafeUrlOptions {
   allowPrivateHosts?: boolean;
 }
 
-/**
- * Validates that a URL is an HTTP(S) URL whose destination is safe to fetch.
- * Throws {@link ConfigurationError} for malformed or non-HTTP(S) URLs and
- * {@link ExtractionError} for blocked hosts. Returns the parsed URL.
- */
-export function assertSafeHttpUrl(url: string, options: SafeUrlOptions = {}): URL {
+/** Parses a URL and rejects userinfo without reproducing malformed or credential-bearing input. */
+export function assertNoUrlCredentials(url: string | URL): URL {
   let parsed: URL;
   try {
-    parsed = new URL(url);
+    parsed = typeof url === 'string' ? new URL(url) : url;
   } catch {
     throw new ConfigurationError('invalid URL');
   }
+  if (parsed.username !== '' || parsed.password !== '') {
+    throw new ExtractionError('refusing a URL containing credentials');
+  }
+  return parsed;
+}
+
+/**
+ * Validates that a URL is an HTTP(S) URL whose destination is safe to fetch.
+ * Throws {@link ConfigurationError} for malformed or non-HTTP(S) URLs and
+ * {@link ExtractionError} for blocked hosts or URL credentials. Returns the parsed URL.
+ */
+export function assertSafeHttpUrl(url: string, options: SafeUrlOptions = {}): URL {
+  const parsed = assertNoUrlCredentials(url);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new ConfigurationError(`unsupported URL protocol: ${parsed.protocol}`);
-  }
-  if (parsed.username !== '' || parsed.password !== '') {
-    throw new ExtractionError('refusing to fetch a URL containing credentials');
   }
   if (isBlockedDestinationHost(parsed.hostname, options.allowPrivateHosts)) {
     throw new ExtractionError(`refusing to fetch a disallowed host: ${parsed.hostname}`);

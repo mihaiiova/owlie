@@ -211,6 +211,20 @@ describe('extract — feed batch', () => {
     expect(envelope.items[0]).toHaveProperty('document');
   });
 
+  it('rejects credential-bearing feed entries without emitting a batch reference', async () => {
+    const credentialUrl = 'https://alice:batch-secret@example.com/article';
+    const article = makeItemAdapter('article');
+    const feed = makeFeedAdapter([{ url: credentialUrl, title: 'Unsafe' }]);
+    const { io, stdout, stderr } = capture();
+
+    const code = await run(['extract', FEED_URL], io, itemDeps([article.adapter], feed.adapter));
+
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).not.toContain('alice');
+    expect(stderr()).not.toContain('batch-secret');
+  });
+
   it('records a structured error and exits 1 on a per-item failure, continuing the batch', async () => {
     const article = makeItemAdapter('article', {
       extractError: (url) =>

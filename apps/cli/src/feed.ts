@@ -1,5 +1,11 @@
 import type { ItemAdapter, NormalizedDocument, ProgressSink } from '@owlieio/core';
-import { ExtractionError, OwlieError, extractItem, resolveItem } from '@owlieio/core';
+import {
+  assertNoUrlCredentials,
+  ExtractionError,
+  OwlieError,
+  extractItem,
+  resolveItem,
+} from '@owlieio/core';
 import { selectItemAdapter } from './dispatch.js';
 
 /** A successfully extracted linked item, keyed by its URL and title. */
@@ -21,6 +27,7 @@ export async function extractLinkedItem(opts: {
   signal?: AbortSignal;
   progress?: ProgressSink;
 }): Promise<LinkedItemResult> {
+  assertNoUrlCredentials(opts.url);
   const adapter = selectItemAdapter(opts.itemAdapters, { url: opts.url });
   if (!adapter) {
     throw new ExtractionError(`no adapter recognizes linked URL: ${opts.url}`);
@@ -35,6 +42,7 @@ export async function extractLinkedItem(opts: {
 
 /** A `{ url, title }` reference; title is omitted when absent. */
 export function itemRef(url: string, title: string | undefined): { url: string; title?: string } {
+  assertNoUrlCredentials(url);
   return title === undefined ? { url } : { url, title };
 }
 

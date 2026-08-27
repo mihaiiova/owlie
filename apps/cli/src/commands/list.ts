@@ -4,7 +4,7 @@ import type {
   ContentCollection,
   ContentItem,
 } from '@owlieio/core';
-import { listCollection } from '@owlieio/core';
+import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -60,6 +60,7 @@ export function parseListLimit(raw: string | undefined): number {
 }
 
 export function summarizeCollection(collection: ContentCollection): ListCollectionSummary {
+  assertNoUrlCredentials(collection.canonicalUrl);
   const summary: ListCollectionSummary = {
     id: collection.id,
     sourceType: collection.sourceType,
@@ -71,6 +72,7 @@ export function summarizeCollection(collection: ContentCollection): ListCollecti
 }
 
 export function summarizeItem(item: ContentItem): ListItemSummary {
+  assertNoUrlCredentials(item.canonicalUrl);
   const summary: ListItemSummary = {
     id: item.id,
     sourceType: item.sourceType,

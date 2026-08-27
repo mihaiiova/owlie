@@ -100,6 +100,20 @@ describe('extract command', () => {
     expect(stderr()).toContain('unexpected argument');
   });
 
+  it('rejects URL credentials before dispatch without exposing them', async () => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['extract', 'https://alice:direct-secret@example.com/article'],
+      io,
+      deps(makeFakeAdapter()),
+    );
+
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).not.toContain('alice');
+    expect(stderr()).not.toContain('direct-secret');
+  });
+
   it('maps captions-unavailable to a clear error', async () => {
     const { io, stdout, stderr } = capture();
     const adapter = makeFakeAdapter({

@@ -48,11 +48,11 @@ const checks = [
     stderr: /not a recognized RSS\/Atom feed URL/i,
   },
   {
-    name: 'extract rejects an unsupported URL',
+    name: 'extract rejects an invalid URL',
     args: ['extract', 'not-a-url'],
     status: 1,
     stdout: null,
-    stderr: /no adapter recognizes URL/i,
+    stderr: /invalid URL/i,
   },
   {
     name: 'process with empty stdin errors',

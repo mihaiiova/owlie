@@ -36,7 +36,9 @@ policy fragile.
 - Every address returned by DNS must satisfy the applicable policy. A mixed DNS
   result is refused when any address is disallowed.
 - HTTP(S) URL userinfo is refused unconditionally on the initial URL and every
-  redirect. `allowPrivateHosts` does not permit URL credentials.
+  redirect. `allowPrivateHosts` does not permit URL credentials. Core exposes
+  the credential-only `assertNoUrlCredentials` guard so CLI dispatch, collection
+  summaries, and batch references enforce the same rule before rendering URLs.
 - Safe-fetch diagnostics render only URL scheme, host, optional port, and path.
   Userinfo, query, and fragment are omitted. Successful fetch results retain
   the validated final resource URL so diagnostic redaction does not change

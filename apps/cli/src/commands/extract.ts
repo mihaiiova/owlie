@@ -5,6 +5,7 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import {
+  assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
   extractItem,
@@ -126,6 +127,7 @@ async function runDirectExtraction(
   options: CliOptions,
   deps: ExtractDeps,
 ): Promise<number> {
+  assertNoUrlCredentials(url);
   const adapter = selectItemAdapter(itemAdapters, { url });
   if (!adapter) {
     throw new ConfigurationError(`no adapter recognizes URL: ${url}`);
