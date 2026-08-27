@@ -5,8 +5,20 @@ updates:
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5
+    # Only patch and minor version updates. Major bumps are breaking by
+    # definition and are handled deliberately (with a changeset), so
+    # Dependabot never proposes them automatically.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+    # Group by tool so one toolchain's update never bundles unrelated tools
+    # (the previous dependency-type grouping produced risky mega-PRs).
     groups:
-      production-dependencies:
-        dependency-type: 'production'
-      development-dependencies:
-        dependency-type: 'development'
+      typescript:
+        patterns: [typescript]
+      eslint:
+        patterns: ['eslint', '@eslint/*', 'typescript-eslint']
+      vitest:
+        patterns: ['vitest', '@vitest/*']
+      changesets:
+        patterns: ['@changesets/*']
