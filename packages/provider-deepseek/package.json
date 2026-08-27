@@ -25,7 +25,7 @@
   "dependencies": {
     "@owlieio/core": "workspace:*",
     "ai": "^7.0.68",
-    "@ai-sdk/deepseek": "^3.0.28"
+    "@ai-sdk/deepseek": "^3.0.31"
   },
   "devDependencies": {
     "@owlieio/testing": "workspace:*",

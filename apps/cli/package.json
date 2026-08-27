@@ -21,7 +21,7 @@
   ],
   "dependencies": {
     "ai": "^7.0.68",
-    "@ai-sdk/deepseek": "^3.0.28",
+    "@ai-sdk/deepseek": "^3.0.31",
     "@hallelx/youtube-transcript": "^0.2.0",
     "undici": "^7.0.0"
   },
