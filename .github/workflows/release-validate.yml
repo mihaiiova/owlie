@@ -1,0 +1,119 @@
+name: Release validation
+
+# Validation-only: builds and packs the candidate once, installs and
+# offline-smoke-tests the exact artifact on Node 20 and 22, and runs the full
+# live E2E suite once on Node 22. It does NOT tag, publish, or create a GitHub
+# Release. Maintainers publish the uploaded, tested tarball manually.
+#
+# Requires a protected GitHub Environment named `release` (restricted to main)
+# with the `DEEPSEEK_API_KEY` secret and, optionally, `OWLIE_E2E_PROXY_URL`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Semantic version to validate (must match apps/cli/package.json)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and pack candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight (ref + version)
+        env:
+          EXPECTED_VERSION: ${{ github.event.inputs.expected_version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: node scripts/release-e2e/preflight.mjs
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack candidate
+        working-directory: apps/cli
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+
+      - name: Upload candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: owlie-candidate
+          path: ${{ runner.temp }}/owlie-*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  offline:
+    name: Offline smoke (Node ${{ matrix.node }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: owlie-candidate
+
+      - name: Verify the exact packaged artifact
+        run: node scripts/verify-artifact.mjs --tarball "$(ls owlie-*.tgz)"
+
+  live:
+    name: Live E2E (Node 22)
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      OWLIE_E2E_EXPECTED_VERSION: ${{ github.event.inputs.expected_version }}
+      OWLIE_E2E_YOUTUBE_URL: ${{ vars.OWLIE_E2E_YOUTUBE_URL || 'https://www.youtube.com/watch?v=jNQXAC9IVRw' }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      OWLIE_E2E_PROXY_URL: ${{ secrets.OWLIE_E2E_PROXY_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: owlie-candidate
+
+      - name: Run live release E2E
+        run: >-
+          node scripts/release-e2e.mjs
+          --tarball "$(ls owlie-*.tgz)"
+          --commit "${{ github.sha }}"
+          --out release-e2e-report.json
+
+      - name: Upload sanitized report and candidate manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-report
+          path: |
+            release-e2e-report.json
+            candidate-manifest.json
+          if-no-files-found: error
+          retention-days: 14

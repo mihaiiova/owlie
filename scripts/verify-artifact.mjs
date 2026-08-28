@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -29,12 +29,24 @@ const packDir = mkdtempSync(join(tmpdir(), 'owlie-pack-'));
 const installDir = mkdtempSync(join(tmpdir(), 'owlie-install-'));
 let tarball;
 
+const tarballArgIndex = process.argv.indexOf('--tarball');
+const providedTarball = tarballArgIndex !== -1 ? process.argv[tarballArgIndex + 1] : undefined;
+
 try {
-  // 1. Pack the published package.
-  const packed = run('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
-  check(packed.status === 0, 'npm pack succeeds');
-  tarball = join(packDir, `${pkg.name}-${pkg.version}.tgz`);
-  check(existsSync(tarball), `tarball created (${tarball})`);
+  if (providedTarball) {
+    // Reuse an already-packed candidate (e.g. the exact artifact produced by
+    // the release validation workflow) rather than repacking from source.
+    // Resolve to an absolute path so `npm install` still finds it after the
+    // working directory changes below.
+    tarball = resolve(providedTarball);
+    check(existsSync(tarball), `tarball exists (${tarball})`);
+  } else {
+    // 1. Pack the published package.
+    const packed = run('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
+    check(packed.status === 0, 'npm pack succeeds');
+    tarball = join(packDir, `${pkg.name}-${pkg.version}.tgz`);
+    check(existsSync(tarball), `tarball created (${tarball})`);
+  }
 
   // 2. Inspect the tarball contents.
   const listed = run('tar', ['-tzf', tarball]);

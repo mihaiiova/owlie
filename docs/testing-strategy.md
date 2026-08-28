@@ -50,3 +50,18 @@ OWLIE_LIVE_TESTS=1 pnpm test:live
 
 Live tests skip (never fail) when the gate, credentials, or required
 dependencies are absent. Never run them in CI, and never commit credentials.
+
+## Release E2E (manual, protected)
+
+The release validation workflow (see
+[`docs/release-validation.md`](release-validation.md)) runs the full live
+scenario suite at the installed executable boundary against the controlled
+GitHub Pages corpus, a known-caption YouTube video, and DeepSeek. It is
+manually dispatched on `main`, guarded by a protected `release` environment,
+and does not tag or publish.
+
+Its deterministic seams — candidate/version validation, failure
+classification, retry policy, secret redaction, report generation, scenario
+assertions, and corpus validation — are covered by the offline default suite in
+`scripts/release-e2e/*.test.ts`. The live runner itself never runs in the
+default suite or ordinary CI.

@@ -93,19 +93,20 @@ merge/squash commit subject.
 
 Run from the repository root (Node 20+, pnpm pinned via `packageManager`):
 
-| Command                | Purpose                                            |
-| ---------------------- | -------------------------------------------------- |
-| `pnpm install`         | Install dependencies (frozen lockfile in CI)       |
-| `pnpm check`           | Every gate required before merge                   |
-| `pnpm build`           | Build all packages to `dist/`                      |
-| `pnpm typecheck`       | Typecheck every package                            |
-| `pnpm lint`            | ESLint over the repository                         |
-| `pnpm test`            | Full Vitest suite                                  |
-| `pnpm test:coverage`   | Test suite with coverage report                    |
-| `pnpm format`          | Format with Prettier                               |
-| `pnpm verify:artifact` | Pack, install, and smoke-run the published tarball |
-| `pnpm test:live`       | Opt-in live tests (`OWLIE_LIVE_TESTS=1`)           |
-| `pnpm cli --help`      | Run the built CLI                                  |
+| Command                                                   | Purpose                                                                           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm install`                                            | Install dependencies (frozen lockfile in CI)                                      |
+| `pnpm check`                                              | Every gate required before merge                                                  |
+| `pnpm build`                                              | Build all packages to `dist/`                                                     |
+| `pnpm typecheck`                                          | Typecheck every package                                                           |
+| `pnpm lint`                                               | ESLint over the repository                                                        |
+| `pnpm test`                                               | Full Vitest suite                                                                 |
+| `pnpm test:coverage`                                      | Test suite with coverage report                                                   |
+| `pnpm format`                                             | Format with Prettier                                                              |
+| `pnpm verify:artifact`                                    | Pack, install, and smoke-run the published tarball                                |
+| `pnpm test:live`                                          | Opt-in live tests (`OWLIE_LIVE_TESTS=1`)                                          |
+| `node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js` | Opt-in live release E2E (credentials + network; see `docs/release-validation.md`) |
+| `pnpm cli --help`                                         | Run the built CLI                                                                 |
 
 `pnpm check` runs: format check, lint, typecheck, tests, dependency-boundary
 check, build, package export validation, and CLI smoke tests.
@@ -184,6 +185,10 @@ pnpm changeset
 Publishing is **not automated** and requires explicit repository-owner
 approval. npm versions are immutable and must never be overwritten.
 
+Before publishing, run the release validation workflow (see
+[`docs/release-validation.md`](release-validation.md)) so the exact artifact
+is built, packed, and live-tested once.
+
 Runbook (maintainers only):
 
 ```bash
@@ -200,9 +205,14 @@ git commit -m "chore: release owlie vX.Y.Z"
 git tag "vX.Y.Z"
 git push origin main --tags
 
-# 4. Publish (one-time npm login as the 'owlie' owner).
+# 4. Run Actions → Release validation with the exact version, approve the
+#    protected live job, and download the tested tarball + report artifacts.
+
+# 5. Publish the exact tested tarball (never a local rebuild). One-time npm
+#    login as the 'owlie' owner.
+sha256sum owlie-X.Y.Z.tgz   # compare to candidate-manifest.json sha256
 npm login
-pnpm publish   # = pnpm build && pnpm --filter owlie publish
+npm publish owlie-X.Y.Z.tgz
 ```
 
 Optional: create a GitHub Release for the tag with the changelog section as the
