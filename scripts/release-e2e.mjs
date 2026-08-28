@@ -157,16 +157,16 @@ async function run(args) {
     };
   };
 
-  // Interactive `owlie setup` must run on a pseudo-terminal: each setup
-  // prompt opens a fresh readline interface, so a single piped input buffer
-  // is not delivered across prompts. Drive it through `script` with paced
-  // writes (Linux; macOS uses positional args).
-  const spawnInteractive = async ({ env = {} }) => {
+  // Commands whose CLI contract distinguishes a TTY stdin from a pipe
+  // (interactive `setup`, and `process` with a file or `--each`) must run on a
+  // pseudo-terminal. Drive them through `script` with paced input writes
+  // (Linux; macOS uses positional args).
+  const spawnTty = async ({ args: spawnArgs, env = {}, input, timeoutMs = 30_000 }) => {
     const shellQuote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
-    const command = `${shellQuote(process.execPath)} ${shellQuote(binPath)} setup`;
+    const command = [process.execPath, binPath, ...spawnArgs].map(shellQuote).join(' ');
     const scriptArgs =
       process.platform === 'darwin'
-        ? ['-q', '/dev/null', process.execPath, binPath, 'setup']
+        ? ['-q', '/dev/null', process.execPath, binPath, ...spawnArgs]
         : ['-qec', command, '/dev/null'];
     const child = spawnAsync('script', scriptArgs, {
       env: { ...process.env, ...env },
@@ -176,32 +176,34 @@ async function run(args) {
     let stderr = '';
     child.stdout?.on('data', (chunk) => (stdout += chunk));
     child.stderr?.on('data', (chunk) => (stderr += chunk));
-    let timedOut = false;
-    const timer = setTimeoutFn(() => {
-      timedOut = true;
-      child.kill('SIGTERM');
-    }, 30_000);
+    const timer = setTimeoutFn(() => child.kill('SIGTERM'), timeoutMs);
+    // Attach the close/error listeners immediately: `script` can exit before
+    // the paced writes below finish, and a late listener would never resolve.
+    const closed = new Promise((res) => {
+      child.on('close', (code, signal) => res({ code, signal }));
+      child.on('error', (error) => res({ code: null, signal: null, error }));
+    });
     const write = (text) =>
       new Promise((res, rej) => child.stdin.write(text, (err) => (err ? rej(err) : res())));
     const sleep = (ms) => new Promise((res) => setTimeoutFn(res, ms));
     try {
-      await sleep(400);
-      await write('2\n');
-      await sleep(400);
-      await write('\n');
+      for (const line of input ?? []) {
+        await sleep(400);
+        await write(line);
+      }
       await sleep(400);
       child.stdin.end();
     } catch {
       // stdin closed early; the child exited before we finished writing.
     }
-    const code = await new Promise((res) => child.on('close', (c) => res(c)));
+    const { code, signal, error } = await closed;
     clearTimeout(timer);
     return {
-      status: timedOut ? null : code,
+      status: signal ? null : code,
       stdout,
       stderr,
-      signal: timedOut ? 'SIGTERM' : null,
-      error: null,
+      signal: signal ?? null,
+      error: error ? { code: error.code ?? null, message: error.message ?? String(error) } : null,
     };
   };
 
@@ -219,7 +221,7 @@ async function run(args) {
   };
 
   const results = [];
-  for (const scenario of buildScenarios(ctx, spawn, spawnInteractive)) {
+  for (const scenario of buildScenarios(ctx, spawn, spawnTty)) {
     results.push(await executeScenario({ scenario, ctx, secrets }));
   }
 

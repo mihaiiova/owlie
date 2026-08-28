@@ -97,6 +97,12 @@ Publishing remains manual and requires explicit repository-owner approval.
 - A classified YouTube runner-access block is retried once through the
   optional proxy. Direct access is always attempted first. If no proxy is
   configured (or the proxy also fails), validation fails.
+- The PTY-driven scenarios (`setup`, `process file`, `process feed --each`)
+  run with `--quiet` so terminal framing cannot corrupt their stdout
+  contract; because stderr is suppressed, a transient DeepSeek failure in
+  those scenarios fails deterministically instead of retrying. The YouTube
+  and `extract → process pipeline` scenarios retain full retry/classification
+  behavior.
 - Every report is redacted: the DeepSeek key, the proxy URL, authorization
   headers, and `sk-` tokens never appear in uploaded artifacts.
 - A failed validation does not authorize bypassing the gate. Use the sanitized

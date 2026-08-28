@@ -217,14 +217,14 @@ describe('buildScenarios', () => {
     corpus: { marker: 'MARKER', entryCount: 1 },
   };
   const spawn = () => ({ status: 0, stdout: '', stderr: '' });
-  const spawnInteractive = async () => ({
+  const spawnTty = async () => ({
     status: 0,
     stdout: 'owlie setup complete\n',
     stderr: '',
   });
 
   it('builds the full scenario inventory with run/assert pairs', () => {
-    const scenarios = buildScenarios(ctx, spawn, spawnInteractive);
+    const scenarios = buildScenarios(ctx, spawn, spawnTty);
     expect(scenarios.map((s) => s.name)).toEqual([
       'help',
       'version',
@@ -245,7 +245,7 @@ describe('buildScenarios', () => {
   });
 
   it('marks only the YouTube scenario as proxy-fallback eligible', () => {
-    const scenarios = buildScenarios(ctx, spawn, spawnInteractive);
+    const scenarios = buildScenarios(ctx, spawn, spawnTty);
     const youtube = scenarios.find((s) => s.name === 'extract youtube');
     expect(youtube?.allowProxyFallback).toBe(true);
     const others = scenarios.filter((s) => s.name !== 'extract youtube');

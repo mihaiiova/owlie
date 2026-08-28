@@ -126,10 +126,13 @@ function jsonAssert(parse, extraChecks) {
 }
 
 /**
- * Builds the release scenario inventory. `spawn` is the primitive:
- * `spawn({ args, env, input, timeoutMs })` → `{ status, stdout, stderr, signal, error }`.
+ * Builds the release scenario inventory. `spawn` is the synchronous primitive
+ * (`spawn({ args, env, input, timeoutMs })` → result); `spawnTty` runs a
+ * command on a pseudo-terminal (`spawnTty({ args, env, input, timeoutMs })`),
+ * required by commands whose CLI contract distinguishes a TTY stdin from a
+ * pipe (interactive `setup`, and `process` with a file or `--each`).
  */
-export function buildScenarios(ctx, spawn, spawnInteractive) {
+export function buildScenarios(ctx, spawn, spawnTty) {
   const {
     articleUrl,
     feedUrl,
@@ -196,7 +199,13 @@ export function buildScenarios(ctx, spawn, spawnInteractive) {
     {
       name: 'setup (proxy none)',
       allowProxyFallback: false,
-      run: () => spawnInteractive({ env: { XDG_CONFIG_HOME: configHome } }),
+      run: () =>
+        spawnTty({
+          args: ['setup'],
+          env: { XDG_CONFIG_HOME: configHome },
+          input: ['2\n', '\n'],
+          timeoutMs: 30_000,
+        }),
       assert: (result) => {
         const errors = [];
         if (!assertExitCode(result, 0).ok) errors.push(assertExitCode(result, 0).error);
@@ -285,9 +294,9 @@ export function buildScenarios(ctx, spawn, spawnInteractive) {
       name: 'process file',
       allowProxyFallback: false,
       run: () =>
-        spawn({
-          args: ['process', inputFile, '--prompt', 'Reply with exactly: OK', '--json'],
-          env: { DEEPSEEK_API_KEY: apiKey },
+        spawnTty({
+          args: ['process', inputFile, '--prompt', 'Reply with exactly: OK', '--json', '--quiet'],
+          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
           timeoutMs: 120_000,
         }),
       assert: jsonAssert(parseJson, (result) => {
@@ -306,7 +315,7 @@ export function buildScenarios(ctx, spawn, spawnInteractive) {
         if (extracted.status !== 0) return extracted;
         return spawn({
           args: ['process', '--prompt', 'Reply with exactly: OK', '--json'],
-          env: { DEEPSEEK_API_KEY: apiKey },
+          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
           input: extracted.stdout,
           timeoutMs: 120_000,
         });
@@ -322,7 +331,7 @@ export function buildScenarios(ctx, spawn, spawnInteractive) {
       name: 'process feed --each',
       allowProxyFallback: false,
       run: () =>
-        spawn({
+        spawnTty({
           args: [
             'process',
             feedUrl,
@@ -331,8 +340,9 @@ export function buildScenarios(ctx, spawn, spawnInteractive) {
             '2',
             '--prompt',
             'Reply with exactly: OK',
+            '--quiet',
           ],
-          env: { DEEPSEEK_API_KEY: apiKey },
+          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
           timeoutMs: 120_000,
         }),
       assert: (result) => {
