@@ -15,8 +15,9 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { basename, dirname, join, resolve } from 'node:path';
+import { spawn as spawnAsync, spawnSync } from 'node:child_process';
+import { clearTimeout, setTimeout as setTimeoutFn } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 
 import { validateCandidate } from './release-e2e/candidate.mjs';
@@ -70,12 +71,13 @@ function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex');
 }
 
-function run(args) {
+async function run(args) {
   const { tarball, bin, expectedVersion, commitSha, out } = args;
+  const tarballPath = tarball ? resolve(tarball) : null;
 
   // 1. Resolve the candidate and validate the version before any live work.
-  const packageVersion = tarball ? tarballVersion(tarball) : cliPkg.version;
-  if (!packageVersion) fail(`could not derive a version from tarball "${basename(tarball)}"`);
+  const packageVersion = tarballPath ? tarballVersion(tarballPath) : cliPkg.version;
+  if (!packageVersion) fail(`could not derive a version from tarball "${basename(tarballPath)}"`);
   const versionCheck = validateCandidate({
     expectedVersion: expectedVersion ?? process.env.OWLIE_E2E_EXPECTED_VERSION ?? '',
     packageVersion,
@@ -127,8 +129,8 @@ function run(args) {
   // 5. Install the tarball (or use the provided bin) and define the spawn seam.
   let install;
   let binPath;
-  if (tarball) {
-    install = installTarball(tarball);
+  if (tarballPath) {
+    install = installTarball(tarballPath);
     binPath = install.bin;
   } else if (bin) {
     binPath = join(root, bin);
@@ -155,6 +157,54 @@ function run(args) {
     };
   };
 
+  // Interactive `owlie setup` must run on a pseudo-terminal: each setup
+  // prompt opens a fresh readline interface, so a single piped input buffer
+  // is not delivered across prompts. Drive it through `script` with paced
+  // writes (Linux; macOS uses positional args).
+  const spawnInteractive = async ({ env = {} }) => {
+    const shellQuote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+    const command = `${shellQuote(process.execPath)} ${shellQuote(binPath)} setup`;
+    const scriptArgs =
+      process.platform === 'darwin'
+        ? ['-q', '/dev/null', process.execPath, binPath, 'setup']
+        : ['-qec', command, '/dev/null'];
+    const child = spawnAsync('script', scriptArgs, {
+      env: { ...process.env, ...env },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => (stdout += chunk));
+    child.stderr?.on('data', (chunk) => (stderr += chunk));
+    let timedOut = false;
+    const timer = setTimeoutFn(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, 30_000);
+    const write = (text) =>
+      new Promise((res, rej) => child.stdin.write(text, (err) => (err ? rej(err) : res())));
+    const sleep = (ms) => new Promise((res) => setTimeoutFn(res, ms));
+    try {
+      await sleep(400);
+      await write('2\n');
+      await sleep(400);
+      await write('\n');
+      await sleep(400);
+      child.stdin.end();
+    } catch {
+      // stdin closed early; the child exited before we finished writing.
+    }
+    const code = await new Promise((res) => child.on('close', (c) => res(c)));
+    clearTimeout(timer);
+    return {
+      status: timedOut ? null : code,
+      stdout,
+      stderr,
+      signal: timedOut ? 'SIGTERM' : null,
+      error: null,
+    };
+  };
+
   // 6. Run every scenario and build the sanitized report.
   const ctx = {
     articleUrl: config.articleUrl,
@@ -169,16 +219,16 @@ function run(args) {
   };
 
   const results = [];
-  for (const scenario of buildScenarios(ctx, spawn)) {
-    results.push(executeScenario({ scenario, ctx, secrets }));
+  for (const scenario of buildScenarios(ctx, spawn, spawnInteractive)) {
+    results.push(await executeScenario({ scenario, ctx, secrets }));
   }
 
   const candidate = {
     packageName: 'owlie',
     version: packageVersion,
     commitSha: commitSha ?? 'local',
-    tarball: tarball ? basename(tarball) : null,
-    sha256: tarball ? sha256(tarball) : null,
+    tarball: tarballPath ? basename(tarballPath) : null,
+    sha256: tarballPath ? sha256(tarballPath) : null,
   };
   const report = buildReport({ candidate, scenarios: results, secrets });
   const summary = buildSummary(report);
@@ -201,4 +251,4 @@ function run(args) {
   process.exitCode = failed ? 1 : 0;
 }
 
-run(parseArgs(process.argv.slice(2)));
+await run(parseArgs(process.argv.slice(2)));

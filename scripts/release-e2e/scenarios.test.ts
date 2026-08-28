@@ -68,13 +68,13 @@ describe('buildDiagnostics', () => {
 });
 
 describe('executeScenario', () => {
-  it('passes on the first successful attempt', () => {
-    const result = executeScenario({ scenario: scenario(), ctx: {}, secrets: [] });
+  it('passes on the first successful attempt', async () => {
+    const result = await executeScenario({ scenario: scenario(), ctx: {}, secrets: [] });
     expect(result).toMatchObject({ status: 'passed', attempts: 1 });
     expect(result.attemptDiagnostics).toEqual([]);
   });
 
-  it('records sanitized diagnostics for every attempt', () => {
+  it('records sanitized diagnostics for every attempt', async () => {
     let calls = 0;
     const s = scenario({
       run: () => {
@@ -84,7 +84,7 @@ describe('executeScenario', () => {
           : { status: 1, stdout: '', stderr: '503 service unavailable', signal: null, error: null };
       },
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: [] });
     expect(result.status).toBe('failed');
     expect(result.attemptDiagnostics).toHaveLength(2);
     expect(result.attemptDiagnostics[0]).toMatchObject({ attempt: 1, classification: 'transient' });
@@ -93,7 +93,7 @@ describe('executeScenario', () => {
     expect(result.attemptDiagnostics[1].diagnostics).toContain('503');
   });
 
-  it('retries a transient failure once and then passes', () => {
+  it('retries a transient failure once and then passes', async () => {
     let calls = 0;
     const s = scenario({
       run: () => {
@@ -103,11 +103,11 @@ describe('executeScenario', () => {
           : { status: 0, stdout: '', stderr: '', signal: null, error: null };
       },
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: [] });
     expect(result).toMatchObject({ status: 'passed', attempts: 2 });
   });
 
-  it('stops after the attempt budget on persistent transient failures', () => {
+  it('stops after the attempt budget on persistent transient failures', async () => {
     const s = scenario({
       run: () => ({
         status: 1,
@@ -117,11 +117,11 @@ describe('executeScenario', () => {
         error: null,
       }),
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: [] });
     expect(result).toMatchObject({ status: 'failed', attempts: 2 });
   });
 
-  it('does not retry deterministic failures', () => {
+  it('does not retry deterministic failures', async () => {
     let calls = 0;
     const s = scenario({
       run: () => {
@@ -129,12 +129,12 @@ describe('executeScenario', () => {
         return { status: 2, stdout: '', stderr: 'invalid URL', signal: null, error: null };
       },
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: [] });
     expect(result).toMatchObject({ status: 'failed', attempts: 1 });
     expect(calls).toBe(1);
   });
 
-  it('does not retry a failing assertion on a zero exit', () => {
+  it('does not retry a failing assertion on a zero exit', async () => {
     let calls = 0;
     const s = scenario({
       run: () => {
@@ -143,12 +143,12 @@ describe('executeScenario', () => {
       },
       assert: fail,
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: [] });
     expect(result).toMatchObject({ status: 'failed', attempts: 1 });
     expect(calls).toBe(1);
   });
 
-  it('retries a YouTube access block through the proxy', () => {
+  it('retries a YouTube access block through the proxy', async () => {
     const useProxyCalls = [];
     const s = scenario({
       allowProxyFallback: true,
@@ -164,7 +164,7 @@ describe('executeScenario', () => {
         };
       },
     });
-    const result = executeScenario({
+    const result = await executeScenario({
       scenario: s,
       ctx: { proxyUrl: 'http://p:8080' },
       secrets: [],
@@ -173,7 +173,7 @@ describe('executeScenario', () => {
     expect(useProxyCalls).toEqual([false, true]);
   });
 
-  it('does not retry an access block when no proxy is configured', () => {
+  it('does not retry an access block when no proxy is configured', async () => {
     const s = scenario({
       allowProxyFallback: true,
       run: () => ({
@@ -184,11 +184,11 @@ describe('executeScenario', () => {
         error: null,
       }),
     });
-    const result = executeScenario({ scenario: s, ctx: { proxyUrl: '' }, secrets: [] });
+    const result = await executeScenario({ scenario: s, ctx: { proxyUrl: '' }, secrets: [] });
     expect(result).toMatchObject({ status: 'failed', attempts: 1 });
   });
 
-  it('sanitizes secrets from failure diagnostics', () => {
+  it('sanitizes secrets from failure diagnostics', async () => {
     const s = scenario({
       run: () => ({
         status: 1,
@@ -198,7 +198,7 @@ describe('executeScenario', () => {
         error: null,
       }),
     });
-    const result = executeScenario({ scenario: s, ctx: {}, secrets: ['sk-live-12345'] });
+    const result = await executeScenario({ scenario: s, ctx: {}, secrets: ['sk-live-12345'] });
     expect(result.status).toBe('failed');
     expect(result.diagnostics).not.toContain('sk-live-12345');
   });
@@ -216,9 +216,15 @@ describe('buildScenarios', () => {
     inputFile: '/tmp/input.txt',
     corpus: { marker: 'MARKER', entryCount: 1 },
   };
+  const spawn = () => ({ status: 0, stdout: '', stderr: '' });
+  const spawnInteractive = async () => ({
+    status: 0,
+    stdout: 'owlie setup complete\n',
+    stderr: '',
+  });
 
   it('builds the full scenario inventory with run/assert pairs', () => {
-    const scenarios = buildScenarios(ctx, () => ({ status: 0, stdout: '', stderr: '' }));
+    const scenarios = buildScenarios(ctx, spawn, spawnInteractive);
     expect(scenarios.map((s) => s.name)).toEqual([
       'help',
       'version',
@@ -239,7 +245,7 @@ describe('buildScenarios', () => {
   });
 
   it('marks only the YouTube scenario as proxy-fallback eligible', () => {
-    const scenarios = buildScenarios(ctx, () => ({ status: 0, stdout: '', stderr: '' }));
+    const scenarios = buildScenarios(ctx, spawn, spawnInteractive);
     const youtube = scenarios.find((s) => s.name === 'extract youtube');
     expect(youtube?.allowProxyFallback).toBe(true);
     const others = scenarios.filter((s) => s.name !== 'extract youtube');

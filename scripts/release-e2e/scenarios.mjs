@@ -57,7 +57,7 @@ export function buildDiagnostics(result, assertionErrors = []) {
  * called with a boolean `useProxy` and returns a subprocess result; `scenario`
  * must also expose `assert` and `allowProxyFallback`.
  */
-export function executeScenario({ scenario, ctx, secrets = [] }) {
+export async function executeScenario({ scenario, ctx, secrets = [] }) {
   const started = Date.now();
   let attempts = 0;
   let useProxy = false;
@@ -67,7 +67,7 @@ export function executeScenario({ scenario, ctx, secrets = [] }) {
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     attempts = attempt;
-    const result = scenario.run(useProxy);
+    const result = await scenario.run(useProxy);
     const assertion = scenario.assert(result, ctx);
     if (result.status === 0 && assertion.ok) {
       return {
@@ -129,7 +129,7 @@ function jsonAssert(parse, extraChecks) {
  * Builds the release scenario inventory. `spawn` is the primitive:
  * `spawn({ args, env, input, timeoutMs })` → `{ status, stdout, stderr, signal, error }`.
  */
-export function buildScenarios(ctx, spawn) {
+export function buildScenarios(ctx, spawn, spawnInteractive) {
   const {
     articleUrl,
     feedUrl,
@@ -196,13 +196,7 @@ export function buildScenarios(ctx, spawn) {
     {
       name: 'setup (proxy none)',
       allowProxyFallback: false,
-      run: () =>
-        spawn({
-          args: ['setup'],
-          env: { XDG_CONFIG_HOME: configHome },
-          input: '2\n\n',
-          timeoutMs: 30_000,
-        }),
+      run: () => spawnInteractive({ env: { XDG_CONFIG_HOME: configHome } }),
       assert: (result) => {
         const errors = [];
         if (!assertExitCode(result, 0).ok) errors.push(assertExitCode(result, 0).error);

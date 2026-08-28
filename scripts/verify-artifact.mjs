@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -36,7 +36,9 @@ try {
   if (providedTarball) {
     // Reuse an already-packed candidate (e.g. the exact artifact produced by
     // the release validation workflow) rather than repacking from source.
-    tarball = providedTarball;
+    // Resolve to an absolute path so `npm install` still finds it after the
+    // working directory changes below.
+    tarball = resolve(providedTarball);
     check(existsSync(tarball), `tarball exists (${tarball})`);
   } else {
     // 1. Pack the published package.

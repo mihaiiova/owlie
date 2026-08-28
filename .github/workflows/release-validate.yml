@@ -108,6 +108,7 @@ jobs:
           --out release-e2e-report.json
 
       - name: Upload sanitized report and candidate manifest
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-e2e-report
