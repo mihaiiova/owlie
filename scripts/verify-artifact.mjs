@@ -29,12 +29,22 @@ const packDir = mkdtempSync(join(tmpdir(), 'owlie-pack-'));
 const installDir = mkdtempSync(join(tmpdir(), 'owlie-install-'));
 let tarball;
 
+const tarballArgIndex = process.argv.indexOf('--tarball');
+const providedTarball = tarballArgIndex !== -1 ? process.argv[tarballArgIndex + 1] : undefined;
+
 try {
-  // 1. Pack the published package.
-  const packed = run('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
-  check(packed.status === 0, 'npm pack succeeds');
-  tarball = join(packDir, `${pkg.name}-${pkg.version}.tgz`);
-  check(existsSync(tarball), `tarball created (${tarball})`);
+  if (providedTarball) {
+    // Reuse an already-packed candidate (e.g. the exact artifact produced by
+    // the release validation workflow) rather than repacking from source.
+    tarball = providedTarball;
+    check(existsSync(tarball), `tarball exists (${tarball})`);
+  } else {
+    // 1. Pack the published package.
+    const packed = run('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
+    check(packed.status === 0, 'npm pack succeeds');
+    tarball = join(packDir, `${pkg.name}-${pkg.version}.tgz`);
+    check(existsSync(tarball), `tarball created (${tarball})`);
+  }
 
   // 2. Inspect the tarball contents.
   const listed = run('tar', ['-tzf', tarball]);
