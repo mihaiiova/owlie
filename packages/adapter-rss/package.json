@@ -25,7 +25,7 @@
   "dependencies": {
     "@owlieio/core": "workspace:*",
     "entities": "^8.0.0",
-    "fast-xml-parser": "^5.11.0"
+    "fast-xml-parser": "^5.11.1"
   },
   "devDependencies": {
     "@owlieio/testing": "workspace:*",
