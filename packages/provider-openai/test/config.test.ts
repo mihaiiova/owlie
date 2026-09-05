@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigurationError, NotImplementedError } from '@owlieio/core';
+import { ConfigurationError } from '@owlieio/core';
 import { OpenAIProcessor, validateOpenAIConfig } from '@owlieio/provider-openai';
 
 describe('OpenAIConfig validation', () => {
@@ -14,21 +14,8 @@ describe('OpenAIConfig validation', () => {
 });
 
 describe('OpenAIProcessor', () => {
-  it('is a non-functional scaffold', async () => {
+  it('has a stable id', () => {
     const processor = new OpenAIProcessor({ apiKey: 'sk-test' });
     expect(processor.id).toBe('openai');
-    await expect(
-      processor.process({
-        document: {
-          schemaVersion: 1,
-          id: '1',
-          sourceType: 'rss',
-          canonicalUrl: 'u',
-          mediaType: 'text',
-          text: 'x',
-          metadata: {},
-        },
-      }),
-    ).rejects.toThrow(NotImplementedError);
   });
 });

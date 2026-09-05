@@ -10,8 +10,8 @@ what is deferred, and what belongs to the hosted product.
 - `@owlieio/core` provider-neutral contracts and types.
 - Adapter scaffolds with pure, tested URL recognition/normalization (YouTube,
   podcast, RSS/Atom, Reddit).
-- Provider scaffolds (OpenAI, local faster-whisper) with public config types
-  and no network calls.
+- Local faster-whisper provider scaffold with a public config type and no
+  network calls. (OpenAI is functional in v0.1; see below.)
 - `@owlieio/testing` fakes, fixtures, and contract-test helpers.
 - `owlie` CLI with functional `--help`, `--version`, and `doctor`.
 - Full documentation and ADRs.
@@ -26,8 +26,9 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 - `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
   RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
-  document with DeepSeek, reading from a positional file, `--input FILE`, or
-  stdin.
+  document with DeepSeek or OpenAI, reading from a positional file, `--input
+FILE`, or stdin. Provider selection is explicit (`--provider`,
+  `OWLIE_PROVIDER`, or the saved active provider).
 - `owlie process FEED_URL --each [--limit N] --prompt "..."` — process the
   bounded linked items of an RSS/Atom feed sequentially, streaming one JSONL
   record per attempted item.

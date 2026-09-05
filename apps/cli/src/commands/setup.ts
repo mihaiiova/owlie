@@ -24,19 +24,15 @@ export interface SetupDeps {
   ) => Promise<string[]>;
 }
 
-const DEFAULT_BASE_URLS: Record<string, string> = {
-  deepseek: 'https://api.deepseek.com',
-};
-
 /** Top-level `owlie setup` sections (future sections append here). */
 const SETUP_SECTIONS: readonly string[] = ['LLM provider', 'Proxy'];
 
 /** Fetches a provider's live model list from its OpenAI-compatible `/models`. */
-export async function listDeepseekModels(
+export async function listProviderModels(
   provider: ProviderInfo,
   options: { baseUrl?: string; apiKey: string },
 ): Promise<string[]> {
-  const baseUrl = options.baseUrl ?? DEFAULT_BASE_URLS[provider.id];
+  const baseUrl = options.baseUrl ?? provider.baseUrl;
   const response = await fetch(`${baseUrl}/models`, {
     headers: { Authorization: `Bearer ${options.apiKey}` },
   });
@@ -47,20 +43,6 @@ export async function listDeepseekModels(
   return (body.data ?? [])
     .map((model) => model.id)
     .filter((id): id is string => typeof id === 'string');
-}
-
-async function resolveModels(
-  provider: ProviderInfo,
-  options: { baseUrl?: string; apiKey: string },
-  listModels: SetupDeps['listModels'],
-): Promise<string[]> {
-  try {
-    const models = await listModels?.(provider, options);
-    if (models && models.length > 0) return models;
-  } catch {
-    // fall through to the known models
-  }
-  return [...provider.models];
 }
 
 /** Interactive free-text prompt backed by stdin/stderr (used as the default). */
@@ -111,7 +93,7 @@ export async function runSetupCommand(
   const writeConfig = deps.writeConfig ?? writeUserConfig;
   const prompt = deps.prompt ?? defaultPrompt;
   const select = deps.select ?? defaultSelect;
-  const listModels = deps.listModels ?? listDeepseekModels;
+  const listModels = deps.listModels ?? listProviderModels;
 
   const existing = readConfig();
 
@@ -130,27 +112,51 @@ export async function runSetupCommand(
         return ExitCode.Usage;
       }
 
+      const existingProfile = existing.providers?.[providerId] ?? {};
+
       // auth (API key; never shown as a default)
       const apiKeyInput = await prompt('API key');
-      const apiKey = apiKeyInput.trim() || existing.apiKey;
+      const apiKey = apiKeyInput.trim() || existingProfile.apiKey;
       if (!apiKey) {
         if (!options.quiet) io.stderr.write('owlie: API key is required\n');
         return ExitCode.Usage;
       }
 
-      // model (live list with a fallback to the known list)
-      const models = await resolveModels(
-        provider,
-        { baseUrl: existing.baseUrl, apiKey },
-        listModels,
-      );
-      const model = await select('Model', models, { default: existing.model ?? models[0] });
+      // model: the authenticated live list is authoritative; no fallback,
+      // cache, or free-form entry.
+      let models: string[];
+      try {
+        models = await listModels(provider, {
+          baseUrl: existingProfile.baseUrl ?? provider.baseUrl,
+          apiKey,
+        });
+      } catch (error) {
+        if (!options.quiet) {
+          const message = error instanceof Error ? error.message : String(error);
+          io.stderr.write(`owlie: failed to list models for "${providerId}": ${message}\n`);
+        }
+        return ExitCode.Error;
+      }
+      if (models.length === 0) {
+        if (!options.quiet)
+          io.stderr.write(`owlie: provider "${providerId}" returned no selectable models\n`);
+        return ExitCode.Error;
+      }
+
+      const model = await select('Model', models, { default: existingProfile.model ?? models[0] });
       if (!models.includes(model)) {
         if (!options.quiet) io.stderr.write(`owlie: unknown model "${model}"\n`);
         return ExitCode.Usage;
       }
 
-      writeConfig({ ...existing, provider: providerId, model, apiKey, baseUrl: existing.baseUrl });
+      writeConfig({
+        ...existing,
+        provider: providerId,
+        providers: {
+          ...(existing.providers ?? {}),
+          [providerId]: { ...existingProfile, model, apiKey },
+        },
+      });
       io.stdout.write('owlie setup complete\n');
       return ExitCode.Success;
     }

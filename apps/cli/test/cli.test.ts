@@ -64,10 +64,10 @@ describe('doctor', () => {
     const code = await run(['doctor'], io, fakeDeps);
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('Node');
-    expect(stdout()).toContain('DEEPSEEK_API_KEY: set');
-    expect(stdout()).toContain('Model: set');
     expect(stdout()).toContain('Adapters: youtube, rss, article');
-    expect(stdout()).toContain('Providers: deepseek');
+    expect(stdout()).toContain('Providers: deepseek, openai');
+    expect(stdout()).toContain('deepseek: api key set, model set');
+    expect(stdout()).toContain('openai: api key not set, model not set');
     expect(stdout()).not.toContain('Deferred');
   });
 
@@ -77,11 +77,13 @@ describe('doctor', () => {
     expect(code).toBe(ExitCode.Success);
     const report = JSON.parse(stdout());
     expect(report.node).toContain('v');
-    expect(report.deepSeekApiKey).toBe('set');
-    expect(report.modelConfigured).toBe('set');
     expect(report.adapters).toEqual(['youtube', 'rss', 'article']);
-    expect(report.providers).toEqual(['deepseek']);
-    expect(report.deferredProviders).toBeUndefined();
+    expect(report.providers).toEqual([
+      { id: 'deepseek', apiKey: 'set', model: 'set' },
+      { id: 'openai', apiKey: 'not set', model: 'not set' },
+    ]);
+    expect(report.deepSeekApiKey).toBeUndefined();
+    expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
   });
 });

@@ -14,16 +14,17 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (YouTube transcripts, static articles, and bounded RSS/Atom
-feed batches), `owlie list`, `owlie process` (DeepSeek; single document or
-feed `--each` batches), `owlie doctor`, `owlie --help`, and `owlie --version`.
+feed batches), `owlie list`, `owlie process` (DeepSeek or OpenAI; single
+document or feed `--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the
+saved active provider), `owlie doctor`, `owlie --help`, and `owlie --version`.
 Search and audio transcription remain deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
 small, pipeable CLI that extracts transcripts from individual YouTube videos
-(`owlie extract`) and processes text or normalized documents with DeepSeek
-(`owlie process`). Treat the v0.1 decisions as authoritative where they differ
-from older v1 plans.
+(`owlie extract`) and processes text or normalized documents with DeepSeek or
+OpenAI (`owlie process`). Treat the v0.1 decisions as authoritative where they
+differ from older v1 plans.
 
 ## 3. v0.1 scope and v1 direction
 
@@ -35,10 +36,11 @@ or a bounded RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE]
 `owlie doctor`, `owlie --help`, `owlie --version`. In scope: individual
 YouTube video transcript extraction, static article extraction via the
 universal `extract` dispatch, bounded RSS/Atom listing, linked-item feed
-extraction, and linked-item feed processing (`process --each`), a DeepSeek
-`ContentProcessor` (via `ai` and `@ai-sdk/deepseek`), pipe-first
-stream/output contracts, secure configuration, and the shared core and
-coding-agent harness.
+extraction, and linked-item feed processing (`process --each`), DeepSeek and
+OpenAI `ContentProcessor`s (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`),
+explicit provider selection with provider-keyed profiles, live model
+discovery in `owlie setup`, pipe-first stream/output contracts, secure
+configuration, and the shared core and coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcasts,
 Whisper/audio transcription, generic webpage crawling, collection search,
@@ -93,8 +95,9 @@ packages/provider-whisper/   @owlieio/provider-whisper
 docs/                        Architecture, contracts, security, decisions
 ```
 
-v0.1 adds `packages/provider-deepseek/` (`@owlieio/provider-deepseek`), the
-only functional LLM provider in the milestone.
+v0.1 adds `packages/provider-deepseek/` (`@owlieio/provider-deepseek`) and
+makes `packages/provider-openai/` (`@owlieio/provider-openai`) functional — the
+two functional LLM providers in the milestone.
 
 ## 6. Dependency-direction rules
 

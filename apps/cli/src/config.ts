@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { ConfigurationError } from '@owlieio/core';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 
 /** Platform-appropriate configuration directory (XDG-aware). */
@@ -42,20 +43,27 @@ export function loadDotEnv(filePath: string): Record<string, string> {
   return out;
 }
 
-/** Values gathered for the DeepSeek provider (validated by the consumer). */
-export interface DeepSeekEnvConfig {
+/** Provider-owned saved profile: model, API key, and optional base URL. */
+export interface ProviderProfile {
+  model?: string;
   apiKey?: string;
   baseUrl?: string;
-  model?: string;
 }
 
 /** User configuration persisted by `owlie setup`. */
 export interface UserConfig {
+  /** Active provider id (used when no flag or `OWLIE_PROVIDER` is present). */
   provider?: string;
-  model?: string;
+  /** Provider-keyed profiles. Secrets are never logged or serialized to output. */
+  providers?: Record<string, ProviderProfile>;
+  proxy?: TranscriptProxy;
+}
+
+/** Resolved provider settings (validated by the consumer). */
+export interface ProviderEnvConfig {
   apiKey?: string;
   baseUrl?: string;
-  proxy?: TranscriptProxy;
+  model?: string;
 }
 
 /** Absolute path to the user config file. */
@@ -63,16 +71,53 @@ export function configFilePath(): string {
   return join(configDir(), 'config.json');
 }
 
-/** Reads the user config, tolerating a missing or corrupt file. */
+/**
+ * Reads the user config, tolerating a missing or corrupt file. Reads the
+ * canonical provider-keyed profile form, and migrates the legacy flat
+ * `{ provider, model, apiKey, baseUrl }` shape (DeepSeek-only) into a profile
+ * so existing users keep working without an explicit re-setup.
+ */
 export function readUserConfig(path: string = configFilePath()): UserConfig {
   const config: UserConfig = {};
   try {
     if (!existsSync(path)) return config;
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+
     if (typeof parsed.provider === 'string') config.provider = parsed.provider;
-    if (typeof parsed.model === 'string') config.model = parsed.model;
-    if (typeof parsed.apiKey === 'string') config.apiKey = parsed.apiKey;
-    if (typeof parsed.baseUrl === 'string') config.baseUrl = parsed.baseUrl;
+
+    if (parsed.providers && typeof parsed.providers === 'object') {
+      const profiles: Record<string, ProviderProfile> = {};
+      for (const [id, raw] of Object.entries(parsed.providers as Record<string, unknown>)) {
+        if (raw && typeof raw === 'object') {
+          const p = raw as Record<string, unknown>;
+          const profile: ProviderProfile = {};
+          if (typeof p.model === 'string') profile.model = p.model;
+          if (typeof p.apiKey === 'string') profile.apiKey = p.apiKey;
+          if (typeof p.baseUrl === 'string') profile.baseUrl = p.baseUrl;
+          profiles[id] = profile;
+        }
+      }
+      config.providers = profiles;
+    }
+
+    // Legacy flat migration: fold top-level model/apiKey/baseUrl into the
+    // active provider's profile (defaulting to deepseek, the only provider the
+    // flat form could express) without overwriting an existing profile.
+    const legacyModel = typeof parsed.model === 'string' ? parsed.model : undefined;
+    const legacyApiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey : undefined;
+    const legacyBaseUrl = typeof parsed.baseUrl === 'string' ? parsed.baseUrl : undefined;
+    if (legacyModel !== undefined || legacyApiKey !== undefined || legacyBaseUrl !== undefined) {
+      const active = config.provider ?? 'deepseek';
+      const existing = config.providers?.[active] ?? {};
+      const profile: ProviderProfile = { ...existing };
+      if (profile.model === undefined && legacyModel !== undefined) profile.model = legacyModel;
+      if (profile.apiKey === undefined && legacyApiKey !== undefined) profile.apiKey = legacyApiKey;
+      if (profile.baseUrl === undefined && legacyBaseUrl !== undefined) {
+        profile.baseUrl = legacyBaseUrl;
+      }
+      config.providers = { ...(config.providers ?? {}), [active]: profile };
+    }
+
     if (parsed.proxy && typeof parsed.proxy === 'object') {
       const proxy = parsed.proxy as Record<string, unknown>;
       if (
@@ -91,37 +136,68 @@ export function readUserConfig(path: string = configFilePath()): UserConfig {
   return config;
 }
 
-/** Writes the user config with restricted permissions. */
+/** Writes the canonical user config with restricted permissions. */
 export function writeUserConfig(config: UserConfig, path: string = configFilePath()): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
 }
 
 /**
- * Resolves DeepSeek configuration per the documented precedence: flags →
- * process env → `.env.local` → `.env` → user config file → defaults. `loadFile`
- * and `readUserConfigFn` are injectable for deterministic tests. Secret values
- * are never logged here.
+ * Resolves the active provider id in this order: `--provider` flag →
+ * `OWLIE_PROVIDER` (process env, then environment files) → saved active
+ * provider. Throws {@link ConfigurationError} when none is selected; never
+ * infers a provider from a model id.
  */
-export function resolveDeepSeekConfig(
+export function resolveProvider(
+  options: { provider?: string; envFile?: string } = {},
+  env: Record<string, string | undefined> = process.env,
+  loadFile: (path: string) => Record<string, string> = loadDotEnv,
+  readUserConfigFn: () => UserConfig = readUserConfig,
+): string {
+  const fromFlag = options.provider?.trim();
+  if (fromFlag) return fromFlag;
+  const fromEnv = env['OWLIE_PROVIDER']?.trim();
+  if (fromEnv) return fromEnv;
+  const merged: Record<string, string> = {};
+  Object.assign(merged, loadFile('.env'));
+  Object.assign(merged, loadFile('.env.local'));
+  if (options.envFile) Object.assign(merged, loadFile(options.envFile));
+  const fromFile = merged['OWLIE_PROVIDER']?.trim();
+  if (fromFile) return fromFile;
+  const active = readUserConfigFn().provider?.trim();
+  if (active) return active;
+  throw new ConfigurationError(
+    'no provider selected: pass --provider <provider> or set OWLIE_PROVIDER',
+  );
+}
+
+/**
+ * Resolves settings for the chosen provider per the documented precedence:
+ * `--model` flag → process env → explicit `--env-file` → `.env.local` → `.env`
+ * → saved provider profile. `loadFile` and `readUserConfigFn` are injectable
+ * for deterministic tests. Secret values are never logged here.
+ */
+export function resolveProviderSettings(
+  provider: string,
   options: { model?: string; envFile?: string } = {},
   env: Record<string, string | undefined> = process.env,
   loadFile: (path: string) => Record<string, string> = loadDotEnv,
   readUserConfigFn: () => UserConfig = readUserConfig,
-): DeepSeekEnvConfig {
-  const user = readUserConfigFn();
+): ProviderEnvConfig {
+  const prefix = provider.toUpperCase();
+  const profile = readUserConfigFn().providers?.[provider] ?? {};
   const merged: Record<string, string> = {};
-  if (user.model) merged.DEEPSEEK_MODEL = user.model;
-  if (user.apiKey) merged.DEEPSEEK_API_KEY = user.apiKey;
-  if (user.baseUrl) merged.DEEPSEEK_BASE_URL = user.baseUrl;
+  if (profile.model) merged[`${prefix}_MODEL`] = profile.model;
+  if (profile.apiKey) merged[`${prefix}_API_KEY`] = profile.apiKey;
+  if (profile.baseUrl) merged[`${prefix}_BASE_URL`] = profile.baseUrl;
   Object.assign(merged, loadFile('.env'));
   Object.assign(merged, loadFile('.env.local'));
   if (options.envFile) Object.assign(merged, loadFile(options.envFile));
 
   const lookup = (name: string): string | undefined => env[name] ?? merged[name];
   return {
-    apiKey: lookup('DEEPSEEK_API_KEY'),
-    baseUrl: lookup('DEEPSEEK_BASE_URL'),
-    model: options.model ?? lookup('DEEPSEEK_MODEL'),
+    apiKey: lookup(`${prefix}_API_KEY`),
+    baseUrl: lookup(`${prefix}_BASE_URL`),
+    model: options.model ?? lookup(`${prefix}_MODEL`),
   };
 }

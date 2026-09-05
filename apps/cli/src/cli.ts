@@ -17,6 +17,7 @@ export interface CliOptions {
   inputFormat?: 'text' | 'json';
   prompt?: string;
   model?: string;
+  provider?: string;
   language?: string;
   limit?: string;
 }
@@ -50,6 +51,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--input-format',
     '--prompt',
     '--model',
+    '--provider',
     '--language',
     '--limit',
   ];
@@ -78,6 +80,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--model':
         options.model = value;
+        break;
+      case '--provider':
+        options.provider = value;
         break;
       case '--language':
         options.language = value;

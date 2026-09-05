@@ -112,7 +112,7 @@ export class DeepSeekProcessor implements ContentProcessor {
         timeoutMs: this.config.timeoutMs,
       });
 
-      const metadata: Record<string, unknown> = { model };
+      const metadata: Record<string, unknown> = { provider: this.id, model };
       if (result.usage) {
         metadata.usage = {
           inputTokens: result.usage.inputTokens,

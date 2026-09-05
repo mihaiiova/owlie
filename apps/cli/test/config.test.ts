@@ -1,15 +1,69 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readUserConfig, resolveDeepSeekConfig, writeUserConfig } from 'owlie';
+import { ConfigurationError } from '@owlieio/core';
+import { readUserConfig, resolveProvider, resolveProviderSettings, writeUserConfig } from 'owlie';
+import type { UserConfig } from 'owlie';
 
 const noFile = () => ({});
 const noUserConfig = () => ({});
 
-describe('resolveDeepSeekConfig', () => {
-  it('reads DEEPSEEK_* from the environment', () => {
-    const config = resolveDeepSeekConfig(
+describe('resolveProvider', () => {
+  it('prefers the --provider flag over env, env files, and saved config', () => {
+    expect(
+      resolveProvider(
+        { provider: 'openai' },
+        { OWLIE_PROVIDER: 'deepseek' },
+        () => ({ OWLIE_PROVIDER: 'deepseek' }),
+        () => ({ provider: 'deepseek' }),
+      ),
+    ).toBe('openai');
+  });
+
+  it('prefers process-env OWLIE_PROVIDER over env files and saved config', () => {
+    expect(
+      resolveProvider(
+        {},
+        { OWLIE_PROVIDER: 'openai' },
+        () => ({ OWLIE_PROVIDER: 'deepseek' }),
+        () => ({ provider: 'deepseek' }),
+      ),
+    ).toBe('openai');
+  });
+
+  it('reads OWLIE_PROVIDER from environment files', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OWLIE_PROVIDER: 'deepseek' },
+      '.env.local': { OWLIE_PROVIDER: 'openai' },
+    };
+    const loadFile = (path: string) => files[path] ?? {};
+    expect(resolveProvider({}, {}, loadFile, noUserConfig)).toBe('openai');
+  });
+
+  it('lets --env-file override .env.local/.env for OWLIE_PROVIDER', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OWLIE_PROVIDER: 'deepseek' },
+      '.env.local': { OWLIE_PROVIDER: 'openai' },
+      'custom.env': { OWLIE_PROVIDER: 'deepseek' },
+    };
+    const loadFile = (path: string) => files[path] ?? {};
+    expect(resolveProvider({ envFile: 'custom.env' }, {}, loadFile, noUserConfig)).toBe('deepseek');
+  });
+
+  it('falls back to the saved active provider', () => {
+    expect(resolveProvider({}, {}, noFile, () => ({ provider: 'deepseek' }))).toBe('deepseek');
+  });
+
+  it('throws when no provider is selected', () => {
+    expect(() => resolveProvider({}, {}, noFile, noUserConfig)).toThrow(ConfigurationError);
+  });
+});
+
+describe('resolveProviderSettings', () => {
+  it('reads provider-specific variables from the environment', () => {
+    const config = resolveProviderSettings(
+      'deepseek',
       {},
       { DEEPSEEK_API_KEY: 'sk-env', DEEPSEEK_BASE_URL: 'https://x' },
       noFile,
@@ -19,8 +73,20 @@ describe('resolveDeepSeekConfig', () => {
     expect(config.baseUrl).toBe('https://x');
   });
 
-  it('prefers the --model flag over DEEPSEEK_MODEL', () => {
-    const config = resolveDeepSeekConfig(
+  it('isolates providers: OPENAI_* do not leak into deepseek', () => {
+    const config = resolveProviderSettings(
+      'deepseek',
+      {},
+      { OPENAI_API_KEY: 'sk-openai', DEEPSEEK_API_KEY: 'sk-deepseek' },
+      noFile,
+      noUserConfig,
+    );
+    expect(config.apiKey).toBe('sk-deepseek');
+  });
+
+  it('prefers the --model flag over the provider model variable', () => {
+    const config = resolveProviderSettings(
+      'deepseek',
       { model: 'deepseek-reasoner' },
       { DEEPSEEK_MODEL: 'deepseek-chat' },
       noFile,
@@ -29,8 +95,9 @@ describe('resolveDeepSeekConfig', () => {
     expect(config.model).toBe('deepseek-reasoner');
   });
 
-  it('falls back to DEEPSEEK_MODEL when no flag is given', () => {
-    const config = resolveDeepSeekConfig(
+  it('resolves the provider model variable when no flag is given', () => {
+    const config = resolveProviderSettings(
+      'deepseek',
       {},
       { DEEPSEEK_MODEL: 'deepseek-chat' },
       noFile,
@@ -39,66 +106,134 @@ describe('resolveDeepSeekConfig', () => {
     expect(config.model).toBe('deepseek-chat');
   });
 
-  it('lets dotenv files supply values and process env override them', () => {
+  it('applies dotenv precedence: profile < .env < .env.local < --env-file < process env', () => {
     const files: Record<string, Record<string, string>> = {
-      '.env': { DEEPSEEK_API_KEY: 'sk-dotenv' },
-      '.env.local': { DEEPSEEK_BASE_URL: 'https://local' },
+      '.env': { OPENAI_API_KEY: 'sk-dotenv', OPENAI_BASE_URL: 'https://env' },
+      '.env.local': { OPENAI_BASE_URL: 'https://local' },
+      'custom.env': { OPENAI_API_KEY: 'sk-custom', OPENAI_MODEL: 'gpt-custom' },
     };
     const loadFile = (path: string) => files[path] ?? {};
-    const config = resolveDeepSeekConfig(
-      {},
-      { DEEPSEEK_API_KEY: 'sk-env' },
+    const config = resolveProviderSettings(
+      'openai',
+      { envFile: 'custom.env' },
+      { OPENAI_API_KEY: 'sk-env' },
       loadFile,
-      noUserConfig,
+      () => ({
+        provider: 'openai',
+        providers: { openai: { apiKey: 'sk-profile', baseUrl: 'https://profile' } },
+      }),
     );
     expect(config.apiKey).toBe('sk-env');
     expect(config.baseUrl).toBe('https://local');
+    expect(config.model).toBe('gpt-custom');
   });
 
   it('returns undefined when nothing is set', () => {
-    const config = resolveDeepSeekConfig({}, {}, noFile, noUserConfig);
+    const config = resolveProviderSettings('openai', {}, {}, noFile, noUserConfig);
     expect(config.apiKey).toBeUndefined();
     expect(config.baseUrl).toBeUndefined();
     expect(config.model).toBeUndefined();
   });
 
-  it('falls back to the user config file (below env)', () => {
-    const config = resolveDeepSeekConfig({}, {}, noFile, () => ({
+  it('falls back to the saved provider profile (below env)', () => {
+    const config = resolveProviderSettings('deepseek', {}, {}, noFile, () => ({
       provider: 'deepseek',
-      model: 'deepseek-chat',
-      apiKey: 'sk-file',
-      baseUrl: 'https://x',
+      providers: {
+        deepseek: { model: 'deepseek-chat', apiKey: 'sk-file', baseUrl: 'https://x' },
+      },
     }));
     expect(config.apiKey).toBe('sk-file');
     expect(config.model).toBe('deepseek-chat');
     expect(config.baseUrl).toBe('https://x');
   });
 
-  it('lets process env override the user config', () => {
-    const config = resolveDeepSeekConfig({}, { DEEPSEEK_API_KEY: 'sk-env' }, noFile, () => ({
-      apiKey: 'sk-file',
+  it('keeps profiles isolated by provider', () => {
+    const config = resolveProviderSettings('deepseek', {}, {}, noFile, () => ({
+      provider: 'openai',
+      providers: {
+        openai: { model: 'gpt-4o', apiKey: 'sk-openai' },
+        deepseek: { model: 'deepseek-chat', apiKey: 'sk-deepseek' },
+      },
     }));
-    expect(config.apiKey).toBe('sk-env');
-  });
-
-  it('lets --model override the user config model', () => {
-    const config = resolveDeepSeekConfig({ model: 'deepseek-reasoner' }, {}, noFile, () => ({
-      model: 'deepseek-chat',
-    }));
-    expect(config.model).toBe('deepseek-reasoner');
+    expect(config.apiKey).toBe('sk-deepseek');
+    expect(config.model).toBe('deepseek-chat');
   });
 });
 
 describe('user config store', () => {
-  it('round-trips a config', () => {
+  it('round-trips a canonical profile form', () => {
     const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
     const path = join(dir, 'config.json');
     try {
-      writeUserConfig({ provider: 'deepseek', model: 'deepseek-chat', apiKey: 'sk-x' }, path);
+      writeUserConfig(
+        {
+          provider: 'deepseek',
+          providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-x' } },
+        },
+        path,
+      );
       expect(readUserConfig(path)).toEqual({
         provider: 'deepseek',
-        model: 'deepseek-chat',
-        apiKey: 'sk-x',
+        providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-x' } },
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('migrates the legacy flat DeepSeek config into a profile', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
+    const path = join(dir, 'config.json');
+    try {
+      writeUserConfig(
+        {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          apiKey: 'sk-x',
+          baseUrl: 'https://x',
+        } as unknown as UserConfig,
+        path,
+      );
+      expect(readUserConfig(path)).toEqual({
+        provider: 'deepseek',
+        providers: {
+          deepseek: { model: 'deepseek-chat', apiKey: 'sk-x', baseUrl: 'https://x' },
+        },
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('migrates a flat config without a provider to deepseek', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
+    const path = join(dir, 'config.json');
+    try {
+      writeUserConfig({ model: 'deepseek-chat', apiKey: 'sk-x' } as unknown as UserConfig, path);
+      expect(readUserConfig(path)).toEqual({
+        providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-x' } },
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not overwrite an existing profile during flat migration', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
+    const path = join(dir, 'config.json');
+    try {
+      writeUserConfig(
+        {
+          provider: 'deepseek',
+          providers: { deepseek: { model: 'deepseek-reasoner', apiKey: 'sk-new' } },
+          model: 'deepseek-chat',
+          apiKey: 'sk-old',
+        } as unknown as UserConfig,
+        path,
+      );
+      expect(readUserConfig(path)).toEqual({
+        provider: 'deepseek',
+        providers: { deepseek: { model: 'deepseek-reasoner', apiKey: 'sk-new' } },
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -109,18 +244,34 @@ describe('user config store', () => {
     expect(readUserConfig('/nonexistent/owlie-config.json')).toEqual({});
   });
 
-  it('round-trips a proxy config', () => {
+  it('round-trips a proxy config alongside profiles', () => {
     const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
     const path = join(dir, 'config.json');
     try {
       writeUserConfig(
-        { provider: 'deepseek', proxy: { type: 'webshare', username: 'u', password: 'p' } },
+        {
+          provider: 'deepseek',
+          providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-x' } },
+          proxy: { type: 'webshare', username: 'u', password: 'p' },
+        },
         path,
       );
       expect(readUserConfig(path)).toEqual({
         provider: 'deepseek',
+        providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-x' } },
         proxy: { type: 'webshare', username: 'u', password: 'p' },
       });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes the config file with 0600 permissions', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-config-'));
+    const path = join(dir, 'config.json');
+    try {
+      writeUserConfig({ provider: 'deepseek', providers: { deepseek: { apiKey: 'sk-x' } } }, path);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

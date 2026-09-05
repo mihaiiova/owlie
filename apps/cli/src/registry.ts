@@ -5,6 +5,7 @@ import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
+import { OpenAIProcessor } from '@owlieio/provider-openai';
 
 /**
  * The functional adapters bundled into `owlie`: the YouTube video item
@@ -38,55 +39,79 @@ export interface ProcessorConfig {
 
 interface ProcessorRegistration {
   id: string;
-  models: readonly string[];
+  /** Default base URL for authenticated live model discovery (`GET /models`). */
+  baseUrl: string;
   create(config: ProcessorConfig & { model: string }): ContentProcessor;
 }
 
-/** Public description of a functional provider (used by `owlie setup`). */
+/**
+ * Public description of a functional provider (used by `owlie setup`). The
+ * model list is discovered live from the provider's authenticated `/models`
+ * endpoint during setup, so it is not part of the static registration.
+ */
 export interface ProviderInfo {
   id: string;
-  models: readonly string[];
+  baseUrl: string;
 }
 
 /**
- * Model → processor registry. v0.1 registers only DeepSeek; additional
- * providers are added here as they are implemented.
+ * Provider → processor registry. Selection is explicit and provider-first:
+ * the CLI resolves a provider id (flag → `OWLIE_PROVIDER` → saved active
+ * provider) and then resolves a model within that provider. A model id never
+ * implies a provider.
  */
 const PROCESSOR_REGISTRY: readonly ProcessorRegistration[] = [
   {
     id: DeepSeekProcessor.id,
-    models: ['deepseek-chat', 'deepseek-reasoner'],
+    baseUrl: 'https://api.deepseek.com',
     create: (config) => new DeepSeekProcessor(config),
+  },
+  {
+    id: OpenAIProcessor.id,
+    baseUrl: 'https://api.openai.com/v1',
+    create: (config) => new OpenAIProcessor(config),
   },
 ];
 
 /** Provider ids that are actually functional (used by `doctor`). */
 export const PROVIDER_IDS: readonly string[] = PROCESSOR_REGISTRY.map((provider) => provider.id);
 
-/** Lists the functional providers and their known (fallback) models. */
+/** Lists the functional providers and their default model-discovery base URL. */
 export function listProviders(): ProviderInfo[] {
-  return PROCESSOR_REGISTRY.map((provider) => ({ id: provider.id, models: provider.models }));
+  return PROCESSOR_REGISTRY.map((provider) => ({ id: provider.id, baseUrl: provider.baseUrl }));
+}
+
+/** Throws {@link ConfigurationError} when the provider id is not registered. */
+export function assertKnownProvider(provider: string): void {
+  if (!PROCESSOR_REGISTRY.some((entry) => entry.id === provider)) {
+    throw new ConfigurationError(
+      `unknown provider "${provider}" (known providers: ${PROVIDER_IDS.join(', ')})`,
+    );
+  }
 }
 
 /**
- * Resolves the processor for a selected model. Throws {@link ConfigurationError}
- * when no model is selected. The model id itself is accepted leniently (the
- * live model list is dynamic), so unknown models are passed through to the
- * provider and validated there.
+ * Resolves the processor for an explicitly selected provider and model.
+ * Throws {@link ConfigurationError} when the provider is absent/unknown or the
+ * model is absent. Unknown model ids are passed through to the provider (the
+ * live model list is dynamic), which validates them at call time.
  */
 export function resolveProcessor(
+  provider: string | undefined,
   model: string | undefined,
   config: ProcessorConfig,
 ): ContentProcessor {
-  if (model === undefined || model.trim() === '') {
+  if (provider === undefined || provider.trim() === '') {
     throw new ConfigurationError(
-      'no model selected: pass --model <model> (e.g. --model deepseek-chat)',
+      'no provider selected: pass --provider <provider> or set OWLIE_PROVIDER',
     );
   }
-  const registration =
-    PROCESSOR_REGISTRY.find((provider) => provider.models.includes(model)) ?? PROCESSOR_REGISTRY[0];
-  if (!registration) {
-    throw new ConfigurationError('no LLM providers are registered');
+  assertKnownProvider(provider);
+  if (model === undefined || model.trim() === '') {
+    throw new ConfigurationError(
+      `no model selected for provider "${provider}": pass --model <model>`,
+    );
   }
-  return registration.create({ ...config, model });
+  const registration = PROCESSOR_REGISTRY.find((entry) => entry.id === provider);
+  return registration!.create({ ...config, model });
 }

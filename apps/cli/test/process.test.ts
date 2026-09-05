@@ -137,16 +137,59 @@ describe('process command', () => {
 
   it('errors when no model is selected', async () => {
     const { io, stderr } = capture({ isTTY: false, content: 'hello' });
-    const code = await run(['process', '--prompt', 'x'], io, deps({ config: { apiKey: 'sk-x' } }));
+    const code = await run(
+      ['process', '--prompt', 'x'],
+      io,
+      deps({ provider: 'deepseek', config: { apiKey: 'sk-x' } }),
+    );
     expect(code).toBe(ExitCode.Error);
     expect(stderr()).toContain('no model selected');
   });
 
   it('errors when DEEPSEEK_API_KEY is missing', async () => {
     const { io, stderr } = capture({ isTTY: false, content: 'hello' });
-    const code = await run(['process', '--prompt', 'x'], io, deps({ config: {} }));
+    const code = await run(
+      ['process', '--prompt', 'x'],
+      io,
+      deps({ provider: 'deepseek', config: {} }),
+    );
     expect(code).toBe(ExitCode.Error);
     expect(stderr()).toContain('DEEPSEEK_API_KEY');
+  });
+
+  it('reports an unknown provider before the API key check', async () => {
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--provider', 'anthropic', '--prompt', 'x'],
+      io,
+      deps({ config: {}, readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('unknown provider');
+    expect(stderr()).not.toContain('API_KEY');
+  });
+
+  it('errors when no provider is selected', async () => {
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--prompt', 'x'],
+      io,
+      deps({ config: { apiKey: 'sk-x' }, readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('no provider selected');
+  });
+
+  it('accepts --provider openai and forwards it (with an injected processor)', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stdout } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--provider', 'openai', '--prompt', 'x'],
+      io,
+      deps({ processor }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe('x:hello\n');
   });
 
   it('maps a processor failure to an error', async () => {
