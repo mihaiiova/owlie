@@ -10,28 +10,53 @@ const noFile = () => ({});
 const noUserConfig = () => ({});
 
 describe('resolveProvider', () => {
-  it('prefers the --provider flag over env and saved config', () => {
+  it('prefers the --provider flag over env, env files, and saved config', () => {
     expect(
-      resolveProvider({ provider: 'openai' }, { OWLIE_PROVIDER: 'deepseek' }, () => ({
-        provider: 'deepseek',
-      })),
+      resolveProvider(
+        { provider: 'openai' },
+        { OWLIE_PROVIDER: 'deepseek' },
+        () => ({ OWLIE_PROVIDER: 'deepseek' }),
+        () => ({ provider: 'deepseek' }),
+      ),
     ).toBe('openai');
   });
 
-  it('prefers OWLIE_PROVIDER over the saved active provider', () => {
+  it('prefers process-env OWLIE_PROVIDER over env files and saved config', () => {
     expect(
-      resolveProvider({}, { OWLIE_PROVIDER: 'openai' }, () => ({
-        provider: 'deepseek',
-      })),
+      resolveProvider(
+        {},
+        { OWLIE_PROVIDER: 'openai' },
+        () => ({ OWLIE_PROVIDER: 'deepseek' }),
+        () => ({ provider: 'deepseek' }),
+      ),
     ).toBe('openai');
+  });
+
+  it('reads OWLIE_PROVIDER from environment files', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OWLIE_PROVIDER: 'deepseek' },
+      '.env.local': { OWLIE_PROVIDER: 'openai' },
+    };
+    const loadFile = (path: string) => files[path] ?? {};
+    expect(resolveProvider({}, {}, loadFile, noUserConfig)).toBe('openai');
+  });
+
+  it('lets --env-file override .env.local/.env for OWLIE_PROVIDER', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OWLIE_PROVIDER: 'deepseek' },
+      '.env.local': { OWLIE_PROVIDER: 'openai' },
+      'custom.env': { OWLIE_PROVIDER: 'deepseek' },
+    };
+    const loadFile = (path: string) => files[path] ?? {};
+    expect(resolveProvider({ envFile: 'custom.env' }, {}, loadFile, noUserConfig)).toBe('deepseek');
   });
 
   it('falls back to the saved active provider', () => {
-    expect(resolveProvider({}, {}, () => ({ provider: 'deepseek' }))).toBe('deepseek');
+    expect(resolveProvider({}, {}, noFile, () => ({ provider: 'deepseek' }))).toBe('deepseek');
   });
 
   it('throws when no provider is selected', () => {
-    expect(() => resolveProvider({}, {}, noUserConfig)).toThrow(ConfigurationError);
+    expect(() => resolveProvider({}, {}, noFile, noUserConfig)).toThrow(ConfigurationError);
   });
 });
 

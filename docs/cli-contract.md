@@ -8,7 +8,7 @@ exit codes.
 ```text
 owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
 owlie list     List entries in an RSS/Atom feed            (functional)
-owlie process  Process text, a document, or a feed's linked items with DeepSeek   (v0.1)
+owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
 owlie doctor   Report local environment health             (functional)
 owlie help     Show help
@@ -31,8 +31,8 @@ error (code 2) rather than pretending to process content.
 ```text
 owlie extract URL [--json] [--language LANG] [--limit N]
 owlie list FEED_URL [--limit N] [--json]
-owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]
-owlie process FEED_URL --each [--limit N] --prompt "..."
+owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]
+owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
@@ -65,9 +65,12 @@ owlie process FEED_URL --each [--limit N] --prompt "..."
   record is an error, and `--limit N` bounds the batch (default 10, maximum
   500). `--each` rejects `--input`, piped stdin, and non-feed URLs as usage
   errors (exit code 2).
-- `process` requires a model selection via `--model` (or `DEEPSEEK_MODEL`).
-  v0.1 supports `deepseek-chat` (default) and `deepseek-reasoner`; a missing or
-  unsupported model is a clear configuration error (exit code 1).
+- `process` selects a provider via `--provider`, then `OWLIE_PROVIDER`, then
+  the saved active provider, and a model within that provider via `--model`
+  (or `DEEPSEEK_MODEL`/`OPENAI_MODEL`). DeepSeek documents `deepseek-chat` as a
+  default; OpenAI has no default model. A missing or unknown provider, missing
+  key, or missing model is a clear configuration error (exit code 1). A model
+  id never implies a provider.
 
 ## Conventions
 
@@ -90,7 +93,7 @@ owlie process FEED_URL --each [--limit N] --prompt "..."
 
 ## `owlie doctor`
 
-Reports Node version, OS and architecture, `DEEPSEEK_API_KEY` presence
-(never its value), the functional adapters (YouTube, RSS, article) and
-provider (DeepSeek). It also checks whether the configuration and cache
+Reports Node version, OS and architecture, non-secret per-provider API key and
+model presence for each functional provider (DeepSeek, OpenAI), the functional
+adapters (YouTube, RSS, article), and whether the configuration and cache
 directories are writable.

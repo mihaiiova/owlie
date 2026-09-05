@@ -116,7 +116,7 @@ function resolveConfiguredProcessor(
 function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
   if (deps.processor) return deps.processor;
   const readConfig = deps.readConfig ?? readUserConfig;
-  const provider = deps.provider ?? resolveProvider(options, process.env, readConfig);
+  const provider = deps.provider ?? resolveProvider(options, process.env, loadDotEnv, readConfig);
   const settings =
     deps.config ?? resolveProviderSettings(provider, options, process.env, loadDotEnv, readConfig);
   return resolveConfiguredProcessor(provider, settings);

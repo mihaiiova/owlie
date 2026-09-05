@@ -144,18 +144,26 @@ export function writeUserConfig(config: UserConfig, path: string = configFilePat
 
 /**
  * Resolves the active provider id in this order: `--provider` flag →
- * `OWLIE_PROVIDER` → saved active provider. Throws {@link ConfigurationError}
- * when none is selected; never infers a provider from a model id.
+ * `OWLIE_PROVIDER` (process env, then environment files) → saved active
+ * provider. Throws {@link ConfigurationError} when none is selected; never
+ * infers a provider from a model id.
  */
 export function resolveProvider(
-  options: { provider?: string } = {},
+  options: { provider?: string; envFile?: string } = {},
   env: Record<string, string | undefined> = process.env,
+  loadFile: (path: string) => Record<string, string> = loadDotEnv,
   readUserConfigFn: () => UserConfig = readUserConfig,
 ): string {
   const fromFlag = options.provider?.trim();
   if (fromFlag) return fromFlag;
   const fromEnv = env['OWLIE_PROVIDER']?.trim();
   if (fromEnv) return fromEnv;
+  const merged: Record<string, string> = {};
+  Object.assign(merged, loadFile('.env'));
+  Object.assign(merged, loadFile('.env.local'));
+  if (options.envFile) Object.assign(merged, loadFile(options.envFile));
+  const fromFile = merged['OWLIE_PROVIDER']?.trim();
+  if (fromFile) return fromFile;
   const active = readUserConfigFn().provider?.trim();
   if (active) return active;
   throw new ConfigurationError(
