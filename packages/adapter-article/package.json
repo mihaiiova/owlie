@@ -23,7 +23,7 @@
     "test": "vitest run --config ../../vitest.config.ts packages/adapter-article"
   },
   "dependencies": {
-    "@extractus/article-extractor": "^9.0.0",
+    "@extractus/article-extractor": "^9.0.1",
     "@owlieio/core": "workspace:*",
     "entities": "^8.0.0"
   },

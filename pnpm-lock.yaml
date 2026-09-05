@@ -97,8 +97,8 @@ importers:
   packages/adapter-article:
     dependencies:
       '@extractus/article-extractor':
-        specifier: ^9.0.0
-        version: 9.0.0
+        specifier: ^9.0.1
+        version: 9.0.1
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core
@@ -754,8 +754,8 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@extractus/article-extractor@9.0.0':
-    resolution: {integrity: sha512-UiVqrYz8H8h5h74okplr7a4/ZLVqjFnAUYjuiR6/5H7xaMQ935/j2toP7UPOC3djq8mBN7mtELJ6pjYss7+pLA==}
+  '@extractus/article-extractor@9.0.1':
+    resolution: {integrity: sha512-tI6tVthdtv3diHKg7SwiHrhwmP4AERKSa/0Cv/MT8cP7vFFMk74M1IgegZLf6pWtq4tdCxPdiDQ/77DVa0yTpQ==}
 
   '@hallelx/youtube-transcript@0.2.0':
     resolution: {integrity: sha512-xaUiACZo9S4YHXCqr1XIhOc3vgI2sjQf+FnFkUvxbv84J1GicC4RrjUiVWmQlMI8hJW4ztyqDZFcalXquPRpjg==}
@@ -2615,7 +2615,7 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@extractus/article-extractor@9.0.0':
+  '@extractus/article-extractor@9.0.1':
     dependencies:
       '@mozilla/readability': 0.6.0
       linkedom: 0.18.13
