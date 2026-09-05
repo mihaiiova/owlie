@@ -16,7 +16,8 @@ Options:
   --version, -V    Show version
   --quiet, -q      Suppress diagnostics on stderr
   --json           Emit machine-readable JSON on stdout
-  --model MODEL    Select the model (e.g. deepseek-chat)
+  --provider NAME  Select the LLM provider (e.g. deepseek, openai)
+  --model MODEL    Select the model within the provider (e.g. deepseek-chat)
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
   --each           Process each linked item of an RSS/Atom feed (process only)
@@ -42,26 +43,30 @@ const LIST_HELP =
   'metadata, item metadata, and truncation state with --json.';
 
 const PROCESS_HELP =
-  'owlie process [FILE] --prompt "..." [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
-  'owlie process FEED_URL --each [--limit N] --prompt "..."\n\n' +
-  'Process plain text or a normalized document with an LLM. Reads exactly one\n' +
-  'input: a positional file, --input FILE, or stdin. Never fetches a URL in\n' +
-  'single-input mode. With --each and a feed URL, processes each bounded\n' +
-  'linked item sequentially and streams one JSONL record per attempted entry\n' +
-  '(success: item, document, result; failure: item, error). --limit bounds the\n' +
-  'batch (default 10, max 500).';
+  'owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
+  'owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]\n\n' +
+  'Process plain text or a normalized document with an LLM (DeepSeek or\n' +
+  'OpenAI). Reads exactly one input: a positional file, --input FILE, or\n' +
+  'stdin. Never fetches a URL in single-input mode. --provider selects the\n' +
+  'provider (or use OWLIE_PROVIDER / the saved active provider); --model\n' +
+  'selects a model within it. With --each and a feed URL, processes each\n' +
+  'bounded linked item sequentially and streams one JSONL record per\n' +
+  'attempted entry (success: item, document, result; failure: item, error).\n' +
+  '--limit bounds the batch (default 10, max 500).';
 
 const SETUP_HELP =
   'owlie setup\n\n' +
   'Configure your LLM provider, model, API key, and (optionally) a proxy for\n' +
   'YouTube transcript fetching, interactively. The model list is fetched live\n' +
-  'and choices are persisted for future commands.';
+  'from the chosen provider (no fallback or cache), and choices are persisted\n' +
+  'per provider for future commands.';
 
 const DOCTOR_HELP =
   'owlie doctor [--json]\n\n' +
-  'Report local environment health: Node version, platform, DeepSeek API key\n' +
-  'presence, configured model, the functional adapters (YouTube, RSS, article)\n' +
-  'and provider (DeepSeek), and the writable config and cache directories.';
+  'Report local environment health: Node version, platform, per-provider API\n' +
+  'key and model presence (DeepSeek and OpenAI, never the secret values), the\n' +
+  'functional adapters (YouTube, RSS, article), and the writable config and\n' +
+  'cache directories.';
 
 export function helpText(): string {
   return HELP;

@@ -2,7 +2,7 @@
   "name": "@owlieio/provider-openai",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenAI content processor provider for Owlie CLI (scaffold)",
+  "description": "OpenAI content processor provider for Owlie CLI",
   "type": "module",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -23,9 +23,12 @@
     "test": "vitest run --config ../../vitest.config.ts packages/provider-openai"
   },
   "dependencies": {
-    "@owlieio/core": "workspace:*"
+    "@owlieio/core": "workspace:*",
+    "ai": "^7.0.68",
+    "@ai-sdk/openai": "^4.0.50"
   },
   "devDependencies": {
+    "@owlieio/testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

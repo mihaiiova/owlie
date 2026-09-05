@@ -47,6 +47,11 @@ describe('parseArgs', () => {
     expect(parseArgs(['--model=deepseek-reasoner']).options.model).toBe('deepseek-reasoner');
   });
 
+  it('parses --provider', () => {
+    expect(parseArgs(['--provider', 'openai']).options.provider).toBe('openai');
+    expect(parseArgs(['--provider=deepseek']).options.provider).toBe('deepseek');
+  });
+
   it('parses --language', () => {
     expect(parseArgs(['--language', 'de,en']).options.language).toBe('de,en');
     expect(parseArgs(['--language=fr']).options.language).toBe('fr');

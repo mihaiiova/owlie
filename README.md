@@ -9,10 +9,9 @@ RSS/Atom entries into normalized text that can be searched, transcribed, and
 processed with an LLM — entirely on your machine.
 
 > **Status: scaffold.** This repository is the foundation of the open-source
-> core. It compiles, lints, and tests cleanly, but it does **not** yet extract
-> or process real content. The v0.1 milestone is the first functional slice:
-> `owlie extract` (YouTube transcripts, articles, and feed batches) and
-> `owlie process` (DeepSeek). See
+> core. It compiles, lints, and tests cleanly. The v0.1 milestone is the first
+> functional slice: `owlie extract` (YouTube transcripts, articles, and feed
+> batches) and `owlie process` (DeepSeek or OpenAI). See
 > [Product scope](docs/product-scope.md) for what works and what does not.
 
 ## v0.1 (first functional milestone)
@@ -32,11 +31,11 @@ owlie extract "https://example.com/feed.xml" --limit 20
 # List entries in an RSS/Atom feed (bounded)
 owlie list "https://example.com/feed.xml" --limit 20
 
-# Process plain text or a normalized document with DeepSeek
+# Process plain text or a normalized document with DeepSeek or OpenAI
 owlie extract "https://youtube.com/watch?v=..." |
   owlie process --prompt "Summarize this"
 
-owlie process transcript.txt --prompt "Summarize this"
+owlie process transcript.txt --prompt "Summarize this" --provider openai
 cat transcript.txt | owlie process --prompt "Summarize this"
 
 # Process each linked item of a feed, streaming one JSONL record per item
@@ -66,7 +65,7 @@ Collections (deferred — not implemented in v0.1):
 
 - `extract` normalized text from an individual item (YouTube video or static
   article) or the bounded linked items of an RSS/Atom feed
-- `process` a document with an LLM (v0.1: DeepSeek)
+- `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
 - `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
   JSONL record per item
 - `list` items in a collection (RSS/Atom feeds)
@@ -85,9 +84,9 @@ owlie --version
 owlie doctor
 owlie extract URL   # YouTube video, article, or bounded feed (no external runtime dependencies)
 owlie list FEED_URL # list entries in an RSS/Atom feed
-owlie process FILE --prompt "..."   # requires DEEPSEEK_API_KEY
+owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
-owlie setup        # configure provider, model, and API key
+owlie setup        # configure providers, models, and API keys
 ```
 
 The remaining planned commands (`search`, `config`) are not exposed: they
@@ -145,7 +144,7 @@ packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast adapter (scaffold)
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
-packages/provider-openai/    OpenAI content processor (scaffold)
+packages/provider-openai/    OpenAI content processor
 packages/provider-whisper/   Local faster-whisper transcriber (scaffold)
 docs/                        Architecture, contracts, security, decisions
 ```
@@ -161,12 +160,13 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                                     |
 | `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor` (scaffold)                            |
+| `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                                       |
 | `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)                   |
 | `owlie`                     | The `owlie` command-line interface (published)                  |
 
-v0.1 adds `@owlieio/provider-deepseek`, the only functional LLM provider in the
-milestone, implemented with `ai` and `@ai-sdk/deepseek`.
+v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
+functional, both implemented with `ai` (`@ai-sdk/deepseek` and
+`@ai-sdk/openai`) behind the provider-neutral `ContentProcessor` contract.
 
 Only `owlie` is published. The `@owlieio/*` packages are internal (private) —
 they organize the code and enforce dependency boundaries, and are bundled into

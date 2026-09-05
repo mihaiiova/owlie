@@ -28,9 +28,16 @@ export {
   configFilePath,
   loadDotEnv,
   readUserConfig,
-  resolveDeepSeekConfig,
+  resolveProvider,
+  resolveProviderSettings,
   writeUserConfig,
 } from './config.js';
-export type { DeepSeekEnvConfig, UserConfig } from './config.js';
-export { ADAPTER_IDS, PROVIDER_IDS, listProviders, resolveProcessor } from './registry.js';
+export type { ProviderEnvConfig, ProviderProfile, UserConfig } from './config.js';
+export {
+  ADAPTER_IDS,
+  PROVIDER_IDS,
+  assertKnownProvider,
+  listProviders,
+  resolveProcessor,
+} from './registry.js';
 export type { ProcessorConfig, ProviderInfo } from './registry.js';

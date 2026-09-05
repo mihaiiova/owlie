@@ -28,18 +28,36 @@ export const defaultDoctorDeps: DoctorDeps = {
   readConfig: readUserConfig,
 };
 
-const DEEPSEEK_API_KEY = 'DEEPSEEK_API_KEY';
+/** Non-secret readiness of a single functional provider. */
+export interface ProviderReport {
+  id: string;
+  apiKey: 'set' | 'not set';
+  model: 'set' | 'not set';
+}
 
 export interface DoctorReport {
   node: string;
   platform: string;
   arch: string;
-  deepSeekApiKey: 'set' | 'not set';
-  modelConfigured: 'set' | 'not set';
   adapters: string[];
-  providers: string[];
+  providers: ProviderReport[];
   configDirectory: { path: string; writable: boolean };
   cacheDirectory: { path: string; writable: boolean };
+}
+
+function providerReports(
+  env: Record<string, string | undefined>,
+  config: UserConfig,
+): ProviderReport[] {
+  return PROVIDER_IDS.map((id) => {
+    const prefix = id.toUpperCase();
+    const profile = config.providers?.[id];
+    return {
+      id,
+      apiKey: env[`${prefix}_API_KEY`] || profile?.apiKey ? 'set' : 'not set',
+      model: env[`${prefix}_MODEL`] || profile?.model ? 'set' : 'not set',
+    };
+  });
 }
 
 async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
@@ -48,14 +66,14 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     deps.dirWritable(cacheDir()),
   ]);
 
+  const config = deps.readConfig?.() ?? {};
+
   return {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
-    deepSeekApiKey: deps.env[DEEPSEEK_API_KEY] || deps.readConfig?.().apiKey ? 'set' : 'not set',
-    modelConfigured: deps.env['DEEPSEEK_MODEL'] || deps.readConfig?.().model ? 'set' : 'not set',
     adapters: [...ADAPTER_IDS],
-    providers: [...PROVIDER_IDS],
+    providers: providerReports(deps.env, config),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
   };
@@ -66,11 +84,12 @@ function formatDoctorReport(report: DoctorReport): string {
     'owlie doctor',
     `  Node: ${report.node}`,
     `  Platform: ${report.platform} (${report.arch})`,
-    `  DEEPSEEK_API_KEY: ${report.deepSeekApiKey}`,
-    `  Model: ${report.modelConfigured}`,
     `  Adapters: ${report.adapters.join(', ')}`,
-    `  Providers: ${report.providers.join(', ')}`,
+    `  Providers: ${report.providers.map((p) => p.id).join(', ')}`,
   ];
+  for (const provider of report.providers) {
+    lines.push(`  ${provider.id}: api key ${provider.apiKey}, model ${provider.model}`);
+  }
   lines.push(
     `  Config directory: ${report.configDirectory.path} (${report.configDirectory.writable ? 'writable' : 'not writable'})`,
     `  Cache directory: ${report.cacheDirectory.path} (${report.cacheDirectory.writable ? 'writable' : 'not writable'})`,

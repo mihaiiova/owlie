@@ -22,6 +22,7 @@
   "dependencies": {
     "ai": "^7.0.68",
     "@ai-sdk/deepseek": "^3.0.28",
+    "@ai-sdk/openai": "^4.0.50",
     "@hallelx/youtube-transcript": "^0.2.0",
     "undici": "^7.0.0"
   },

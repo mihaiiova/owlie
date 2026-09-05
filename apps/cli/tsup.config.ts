@@ -20,5 +20,5 @@ export default defineConfig({
   // bundled. The transcript library is externalized to avoid bundling its
   // optional `undici` peer dependency. Only the private @owlieio/* packages
   // are inlined.
-  external: ['ai', '@ai-sdk/deepseek', '@hallelx/youtube-transcript'],
+  external: ['ai', '@ai-sdk/deepseek', '@ai-sdk/openai', '@hallelx/youtube-transcript'],
 });

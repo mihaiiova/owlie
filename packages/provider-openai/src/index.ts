@@ -1,2 +1,7 @@
-export { OpenAIProcessor, validateOpenAIConfig } from './openai.js';
-export type { OpenAIConfig } from './openai.js';
+export { OpenAIProcessor, createDefaultOpenAIClient, validateOpenAIConfig } from './openai.js';
+export type {
+  OpenAIClient,
+  OpenAIConfig,
+  OpenAIGenerateParams,
+  OpenAIGenerateResult,
+} from './openai.js';

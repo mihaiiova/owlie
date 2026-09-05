@@ -14,21 +14,23 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { resolveProcessInput } from '../input.js';
 import type { ProcessInputSource } from '../input.js';
-import { readUserConfig, resolveDeepSeekConfig } from '../config.js';
-import type { DeepSeekEnvConfig, UserConfig } from '../config.js';
+import { loadDotEnv, readUserConfig, resolveProvider, resolveProviderSettings } from '../config.js';
+import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { defaultItemAdapters, resolveProcessor } from '../registry.js';
+import { assertKnownProvider, defaultItemAdapters, resolveProcessor } from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 
 export interface ProcessDeps {
   signal?: AbortSignal;
-  /** Injected for tests; bypasses config/model resolution. */
+  /** Injected for tests; bypasses provider/config/model resolution. */
   processor?: ContentProcessor;
-  /** Injected for tests; bypasses environment loading. */
-  config?: DeepSeekEnvConfig;
+  /** Injected for tests; bypasses provider resolution. */
+  provider?: string;
+  /** Injected for tests; bypasses provider-settings loading. */
+  config?: ProviderEnvConfig;
   /** Ordered item adapters for linked-item dispatch (`--each` mode). */
   itemAdapters?: readonly ItemAdapter[];
   /** Collection adapter used to recognize and list RSS/Atom feeds. */
@@ -93,13 +95,31 @@ async function readDocument(
   return inputFormat === 'json' ? parseDocument(raw) : textDocument(raw);
 }
 
-function resolveConfiguredProcessor(config: DeepSeekEnvConfig): ContentProcessor {
-  if (!config.apiKey || config.apiKey.trim() === '') {
+function resolveConfiguredProcessor(
+  provider: string,
+  settings: ProviderEnvConfig,
+): ContentProcessor {
+  // Validate the provider first so an unknown provider reports as such rather
+  // than as a missing key for that provider.
+  assertKnownProvider(provider);
+  if (!settings.apiKey || settings.apiKey.trim() === '') {
     throw new ConfigurationError(
-      'DEEPSEEK_API_KEY is not set (set it in the environment or a .env file)',
+      `${provider.toUpperCase()}_API_KEY is not set (set it in the environment or a .env file)`,
     );
   }
-  return resolveProcessor(config.model, { apiKey: config.apiKey, baseUrl: config.baseUrl });
+  return resolveProcessor(provider, settings.model, {
+    apiKey: settings.apiKey,
+    baseUrl: settings.baseUrl,
+  });
+}
+
+function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
+  if (deps.processor) return deps.processor;
+  const readConfig = deps.readConfig ?? readUserConfig;
+  const provider = deps.provider ?? resolveProvider(options, process.env, readConfig);
+  const settings =
+    deps.config ?? resolveProviderSettings(provider, options, process.env, loadDotEnv, readConfig);
+  return resolveConfiguredProcessor(provider, settings);
 }
 
 export async function runProcessCommand(
@@ -133,8 +153,7 @@ export async function runProcessCommand(
 
     const document = await readDocument(source, options.inputFormat);
 
-    const config = deps.config ?? resolveDeepSeekConfig(options);
-    const processor = deps.processor ?? resolveConfiguredProcessor(config);
+    const processor = resolveProcessorForCommand(options, deps);
 
     const request: ProcessRequest = { document, instruction: options.prompt };
     spinner.start('processing');
@@ -197,8 +216,7 @@ async function runFeedProcessing(
     return ExitCode.Usage;
   }
 
-  const config = deps.config ?? resolveDeepSeekConfig(options);
-  const processor = deps.processor ?? resolveConfiguredProcessor(config);
+  const processor = resolveProcessorForCommand(options, deps);
 
   const limit = parseCollectionLimit(options.limit);
   spinner.start('processing feed');

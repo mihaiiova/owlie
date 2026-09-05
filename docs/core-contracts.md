@@ -59,6 +59,18 @@ source-specific fields.
 - `ProgressSink` — `emit(event)`.
 - `OutputSerializer` — `id`, `format`, `serialize(value, options?)`.
 
+### `ProcessResult.metadata` convention (v0.1)
+
+Functional LLM processors return the same provider-owned metadata convention:
+
+- `metadata.provider` — the provider id (`deepseek` or `openai`);
+- `metadata.model` — the model id that actually processed the request;
+- `metadata.usage` — normalized API-reported token usage when supplied, as
+  `{ inputTokens?, outputTokens?, totalTokens? }`.
+
+These keys are a documented convention, not a closed set; providers must never
+place API keys, pricing, credits, or hosted-account data in `metadata`.
+
 ## Options
 
 - `ExtractionOptions` / `ProcessorOptions` / `TranscriptionOptions` carry an
