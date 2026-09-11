@@ -4,6 +4,7 @@ import { CancelledError, ExtractionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
 import { CLEAN_ARTICLE, MAIN_WRAPPED_ARTICLE, MALFORMED_ARTICLE } from './fixtures.js';
+import { normalizeDate } from '../src/article.js';
 
 const fetcher: HttpFetcher = {
   async fetch() {
@@ -17,6 +18,19 @@ const fetcher: HttpFetcher = {
     return CLEAN_ARTICLE;
   },
 };
+
+describe('normalizeDate', () => {
+  it('canonicalizes valid timestamps to a stable ISO 8601 UTC form', () => {
+    expect(normalizeDate('2025-08-19T10:00:00Z')).toBe('2025-08-19T10:00:00.000Z');
+    expect(normalizeDate('2025-08-19T10:00:00.123Z')).toBe('2025-08-19T10:00:00.123Z');
+    expect(normalizeDate('2025-08-19T12:00:00+02:00')).toBe('2025-08-19T10:00:00.000Z');
+  });
+
+  it('passes unparseable values through unchanged', () => {
+    expect(normalizeDate('not-a-date')).toBe('not-a-date');
+    expect(normalizeDate('')).toBe('');
+  });
+});
 
 describe('ArticleAdapter.resolveItem', () => {
   it('recognizes HTTP(S) URLs and derives a stable canonical article identity', async () => {
@@ -62,7 +76,7 @@ describe('ArticleAdapter.extract', () => {
       mediaType: 'text',
       title: 'A useful article title',
       author: 'Avery Writer',
-      publishedAt: '2025-08-19T10:00:00Z',
+      publishedAt: '2025-08-19T10:00:00.000Z',
       text: expect.stringContaining('This is a deliberately substantial first paragraph'),
     });
     expect(document.text).toContain('links & controls');

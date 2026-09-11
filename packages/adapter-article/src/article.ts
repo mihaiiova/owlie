@@ -128,6 +128,18 @@ function plainText(html: string): string {
 }
 
 /**
+ * Canonicalizes a publisher-provided timestamp to the same stable ISO 8601 UTC
+ * form the RSS adapter emits. `@extractus/article-extractor` has changed its
+ * published-time formatting across releases (dropping or adding millisecond
+ * precision), so normalizing here keeps adapter output stable and consistent
+ * across sources. Unparseable values pass through unchanged.
+ */
+export function normalizeDate(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
+
+/**
  * Static editorial-page adapter. It accepts only safe HTTP(S) URLs and gives
  * the extractor bounded HTML obtained through Owlie's safe HTTP seam.
  */
@@ -201,7 +213,7 @@ export class ArticleAdapter implements ItemAdapter {
         mediaType: 'text',
         ...(article?.title ? { title: article.title } : {}),
         text,
-        ...(article?.published ? { publishedAt: article.published } : {}),
+        ...(article?.published ? { publishedAt: normalizeDate(article.published) } : {}),
         ...(article?.author ? { author: article.author } : {}),
         metadata: {},
       };
