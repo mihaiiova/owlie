@@ -15,6 +15,11 @@ mediaType, title?, text, publishedAt?, author?, metadata }`
 - `ProcessRequest` — `{ document, instruction?, outputSchema? }`
 - `ProcessResult` — `{ output, format: 'text'|'markdown'|'json', metadata }`
 
+`publishedAt` (and other timestamps) are canonicalized to a stable ISO 8601
+UTC string in `toISOString()` form, e.g. `2025-08-19T10:00:00.000Z`. Adapters
+normalize publisher timestamps instead of passing raw formats through, so the
+value stays consistent across sources and library versions.
+
 ### Transcript metadata (v0.1 convention)
 
 When a `NormalizedDocument` is a transcript (`mediaType: 'transcript'`), its
