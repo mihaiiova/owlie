@@ -33,8 +33,9 @@ The default test suite must:
 
 ## Network isolation
 
-Adapters and providers are scaffolded so their network paths throw
-`NotImplementedError`; nothing performs real fetches in tests.
+Adapters and providers keep their network paths injectable, and the default
+test suite never performs real fetches or spawns real subprocesses
+(whisper/ffmpeg/python).
 
 ## Live tests (opt-in)
 

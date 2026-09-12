@@ -28,6 +28,7 @@ function makeSetup(opts: {
   select?: (q: string, options: readonly string[], o?: { default?: string }) => Promise<string>;
   prompt?: (q: string, o?: { default?: string }) => Promise<string>;
   listModels?: () => Promise<string[]>;
+  toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
   readConfig?: () => UserConfig;
 }) {
   const writes: UserConfig[] = [];
@@ -37,6 +38,7 @@ function makeSetup(opts: {
       select: opts.select,
       prompt: opts.prompt,
       listModels: opts.listModels,
+      toolAvailable: opts.toolAvailable,
       readConfig: opts.readConfig ?? (() => ({})),
       writeConfig: (config) => writes.push(config),
     },
@@ -119,6 +121,34 @@ describe('owlie setup', () => {
     const code = await run(['setup'], io, deps);
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('unknown section');
+  });
+
+  it('persists the selected Whisper model in the Transcription section', async () => {
+    const { deps, writes } = makeSetup({
+      select: scriptedSelect(['Transcription', 'medium']),
+      toolAvailable: async () => true,
+      readConfig: () => ({}),
+    });
+    const { io, stdout } = capture();
+    const code = await run(['setup'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    expect(writes[0]?.transcription).toEqual({ provider: 'whisper-local', model: 'medium' });
+    expect(stdout()).toContain('setup complete');
+  });
+
+  it('reports missing transcription tools without persisting', async () => {
+    const { deps, writes } = makeSetup({
+      select: scriptedSelect(['Transcription']),
+      toolAvailable: async (tool) => tool !== 'ffmpeg',
+      readConfig: () => ({}),
+    });
+    const { io, stderr, stdout } = capture();
+    const code = await run(['setup'], io, deps);
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('transcription tools missing');
+    expect(stderr()).toContain('ffmpeg');
+    expect(stdout()).toBe('');
+    expect(writes).toHaveLength(0);
   });
 
   it('rejects an unknown provider', async () => {

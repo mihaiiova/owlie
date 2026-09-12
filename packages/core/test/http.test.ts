@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assertSafeHttpUrl,
@@ -238,6 +241,23 @@ describe('DefaultHttpFetcher', () => {
   }
 
   const publicResolver: DnsResolver = async () => ['8.8.8.8'];
+
+  it('streams binary bytes to a file without decoding them', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'owlie-http-'));
+    const path = join(dir, 'audio.bin');
+    try {
+      const fetcher = new DefaultHttpFetcher(
+        async () => new Response(new Uint8Array([0, 255, 1])),
+        publicResolver,
+      );
+      await expect(
+        fetcher.fetchToFile('https://example.com/audio.mp3', path),
+      ).resolves.toMatchObject({ bytes: 3 });
+      await expect(readFile(path)).resolves.toEqual(Buffer.from([0, 255, 1]));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 
   it('returns the response body and sends an identifying User-Agent', async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];

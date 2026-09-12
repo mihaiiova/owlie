@@ -52,6 +52,8 @@ export interface ProviderProfile {
 
 /** User configuration persisted by `owlie setup`. */
 export interface UserConfig {
+  /** Local transcription preferences; the CLI supplies provider defaults. */
+  transcription?: { provider: 'whisper-local'; model: string };
   /** Active provider id (used when no flag or `OWLIE_PROVIDER` is present). */
   provider?: string;
   /** Provider-keyed profiles. Secrets are never logged or serialized to output. */
@@ -84,6 +86,15 @@ export function readUserConfig(path: string = configFilePath()): UserConfig {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 
     if (typeof parsed.provider === 'string') config.provider = parsed.provider;
+    if (
+      parsed.transcription &&
+      typeof parsed.transcription === 'object' &&
+      (parsed.transcription as Record<string, unknown>).provider === 'whisper-local' &&
+      typeof (parsed.transcription as Record<string, unknown>).model === 'string'
+    ) {
+      const transcription = parsed.transcription as { provider: 'whisper-local'; model: string };
+      config.transcription = { provider: transcription.provider, model: transcription.model };
+    }
 
     if (parsed.providers && typeof parsed.providers === 'object') {
       const profiles: Record<string, ProviderProfile> = {};

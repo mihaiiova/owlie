@@ -66,4 +66,5 @@ and processing must be built.
 ## Default test-suite rule
 
 No real network requests run in the default test suite. Adapters and providers
-are scaffolded so their network paths throw `NotImplementedError`.
+keep their network paths injectable so tests never perform real fetches or
+spawn real subprocesses (whisper/ffmpeg/python).

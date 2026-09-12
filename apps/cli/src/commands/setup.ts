@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import readline from 'node:readline/promises';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 import type { CliIo } from '../io.js';
@@ -9,6 +10,8 @@ import { listProviders } from '../registry.js';
 import type { ProviderInfo } from '../registry.js';
 
 export interface SetupDeps {
+  /** Detects a local executable without installing it. */
+  toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
   providers?: ProviderInfo[];
   readConfig?: () => UserConfig;
   writeConfig?: (config: UserConfig) => void;
@@ -25,7 +28,15 @@ export interface SetupDeps {
 }
 
 /** Top-level `owlie setup` sections (future sections append here). */
-const SETUP_SECTIONS: readonly string[] = ['LLM provider', 'Proxy'];
+const SETUP_SECTIONS: readonly string[] = ['LLM provider', 'Proxy', 'Transcription'];
+export const WHISPER_MODELS = [
+  'tiny',
+  'base',
+  'small',
+  'medium',
+  'large-v3',
+  'large-v3-turbo',
+] as const;
 
 /** Fetches a provider's live model list from its OpenAI-compatible `/models`. */
 export async function listProviderModels(
@@ -94,6 +105,20 @@ export async function runSetupCommand(
   const prompt = deps.prompt ?? defaultPrompt;
   const select = deps.select ?? defaultSelect;
   const listModels = deps.listModels ?? listProviderModels;
+  const toolAvailable =
+    deps.toolAvailable ??
+    (async (tool: string, args: readonly string[] = ['--version']) => {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(tool, [...args], { stdio: 'ignore' });
+          child.once('error', reject);
+          child.once('exit', () => resolve());
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
   const existing = readConfig();
 
@@ -157,6 +182,40 @@ export async function runSetupCommand(
           [providerId]: { ...existingProfile, model, apiKey },
         },
       });
+      io.stdout.write('owlie setup complete\n');
+      return ExitCode.Success;
+    }
+
+    if (section === 'Transcription') {
+      const [python, ffmpeg, ffprobe, whisper] = await Promise.all([
+        toolAvailable('python3'),
+        toolAvailable('ffmpeg'),
+        toolAvailable('ffprobe'),
+        toolAvailable('python3', ['-c', 'import faster_whisper']),
+      ]);
+      if (!python || !ffmpeg || !ffprobe || !whisper) {
+        if (!options.quiet)
+          io.stderr.write(
+            `owlie: transcription tools missing: ${[
+              ['python3', python],
+              ['faster-whisper', whisper],
+              ['ffmpeg', ffmpeg],
+              ['ffprobe', ffprobe],
+            ]
+              .filter(([, available]) => !available)
+              .map(([tool]) => tool)
+              .join(', ')}\n`,
+          );
+        return ExitCode.Error;
+      }
+      const model = await select('Whisper model', WHISPER_MODELS, {
+        default: existing.transcription?.model ?? 'small',
+      });
+      if (!WHISPER_MODELS.includes(model as (typeof WHISPER_MODELS)[number])) {
+        if (!options.quiet) io.stderr.write(`owlie: unknown whisper model "${model}"\n`);
+        return ExitCode.Usage;
+      }
+      writeConfig({ ...existing, transcription: { provider: 'whisper-local', model } });
       io.stdout.write('owlie setup complete\n');
       return ExitCode.Success;
     }

@@ -53,7 +53,9 @@ source-specific fields.
   userinfo rejection, and origin-plus-path diagnostics. `assertNoUrlCredentials`
   applies the same userinfo rule to URLs rendered before a fetch. Destinations must be
   globally routable unicast by default; `allowPrivateHosts` permits only the
-  documented private/local categories.
+  documented private/local categories. `fetchToFile` reuses the same safe-fetch
+  policy to stream bounded raw bytes (no text decode) into a caller-owned file
+  for binary downloads such as podcast media.
 - `HttpFetchPolicy` — timeout, redirect, response-size, private/local opt-in,
   and user-agent policy shared by HTTP-backed adapters.
 

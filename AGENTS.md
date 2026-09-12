@@ -13,11 +13,11 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (YouTube transcripts, static articles, and bounded RSS/Atom
+`owlie extract` (YouTube transcripts, direct podcast media URLs, static articles, and bounded RSS/Atom
 feed batches), `owlie list`, `owlie process` (DeepSeek or OpenAI; single
 document or feed `--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the
 saved active provider), `owlie doctor`, `owlie --help`, and `owlie --version`.
-Search and audio transcription remain deferred.
+Search, episode-page/provider podcast resolution, and audio transcription beyond direct media URLs remain deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -30,11 +30,11 @@ differ from older v1 plans.
 
 ### v0.1 (current milestone)
 
-Functional commands: `owlie extract URL` (a YouTube video, a static article,
+Functional commands: `owlie extract URL` (a YouTube video, direct podcast media URL, a static article,
 or a bounded RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE]
 --prompt`, `owlie process FEED_URL --each [--limit N] --prompt "..."`,
 `owlie doctor`, `owlie --help`, `owlie --version`. In scope: individual
-YouTube video transcript extraction, static article extraction via the
+YouTube video transcript extraction, direct-media podcast transcription via local faster-whisper, static article extraction via the
 universal `extract` dispatch, bounded RSS/Atom listing, linked-item feed
 extraction, and linked-item feed processing (`process --each`), DeepSeek and
 OpenAI `ContentProcessor`s (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`),
@@ -42,8 +42,8 @@ explicit provider selection with provider-keyed profiles, live model
 discovery in `owlie setup`, pipe-first stream/output contracts, secure
 configuration, and the shared core and coding-agent harness.
 
-Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcasts,
-Whisper/audio transcription, generic webpage crawling, collection search,
+Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast episode-page/provider resolution and feed discovery,
+generic webpage crawling, collection search,
 `process --each` for non-feed collections, `owlie run`,
 scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
 integration, Owlie user authentication,

@@ -25,8 +25,8 @@ variables themselves.
 In v0.1 the functional LLM providers are DeepSeek and OpenAI, each configured
 with its own variables (`DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`/`DEEPSEEK_MODEL`
 and `OPENAI_API_KEY`/`OPENAI_BASE_URL`/`OPENAI_MODEL`). Local Whisper
-transcription is a deferred scaffold; its variables below are documented for
-later use and must not be assumed functional.
+transcription is configured only through the saved user configuration; its
+provider receives explicit configuration and never reads environment variables.
 
 Provider selection: `--provider <provider>` on the command line takes
 precedence over `OWLIE_PROVIDER`, which takes precedence over the saved active
@@ -79,15 +79,17 @@ echoed to the terminal; they are only written to the config file.
 
 ## Transcription defaults
 
-Transcription (local faster-whisper) is deferred and not implemented in v0.1.
-These defaults document the future configuration shape only:
+Direct-media transcription uses local faster-whisper. `owlie setup` offers a
+Transcription section that checks Python 3 with the `faster_whisper` module,
+ffmpeg, and ffprobe, then persists one of `tiny`, `base`, `small`, `medium`,
+`large-v3`, or `large-v3-turbo` (default `small`). It never installs tools or
+model weights. The saved shape is:
 
 ```yaml
 transcription:
   provider: whisper-local
   model: small
-  language: auto
-  computeType: int8
+  # Language, device, and compute type use provider defaults: auto/auto/int8.
 ```
 
 ## What is not required
