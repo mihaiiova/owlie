@@ -1,6 +1,8 @@
 import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
-import { ConfigurationError } from '@owlieio/core';
+import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
+import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
@@ -9,23 +11,39 @@ import { OpenAIProcessor } from '@owlieio/provider-openai';
 
 /**
  * The functional adapters bundled into `owlie`: the YouTube video item
- * adapter, the static article item adapter (universal `extract` dispatch),
- * and the RSS/Atom collection adapter (bounded `list` and feed extraction).
- * Podcast and Reddit remain deferred scaffolds and are deliberately not
- * registered.
+ * adapter, the direct-media podcast item adapter, the static article item
+ * adapter (universal `extract` dispatch), and the RSS/Atom collection adapter
+ * (bounded `list` and feed extraction). Reddit remains a deferred scaffold
+ * and is deliberately not registered.
  */
-export const ADAPTER_IDS: readonly string[] = [YouTubeAdapter.id, RssAdapter.id, ArticleAdapter.id];
+export const ADAPTER_IDS: readonly string[] = [
+  YouTubeAdapter.id,
+  PodcastAdapter.id,
+  RssAdapter.id,
+  ArticleAdapter.id,
+];
 
 /**
  * The default ordered item adapters for universal `extract` dispatch: the
- * specialized YouTube adapter first, then the article fallback for any other
- * safe HTTP(S) URL. The CLI passes explicit language/proxy configuration.
+ * specialized YouTube adapter first, then direct podcast media, then the
+ * article fallback for any other safe HTTP(S) URL. The CLI passes explicit
+ * language/proxy/transcription configuration.
  */
 export function defaultItemAdapters(
-  options: { languages?: string[]; proxy?: TranscriptProxy } = {},
+  options: {
+    languages?: string[];
+    proxy?: TranscriptProxy;
+    cacheDir?: string;
+    whisperModel?: string;
+  } = {},
 ): ItemAdapter[] {
   return [
     new YouTubeAdapter({ languages: options.languages, proxy: options.proxy }),
+    new PodcastAdapter({
+      fetcher: new DefaultHttpFetcher(),
+      transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
+      cacheDir: options.cacheDir ?? '.owlie-cache',
+    }),
     new ArticleAdapter(),
   ];
 }

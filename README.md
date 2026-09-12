@@ -10,8 +10,8 @@ processed with an LLM — entirely on your machine.
 
 > **Status: scaffold.** This repository is the foundation of the open-source
 > core. It compiles, lints, and tests cleanly. The v0.1 milestone is the first
-> functional slice: `owlie extract` (YouTube transcripts, articles, and feed
-> batches) and `owlie process` (DeepSeek or OpenAI). See
+> functional slice: `owlie extract` (YouTube transcripts, direct podcast media,
+> articles, and feed batches) and `owlie process` (DeepSeek or OpenAI). See
 > [Product scope](docs/product-scope.md) for what works and what does not.
 
 ## v0.1 (first functional milestone)
@@ -21,6 +21,9 @@ v0.1 delivers a small, pipeable CLI:
 ```bash
 # Extract a transcript from an individual YouTube video
 owlie extract "https://youtube.com/watch?v=..."
+
+# Transcribe a direct podcast media URL (requires local Python/faster-whisper, ffmpeg, ffprobe)
+owlie extract "https://cdn.example.com/episode.mp3"
 
 # Extract the readable text of a static article
 owlie extract "https://example.com/story"
@@ -51,7 +54,7 @@ Individual items:
 
 - YouTube video (v0.1)
 - Static article (v0.1, via universal `extract`)
-- Podcast episode (deferred)
+- Direct podcast media URL (v0.1); episode-page/provider resolution deferred
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
 
@@ -71,7 +74,7 @@ Collections (deferred — not implemented in v0.1):
 - `list` items in a collection (RSS/Atom feeds)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
-- `extract` a transcript from audio or video via Whisper (deferred)
+- `extract` a transcript from a direct podcast media URL via local Whisper (v0.1)
 - `process` each item in other (non-feed) collections with an LLM (deferred)
 
 Owlie CLI does **not** monitor sources or schedule recurring work.
@@ -82,7 +85,7 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor
-owlie extract URL   # YouTube video, article, or bounded feed (no external runtime dependencies)
+owlie extract URL   # YouTube video, direct podcast media, article, or bounded feed
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
@@ -141,11 +144,11 @@ packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article adapter
-packages/adapter-podcast/    Podcast adapter (scaffold)
+packages/adapter-podcast/    Direct-media podcast adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-openai/    OpenAI content processor
-packages/provider-whisper/   Local faster-whisper transcriber (scaffold)
+packages/provider-whisper/   Local faster-whisper transcriber
 docs/                        Architecture, contracts, security, decisions
 ```
 
@@ -157,11 +160,11 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                          |
 | `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                             |
 | `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`  | Podcast episodes (scaffold)                                     |
+| `@owlieio/adapter-podcast`  | Direct-media podcast episodes                                   |
 | `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
 | `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                                       |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber` (scaffold)                   |
+| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber`                              |
 | `owlie`                     | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`

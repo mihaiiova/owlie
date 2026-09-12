@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, mkdir } from 'node:fs/promises';
 import type { CliIo } from '../io.js';
@@ -12,6 +13,7 @@ export interface DoctorDeps {
   dirWritable(dir: string): Promise<boolean>;
   env: Record<string, string | undefined>;
   readConfig?: () => UserConfig;
+  toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
 }
 
 export const defaultDoctorDeps: DoctorDeps = {
@@ -26,12 +28,26 @@ export const defaultDoctorDeps: DoctorDeps = {
   },
   env: process.env,
   readConfig: readUserConfig,
+  async toolAvailable(tool, args: readonly string[] = ['--version']) {
+    return new Promise((resolve) => {
+      const child = spawn(tool, [...args], { stdio: 'ignore' });
+      child.once('error', () => resolve(false));
+      child.once('exit', (code) => resolve(code === 0));
+    });
+  },
 };
 
 /** Non-secret readiness of a single functional provider. */
 export interface ProviderReport {
   id: string;
   apiKey: 'set' | 'not set';
+  model: 'set' | 'not set';
+}
+
+export interface TranscriptionReport {
+  whisper: 'detected' | 'not detected';
+  ffmpeg: 'detected' | 'not detected';
+  ffprobe: 'detected' | 'not detected';
   model: 'set' | 'not set';
 }
 
@@ -43,6 +59,7 @@ export interface DoctorReport {
   providers: ProviderReport[];
   configDirectory: { path: string; writable: boolean };
   cacheDirectory: { path: string; writable: boolean };
+  transcription: TranscriptionReport;
 }
 
 function providerReports(
@@ -61,9 +78,14 @@ function providerReports(
 }
 
 async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
-  const [configWritable, cacheWritable] = await Promise.all([
+  const toolAvailable = deps.toolAvailable ?? defaultDoctorDeps.toolAvailable!;
+  const [configWritable, cacheWritable, python, ffmpeg, ffprobe, whisper] = await Promise.all([
     deps.dirWritable(configDir()),
     deps.dirWritable(cacheDir()),
+    toolAvailable('python3'),
+    toolAvailable('ffmpeg'),
+    toolAvailable('ffprobe'),
+    toolAvailable('python3', ['-c', 'import faster_whisper']),
   ]);
 
   const config = deps.readConfig?.() ?? {};
@@ -76,6 +98,12 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     providers: providerReports(deps.env, config),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
+    transcription: {
+      whisper: python && whisper ? 'detected' : 'not detected',
+      ffmpeg: ffmpeg ? 'detected' : 'not detected',
+      ffprobe: ffprobe ? 'detected' : 'not detected',
+      model: config.transcription?.model ? 'set' : 'not set',
+    },
   };
 }
 
@@ -91,6 +119,7 @@ function formatDoctorReport(report: DoctorReport): string {
     lines.push(`  ${provider.id}: api key ${provider.apiKey}, model ${provider.model}`);
   }
   lines.push(
+    `  Transcription: whisper ${report.transcription.whisper}, ffmpeg ${report.transcription.ffmpeg}, ffprobe ${report.transcription.ffprobe}, model ${report.transcription.model}`,
     `  Config directory: ${report.configDirectory.path} (${report.configDirectory.writable ? 'writable' : 'not writable'})`,
     `  Cache directory: ${report.cacheDirectory.path} (${report.cacheDirectory.writable ? 'writable' : 'not writable'})`,
   );

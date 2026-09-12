@@ -93,6 +93,7 @@ export function transcriberContract(name: string, createTranscriber: () => Trans
     it('produces non-empty text', async () => {
       const result = await createTranscriber().transcribe({
         mediaUrl: 'https://example.com/audio.mp3',
+        mediaPath: '/tmp/example-audio.mp3',
         metadata: {},
       });
       expect(typeof result.text).toBe('string');

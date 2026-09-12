@@ -36,10 +36,12 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
-  to the YouTube adapter, then any other safe HTTP(S) URL to the article
-  adapter. It writes the transcript/article text, or a JSON
+  to the YouTube adapter, direct audio URLs to the podcast adapter, then any
+  other safe HTTP(S) URL to the article adapter. It writes transcript/article
+  text, or a JSON
   `NormalizedDocument` with `--json`. `--language LANG` sets a comma-separated
-  language priority list for YouTube transcripts (default `en`).
+  language priority list for YouTube transcripts (default `en`). Podcast direct
+  media requires local Python with faster-whisper, ffmpeg, and ffprobe.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
   extraction and always writes a single JSON envelope (regardless of `--json`)
   with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
@@ -95,5 +97,6 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 
 Reports Node version, OS and architecture, non-secret per-provider API key and
 model presence for each functional provider (DeepSeek, OpenAI), the functional
-adapters (YouTube, RSS, article), and whether the configuration and cache
-directories are writable.
+adapters (YouTube, podcast, RSS, article), local transcription readiness
+(Python + faster-whisper, ffmpeg, ffprobe, and the configured Whisper model),
+and whether the configuration and cache directories are writable.

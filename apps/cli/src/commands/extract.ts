@@ -16,7 +16,7 @@ import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
-import { readUserConfig } from '../config.js';
+import { cacheDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { selectItemAdapter } from '../dispatch.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
@@ -94,6 +94,8 @@ export async function runExtractCommand(
     defaultItemAdapters({
       languages: parseLanguages(options.language),
       proxy: readConfig().proxy,
+      cacheDir: cacheDir(),
+      whisperModel: readConfig().transcription?.model,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
   const spinner =

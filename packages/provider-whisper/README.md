@@ -3,8 +3,9 @@
 Local transcription provider for Owlie CLI, backed by
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper).
 
-This is a non-functional scaffold: it defines the public configuration type and
-an explicit entry point, but never installs or invokes faster-whisper.
+The provider invokes locally installed faster-whisper through Python, and
+ffprobe/ffmpeg, using argument arrays only. It never installs tools, packages,
+or model weights.
 
 ## Configuration
 
@@ -29,9 +30,9 @@ const transcriber = new WhisperLocalTranscriber({
 });
 ```
 
-## Requirements (documented, not installed)
+## Requirements (detected, not installed)
 
-Local transcription will require:
+Local transcription requires:
 
 - `ffmpeg` and `ffprobe` on `PATH`;
 - Python 3 with the `faster-whisper` package;
@@ -42,8 +43,9 @@ Local transcription will require:
 ## What is implemented
 
 - `WhisperLocalConfig` type and defaults.
-- `WhisperLocalTranscriber` — implements `Transcriber`; `transcribe` throws
-  `NotImplementedError`.
+- `WhisperLocalTranscriber` — probes/transcodes audio, invokes faster-whisper,
+  and returns text plus optional segment timing. It cleans intermediate files
+  and honors cancellation.
 
 ## Dependency rules
 

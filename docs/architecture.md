@@ -94,10 +94,10 @@ bounds, emits progress to stderr, and writes results to stdout. Only the CLI
 entry point (`apps/cli/src/bin.ts`) translates failures into exit codes.
 
 For `extract`, the CLI dispatches a direct URL through an ordered item-adapter
-registry — specialized adapters first (YouTube), then the article adapter for
-remaining safe HTTP(S) URLs. A recognized RSS/Atom feed instead enters a
-bounded linked-item batch extraction that writes a single JSON envelope of
-per-item documents or structured errors.
+registry — specialized adapters first (YouTube, then direct podcast media),
+then the article adapter for remaining safe HTTP(S) URLs. A recognized RSS/Atom
+feed instead enters a bounded linked-item batch extraction that writes a single
+JSON envelope of per-item documents or structured errors.
 
 ## Future hosted-app integration
 

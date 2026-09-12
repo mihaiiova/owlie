@@ -2,16 +2,19 @@
 
 Podcast episode source adapter for Owlie CLI.
 
-This scaffold recognizes podcast media URLs and defines the item-adapter
-surface. Transcription is delegated to a `Transcriber` (for example
-`@owlieio/provider-whisper`) and is not implemented here. No network calls are
-made.
+The adapter recognizes direct podcast media URLs, downloads them through an
+injected safe binary fetcher, and delegates transcription to an injected
+`Transcriber` (for example `@owlieio/provider-whisper`). It owns no source-
+specific network client.
 
 ## What is implemented
 
-- `recognizePodcastUrl` — detects common audio/video file URLs.
-- `PodcastAdapter` — implements `ItemAdapter`; recognition and resolution are
-  pure, `extract` throws `NotImplementedError`.
+- `recognizePodcastUrl` — detects direct MP3, M4A, AAC, OGG, Opus, WAV, and
+  FLAC URLs.
+- `DirectMediaResolver` / `PodcastAudioResolver` — the resolver seam used by
+  future episode-page providers.
+- `PodcastAdapter` — implements `ItemAdapter`; it downloads a bounded media
+  file, delegates to a `Transcriber`, and cleans its temporary cache directory.
 
 ## Dependency rules
 

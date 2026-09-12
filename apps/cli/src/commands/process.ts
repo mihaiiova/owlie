@@ -14,7 +14,13 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { resolveProcessInput } from '../input.js';
 import type { ProcessInputSource } from '../input.js';
-import { loadDotEnv, readUserConfig, resolveProvider, resolveProviderSettings } from '../config.js';
+import {
+  cacheDir,
+  loadDotEnv,
+  readUserConfig,
+  resolveProvider,
+  resolveProviderSettings,
+} from '../config.js';
 import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
@@ -207,6 +213,8 @@ async function runFeedProcessing(
     defaultItemAdapters({
       languages: parseLanguages(options.language),
       proxy: readConfig().proxy,
+      cacheDir: cacheDir(),
+      whisperModel: readConfig().transcription?.model,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
 

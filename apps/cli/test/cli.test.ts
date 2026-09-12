@@ -28,6 +28,7 @@ const fakeDeps: CliDeps = {
   doctor: {
     dirWritable: async () => true,
     env: { DEEPSEEK_API_KEY: 'sk-test', DEEPSEEK_MODEL: 'deepseek-chat' },
+    toolAvailable: async () => true,
   },
 };
 
@@ -64,10 +65,11 @@ describe('doctor', () => {
     const code = await run(['doctor'], io, fakeDeps);
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('Node');
-    expect(stdout()).toContain('Adapters: youtube, rss, article');
+    expect(stdout()).toContain('Adapters: youtube, podcast, rss, article');
     expect(stdout()).toContain('Providers: deepseek, openai');
     expect(stdout()).toContain('deepseek: api key set, model set');
     expect(stdout()).toContain('openai: api key not set, model not set');
+    expect(stdout()).toContain('Transcription: whisper detected');
     expect(stdout()).not.toContain('Deferred');
   });
 
@@ -77,11 +79,17 @@ describe('doctor', () => {
     expect(code).toBe(ExitCode.Success);
     const report = JSON.parse(stdout());
     expect(report.node).toContain('v');
-    expect(report.adapters).toEqual(['youtube', 'rss', 'article']);
+    expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article']);
     expect(report.providers).toEqual([
       { id: 'deepseek', apiKey: 'set', model: 'set' },
       { id: 'openai', apiKey: 'not set', model: 'not set' },
     ]);
+    expect(report.transcription).toEqual({
+      whisper: 'detected',
+      ffmpeg: 'detected',
+      ffprobe: 'detected',
+      model: 'not set',
+    });
     expect(report.deepSeekApiKey).toBeUndefined();
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
