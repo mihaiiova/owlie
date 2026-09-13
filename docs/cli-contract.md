@@ -36,12 +36,16 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
-  to the YouTube adapter, direct audio URLs to the podcast adapter, then any
-  other safe HTTP(S) URL to the article adapter. It writes transcript/article
-  text, or a JSON
+  to the YouTube adapter; podcast direct-audio URLs and safe server-rendered
+  episode pages with declarative audio metadata to the podcast adapter; then
+  any remaining safe HTTP(S) URL to the article adapter. Episode pages use
+  JSON-LD, declared oEmbed, `<audio>`/`<source>`, or RSS/Atom enclosure signals;
+  they never execute JavaScript, and a safe episode-page URL with no
+  discoverable audio defers to the article adapter with a stderr diagnostic.
+  It writes transcript/article text, or a JSON
   `NormalizedDocument` with `--json`. `--language LANG` sets a comma-separated
-  language priority list for YouTube transcripts (default `en`). Podcast direct
-  media requires local Python with faster-whisper, ffmpeg, and ffprobe.
+  language priority list for YouTube transcripts (default `en`). Podcast
+  transcription requires local Python with faster-whisper, ffmpeg, and ffprobe.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
   extraction and always writes a single JSON envelope (regardless of `--json`)
   with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.

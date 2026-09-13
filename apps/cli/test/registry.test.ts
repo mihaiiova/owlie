@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigurationError } from '@owlieio/core';
-import { assertKnownProvider, listProviders, resolveProcessor } from 'owlie';
+import { assertKnownProvider, defaultItemAdapters, listProviders, resolveProcessor } from 'owlie';
+
+describe('defaultItemAdapters', () => {
+  it('claims safe episode pages with the podcast adapter before the article fallback', () => {
+    const adapter = defaultItemAdapters().find((candidate) =>
+      candidate.recognize({ url: 'https://publisher.example/episodes/one' }),
+    );
+
+    expect(adapter?.id).toBe('podcast');
+  });
+});
 
 describe('listProviders', () => {
   it('lists registered providers with a model-discovery base URL', () => {

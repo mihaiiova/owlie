@@ -8,8 +8,8 @@ what is deferred, and what belongs to the hosted product.
 - Monorepo tooling: pnpm workspaces, TypeScript, Vitest, ESLint, Prettier,
   Changesets, GitHub Actions CI.
 - `@owlieio/core` provider-neutral contracts and types.
-- Adapter URL recognition/normalization (YouTube, direct podcast media,
-  RSS/Atom, Reddit).
+- Adapter URL recognition/normalization (YouTube, podcast media and declarative
+  episode pages, RSS/Atom, Reddit).
 - Local faster-whisper provider with explicit configuration and no network
   calls. (OpenAI is functional in v0.1; see below.)
 - `@owlieio/testing` fakes, fixtures, and contract-test helpers.
@@ -21,9 +21,9 @@ what is deferred, and what belongs to the hosted product.
 v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
 - `owlie extract URL` — extract an available transcript from an individual
-  YouTube video, a direct podcast media URL (local faster-whisper), the readable
-  text of a static article, or the bounded linked items of an RSS/Atom feed, as
-  normalized documents.
+  YouTube video, a direct podcast media URL or declarative server-rendered
+  episode page (local faster-whisper), the readable text of a static article, or
+  the bounded linked items of an RSS/Atom feed, as normalized documents.
 - `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
   RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
@@ -53,17 +53,19 @@ other commands do not use `jsonl`.
 - Collection search (`search`) and `owlie run`. Bounded RSS/Atom `list` and
   `process --each` are functional; collection search remains deferred.
 - Source monitoring and scheduled/recurring execution.
-- Podcast episode-page/provider resolution, podcast feeds, Reddit, diarization,
+- Podcast provider-specific resolution, podcast feeds, Reddit, diarization,
   streaming transcription, and managed Whisper APIs. Direct podcast media URLs
-  are functional. RSS/Atom entry extraction (the adapter's `extract`) remains
-  deferred; its bounded `list` is functional.
+  and declarative server-rendered episode pages are functional. RSS/Atom entry
+  extraction (the adapter's `extract`) remains deferred; its bounded `list` is
+  functional.
 - A local database or persistent job records.
 - Reddit OAuth, credentials, comment-tree extraction, and HTML scraping.
 - Following external links from RSS entries, generic crawling, and browser-rendered
   webpage extraction. The reusable static `article` adapter is the narrow
   exception: it extracts a directly supplied safe HTTP(S) editorial page from
-  server-rendered HTML only. Universal `extract` dispatch (YouTube video, direct podcast media, article,
-  or bounded feed) is functional in v0.1.
+  server-rendered HTML only. Universal `extract` dispatch (YouTube video,
+  podcast media or declarative episode page, article, or bounded feed) is
+  functional in v0.1.
 - Automatic package publishing and Windows support guarantees.
 
 ## Hosted-app responsibilities (`owlie-app`)

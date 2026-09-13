@@ -4,21 +4,14 @@ import type {
   NormalizedDocument,
   ProgressSink,
 } from '@owlieio/core';
-import {
-  assertNoUrlCredentials,
-  CancelledError,
-  ConfigurationError,
-  extractItem,
-  listCollection,
-  resolveItem,
-} from '@owlieio/core';
+import { assertNoUrlCredentials, CancelledError, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
-import { selectItemAdapter } from '../dispatch.js';
+import { extractWithFallback } from '../dispatch.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
@@ -130,20 +123,24 @@ async function runDirectExtraction(
   deps: ExtractDeps,
 ): Promise<number> {
   assertNoUrlCredentials(url);
-  const adapter = selectItemAdapter(itemAdapters, { url });
-  if (!adapter) {
-    throw new ConfigurationError(`no adapter recognizes URL: ${url}`);
-  }
   const progress: ProgressSink = {
     emit: (event) => {
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
     },
   };
-  const item = await resolveItem(adapter, { url });
-  const document = await extractItem(adapter, item, {
-    signal: deps.signal,
-    progress,
-  });
+  const { document } = await extractWithFallback(
+    itemAdapters,
+    { url },
+    {
+      signal: deps.signal,
+      progress,
+      onFallback: (error) => {
+        if (!options.quiet) {
+          io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
+        }
+      },
+    },
+  );
   spinner.stop();
 
   if (options.json) {
