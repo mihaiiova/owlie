@@ -20,7 +20,7 @@
     "dist"
   ],
   "dependencies": {
-    "ai": "^7.0.90",
+    "ai": "^7.0.97",
     "@ai-sdk/deepseek": "^3.0.39",
     "@ai-sdk/openai": "^4.0.50",
     "@hallelx/youtube-transcript": "^0.2.0",
