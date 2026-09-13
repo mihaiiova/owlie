@@ -7,7 +7,13 @@ function fetcher(responses: Record<string, string>): HttpFetcher {
     async fetch(url) {
       const text = responses[url];
       if (text === undefined) throw new Error(`unexpected URL: ${url}`);
-      return { url, contentType: 'application/json', text };
+      return {
+        url,
+        contentType: url.includes('itunes.apple.com/lookup')
+          ? 'application/json'
+          : 'application/xml',
+        text,
+      };
     },
     async fetchText(url) {
       return (await this.fetch(url)).text;
@@ -30,6 +36,12 @@ describe('parseAppleEpisodeUrl', () => {
       parseAppleEpisodeUrl('https://example.com/us/podcast/example/id12345?i=67890'),
     ).toBeUndefined();
   });
+
+  it('rejects an Apple episode URL whose path lacks a two-letter country code', () => {
+    expect(
+      parseAppleEpisodeUrl('https://podcasts.apple.com/podcast/example/id12345?i=67890'),
+    ).toBeUndefined();
+  });
 });
 
 describe('ApplePodcastsResolver', () => {
@@ -40,7 +52,7 @@ describe('ApplePodcastsResolver', () => {
         [lookup]: JSON.stringify({
           results: [
             {
-              wrapperType: 'track',
+              wrapperType: 'podcastEpisode',
               trackId: 67890,
               trackName: 'The episode',
               episodeUrl: 'https://cdn.example.com/episode.mp3',
@@ -64,9 +76,19 @@ describe('ApplePodcastsResolver', () => {
     const lookup = 'https://itunes.apple.com/lookup?id=12345&entity=podcastEpisode&country=gb';
     const resolver = new ApplePodcastsResolver({
       fetcher: fetcher({
-        [lookup]: JSON.stringify({ results: [{ feedUrl: 'https://publisher.example/feed.xml' }] }),
+        [lookup]: JSON.stringify({
+          results: [
+            {
+              wrapperType: 'podcastEpisode',
+              trackId: 67890,
+              trackName: 'Fallback episode',
+              episodeGuid: 'https://publisher.example/episodes/67890',
+            },
+            { wrapperType: 'collection', feedUrl: 'https://publisher.example/feed.xml' },
+          ],
+        }),
         'https://publisher.example/feed.xml': `
-          <rss><channel><item><itunes:episode>67890</itunes:episode>
+          <rss><channel><item><guid>https://publisher.example/episodes/67890</guid>
           <title>Fallback episode</title><enclosure url="/audio/episode.m4a" /></item></channel></rss>`,
       }),
     });
@@ -85,9 +107,18 @@ describe('ApplePodcastsResolver', () => {
     const lookup = 'https://itunes.apple.com/lookup?id=12345&entity=podcastEpisode&country=gb';
     const resolver = new ApplePodcastsResolver({
       fetcher: fetcher({
-        [lookup]: JSON.stringify({ results: [{ feedUrl: 'https://publisher.example/feed.xml' }] }),
+        [lookup]: JSON.stringify({
+          results: [
+            {
+              wrapperType: 'podcastEpisode',
+              trackId: 67890,
+              episodeGuid: 'https://publisher.example/episodes/67890',
+            },
+            { wrapperType: 'collection', feedUrl: 'https://publisher.example/feed.xml' },
+          ],
+        }),
         'https://publisher.example/feed.xml': `<!DOCTYPE rss [<!ENTITY xxe "unsafe">]>
-          <rss><channel><item><itunes:episode>67890</itunes:episode>
+          <rss><channel><item><guid>https://publisher.example/episodes/67890</guid>
           <enclosure url="https://cdn.example.com/episode.mp3" /></item></channel></rss>`,
       }),
     });
@@ -97,5 +128,37 @@ describe('ApplePodcastsResolver', () => {
         url: 'https://podcasts.apple.com/gb/podcast/example-show/id12345?i=67890',
       }),
     ).rejects.toThrow('DTD or entity declaration');
+  });
+
+  it('rejects a lookup response that is not JSON', async () => {
+    const resolver = new ApplePodcastsResolver({
+      fetcher: {
+        async fetch(url) {
+          return { url, contentType: 'text/html', text: '<html></html>' };
+        },
+        async fetchText(url) {
+          return (await this.fetch(url)).text;
+        },
+      },
+    });
+
+    await expect(
+      resolver.resolve({
+        url: 'https://podcasts.apple.com/gb/podcast/example-show/id12345?i=67890',
+      }),
+    ).rejects.toThrow('unexpected lookup response content type');
+  });
+
+  it('throws when no episode enclosure can be resolved', async () => {
+    const lookup = 'https://itunes.apple.com/lookup?id=12345&entity=podcastEpisode&country=gb';
+    const resolver = new ApplePodcastsResolver({
+      fetcher: fetcher({ [lookup]: JSON.stringify({ results: [] }) }),
+    });
+
+    await expect(
+      resolver.resolve({
+        url: 'https://podcasts.apple.com/gb/podcast/example-show/id12345?i=67890',
+      }),
+    ).rejects.toThrow('no audio enclosure found for Apple Podcasts episode 67890');
   });
 });

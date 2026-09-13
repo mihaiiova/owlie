@@ -18,8 +18,8 @@ episode URLs, and declarative server-rendered episode pages, static articles, an
 `owlie list`, `owlie process` (DeepSeek or OpenAI; single document or feed
 `--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the saved active
 provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
-podcast provider-specific lookup, and audio transcription beyond resolved media
-URLs remain deferred.
+other podcast provider-specific lookup, and audio transcription beyond resolved
+media URLs remain deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -47,7 +47,7 @@ stream/output contracts, secure configuration, and the shared core and
 coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific
-resolution and feed discovery, generic webpage crawling, collection search,
+resolution other than Apple Podcasts and podcast feed discovery, generic webpage crawling, collection search,
 `process --each` for non-feed collections, `owlie run`,
 scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
 integration, Owlie user authentication,
@@ -233,7 +233,11 @@ A change is done when: it compiles, `pnpm check` passes, tests cover the
 behavior, documentation is updated and internally consistent — including the
 governing status in §2/§3 and any ADR whose decisions the change reverses
 (see §14) — dependency rules hold, no credentials or hosted concepts were
-introduced, and nothing was committed, pushed, or published.
+introduced, and nothing was committed, pushed, or published. A user-facing
+change (to `apps/cli` or any package `src/`) must also record a changeset
+(`pnpm changeset`) or carry the `no-changeset` label, and any new code that
+interprets a remote response body must validate its declared content type
+before parsing it (see `docs/security-model.md`).
 
 ## 20. Prefer existing contracts
 

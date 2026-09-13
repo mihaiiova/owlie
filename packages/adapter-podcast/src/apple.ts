@@ -2,10 +2,12 @@ import type { ContentLocator, HttpFetcher, HttpFetchPolicy } from '@owlieio/core
 import { parseFeed } from '@owlieio/adapter-rss';
 import {
   assertSafeHttpUrl,
+  CancelledError,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
 } from '@owlieio/core';
+import { isFeedContentType, isJsonContentType } from './podcast.js';
 import type { PodcastAudioResolver } from './podcast.js';
 
 export interface AppleEpisodeReference {
@@ -31,7 +33,15 @@ export function parseAppleEpisodeUrl(input: string): AppleEpisodeReference | und
     const podcastId = url.pathname.match(/\/id(\d+)(?:\/|$)/)?.[1];
     const episodeId = url.searchParams.get('i');
     const country = url.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
-    if (!podcastId || !episodeId || !/^\d+$/.test(episodeId) || !country) return undefined;
+    if (
+      !podcastId ||
+      !episodeId ||
+      !/^\d+$/.test(episodeId) ||
+      !country ||
+      !/^[a-z]{2}$/.test(country)
+    ) {
+      return undefined;
+    }
     return { country, podcastId, episodeId };
   } catch {
     return undefined;
@@ -59,6 +69,8 @@ export class ApplePodcastsResolver implements PodcastAudioResolver {
     const reference = parseAppleEpisodeUrl(locator.url);
     if (!reference)
       throw new ConfigurationError(`not an Apple Podcasts episode URL: ${locator.url}`);
+    if (options.signal?.aborted)
+      throw new CancelledError('Apple Podcasts episode resolution cancelled');
 
     const lookupUrl = new URL('https://itunes.apple.com/lookup');
     lookupUrl.searchParams.set('id', reference.podcastId);
@@ -68,10 +80,14 @@ export class ApplePodcastsResolver implements PodcastAudioResolver {
       signal: options.signal,
       policy: this.policy,
     });
+    if (!isJsonContentType(lookup.contentType))
+      throw new ExtractionError(
+        `unexpected lookup response content type ${lookup.contentType ?? 'missing'}`,
+      );
     const results = parseResults(lookup.text);
     const episode = results.find((result) => String(result.trackId) === reference.episodeId);
     const resolved =
-      directEpisodeUrl(episode) ?? (await this.resolveFeed(results, reference, options.signal));
+      directEpisodeUrl(episode) ?? (await this.resolveFeed(results, episode, options.signal));
     if (!resolved) {
       throw new ExtractionError(
         `no audio enclosure found for Apple Podcasts episode ${reference.episodeId}`,
@@ -91,18 +107,17 @@ export class ApplePodcastsResolver implements PodcastAudioResolver {
 
   private async resolveFeed(
     results: Record<string, unknown>[],
-    reference: AppleEpisodeReference,
+    episode: Record<string, unknown> | undefined,
     signal: AbortSignal | undefined,
   ): Promise<Resolution | undefined> {
     const feedUrl = results.find((result) => typeof result.feedUrl === 'string')?.feedUrl;
     if (typeof feedUrl !== 'string') return undefined;
     const response = await this.fetcher.fetch(feedUrl, { signal, policy: this.policy });
+    if (!isFeedContentType(response.contentType)) return undefined;
     const feed = await parseFeed(response.text);
-    const entry = feed.entries.find(
-      (candidate) =>
-        candidate.metadata.episodeId === reference.episodeId ||
-        candidate.id === reference.episodeId,
-    );
+    const episodeGuid = typeof episode?.episodeGuid === 'string' ? episode.episodeGuid : undefined;
+    if (!episodeGuid) return undefined;
+    const entry = feed.entries.find((candidate) => candidate.id === episodeGuid);
     const mediaUrl = entry?.metadata.enclosureUrl;
     if (typeof mediaUrl !== 'string') return undefined;
     return {

@@ -344,7 +344,6 @@ function parseRss20Entry(item: unknown): ParsedEntry | null {
     id,
     metadata: compact({
       enclosureUrl: enclosureUrl(item),
-      episodeId: clean(item['itunes:episode']),
       duration: clean(item['itunes:duration']),
       categories: categories(item),
     }),

@@ -290,7 +290,7 @@ function isHtmlContentType(contentType: string | null): boolean {
   return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
 }
 
-function isJsonContentType(contentType: string | null): boolean {
+export function isJsonContentType(contentType: string | null): boolean {
   const mediaType = mediaTypeOf(contentType);
   return (
     mediaType === 'application/json' ||
@@ -299,7 +299,7 @@ function isJsonContentType(contentType: string | null): boolean {
   );
 }
 
-function isFeedContentType(contentType: string | null): boolean {
+export function isFeedContentType(contentType: string | null): boolean {
   const mediaType = mediaTypeOf(contentType);
   return (
     mediaType === 'application/rss+xml' ||

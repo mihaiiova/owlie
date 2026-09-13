@@ -25,8 +25,8 @@ external links from RSS entries.
 
 ## Dependency rules
 
-May depend only on `@owlieio/core`. The Reddit adapter may reuse this package's
-parsing functionality (documented exception).
+May depend only on `@owlieio/core`. The Reddit and podcast adapters may reuse
+this package's parsing functionality (documented exceptions).
 
 ## Development
 
