@@ -1,6 +1,6 @@
 # ADR 0018 — Local direct-media podcast transcription
 
-- **Status:** Accepted (episode-page deferral superseded by [ADR 0019](0019-generic-podcast-episode-page-resolution.md))
+- **Status:** Accepted (episode-page deferral superseded by [ADR 0019](0019-generic-podcast-episode-page-resolution.md); Apple Podcasts episode resolution deferral superseded by [ADR 0020](0020-apple-podcasts-episode-resolution.md))
 - **Date:** 2026-09-06
 
 ## Context
@@ -27,6 +27,6 @@ or Python transcription dependencies.
 ## Consequences
 
 Direct media URLs are functional. Generic declarative server-rendered
-episode-page resolution is covered by ADR 0019; provider-specific resolution,
-feeds, diarization, streaming, GPU management, and Windows guarantees remain
-out of scope. Users install Python 3, `faster-whisper`, ffmpeg, and ffprobe.
+episode-page resolution is covered by ADR 0019 and Apple Podcasts episode
+resolution by ADR 0020; other provider-specific resolution, feeds, diarization,
+streaming, GPU management, and Windows guarantees remain out of scope. Users install Python 3, `faster-whisper`, ffmpeg, and ffprobe.

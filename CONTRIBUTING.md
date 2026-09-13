@@ -40,7 +40,9 @@ check, build, package export validation, and CLI smoke tests.
 1. Pick a narrow, well-scoped change within the documented
    [v1 boundaries](docs/product-scope.md).
 2. Write or update tests first where practical.
-3. Implement in the correct package (see the dependency rules in `AGENTS.md`).
+3. Implement in the correct package (see the dependency rules in `AGENTS.md`);
+   validate a remote response's declared content type before parsing its body
+   (see `docs/security-model.md`).
 4. Update documentation and ADRs if behavior or architecture changes.
 5. Run `pnpm check` and fix everything before opening a PR.
 6. Record user-facing changes with `pnpm changeset`. A PR that touches
@@ -50,8 +52,8 @@ check, build, package export validation, and CLI smoke tests.
 ## Dependency rules
 
 - `@owlieio/core` depends on nothing Owlie-specific and no providers/adapters.
-- Adapters and providers depend only on `@owlieio/core` (Reddit may also reuse
-  `@owlieio/adapter-rss`).
+- Adapters and providers depend only on `@owlieio/core` (Reddit and the podcast
+  adapter may also reuse `@owlieio/adapter-rss` parsing).
 - `owlie` (the single published package) bundles core, adapters, and providers.
 - No undeclared cross-package imports. `pnpm check:deps` enforces this.
 

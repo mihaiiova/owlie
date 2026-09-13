@@ -8,7 +8,8 @@ normalized documents.
 1. Create `packages/adapter-<name>/` with the standard package layout
    (`package.json`, `tsconfig.json`, `tsconfig.build.json`, `README.md`,
    `src/`, `test/`).
-2. Depend on `@owlieio/core` (and, for Reddit only, `@owlieio/adapter-rss`).
+2. Depend on `@owlieio/core` (and, for Reddit and the podcast Apple enclosure
+   fallback, `@owlieio/adapter-rss`).
 3. Implement pure `recognize` and URL normalization first — no network.
 4. Implement `resolve` (collection) and/or `resolveItem` (item) returning
    stable identities.

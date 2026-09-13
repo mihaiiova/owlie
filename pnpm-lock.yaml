@@ -121,6 +121,9 @@ importers:
 
   packages/adapter-podcast:
     dependencies:
+      '@owlieio/adapter-rss':
+        specifier: workspace:*
+        version: link:../adapter-rss
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core

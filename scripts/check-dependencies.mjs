@@ -40,7 +40,8 @@ const ALLOWED = {
   '@owlieio/core': [],
   '@owlieio/testing': ['@owlieio/core'],
   '@owlieio/adapter-youtube': ['@owlieio/core'],
-  '@owlieio/adapter-podcast': ['@owlieio/core'],
+  // Documented exception: podcast may reuse public RSS enclosure parsing for Apple fallback.
+  '@owlieio/adapter-podcast': ['@owlieio/core', '@owlieio/adapter-rss'],
   '@owlieio/adapter-rss': ['@owlieio/core'],
   '@owlieio/adapter-article': ['@owlieio/core'],
   // Documented exception: reddit may reuse public RSS/Atom parsing from rss.

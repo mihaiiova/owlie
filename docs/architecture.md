@@ -40,8 +40,9 @@ monorepo:
 
 - `@owlieio/core` has no Owlie dependencies; its safe-HTTP implementation uses
   the generic `ipaddr.js` parser for canonical destination classification.
-- Adapters depend only on `@owlieio/core` (Reddit also reuses
-  `@owlieio/adapter-rss` parsing).
+- Adapters depend only on `@owlieio/core` (Reddit reuses
+  `@owlieio/adapter-rss` parsing; `adapter-podcast` reuses it solely for the
+  Apple Podcasts enclosure fallback).
 - Providers depend only on `@owlieio/core`.
 - `@owlieio/testing` depends only on `@owlieio/core`.
 - `owlie` bundles core, adapters, and providers into one self-contained build.
@@ -94,8 +95,8 @@ bounds, emits progress to stderr, and writes results to stdout. Only the CLI
 entry point (`apps/cli/src/bin.ts`) translates failures into exit codes.
 
 For `extract`, the CLI dispatches a direct URL through an ordered item-adapter
-registry — specialized adapters first (YouTube, then podcast media and
-server-rendered episode pages with declarative audio), then the article adapter
+registry — specialized adapters first (YouTube, then podcast media, Apple
+Podcasts episodes, and server-rendered episode pages with declarative audio), then the article adapter
 for remaining safe HTTP(S) URLs. A recognized RSS/Atom
 feed instead enters a bounded linked-item batch extraction that writes a single
 JSON envelope of per-item documents or structured errors.

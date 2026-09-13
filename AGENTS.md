@@ -13,13 +13,13 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (YouTube transcripts, podcast direct-media URLs and declarative
-server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
+`owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
+episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
 `owlie list`, `owlie process` (DeepSeek or OpenAI; single document or feed
 `--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the saved active
 provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
-podcast provider-specific lookup, and audio transcription beyond resolved media
-URLs remain deferred.
+other podcast provider-specific lookup, and audio transcription beyond resolved
+media URLs remain deferred.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -33,12 +33,12 @@ differ from older v1 plans.
 ### v0.1 (current milestone)
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
-URL or declarative server-rendered episode page, a static article, or a bounded
+URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
 RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie
 --help`, `owlie --version`. In scope: individual YouTube video transcript
-extraction, direct-media and declarative episode-page podcast transcription via
-local faster-whisper, static article extraction via the universal `extract`
+extraction, direct-media, Apple Podcasts episode, and declarative episode-page
+podcast transcription via local faster-whisper, static article extraction via the universal `extract`
 dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
 feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), explicit provider selection
@@ -47,7 +47,7 @@ stream/output contracts, secure configuration, and the shared core and
 coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific
-resolution and feed discovery, generic webpage crawling, collection search,
+resolution other than Apple Podcasts and podcast feed discovery, generic webpage crawling, collection search,
 `process --each` for non-feed collections, `owlie run`,
 scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
 integration, Owlie user authentication,
@@ -113,10 +113,11 @@ providers            → @owlieio/core only (never adapters/CLI/hosted)
 owlie (published)    → bundles core, adapters, providers (owns terminal/env/config)
 ```
 
-Documented exception: `adapter-reddit` may reuse public RSS/Atom parsing from
-`adapter-rss`. Reddit URL normalization and metadata interpretation stay in
-`adapter-reddit`. Do not create a generic `utils` package. `pnpm check:deps`
-enforces these rules automatically.
+Documented exceptions: `adapter-reddit` may reuse public RSS/Atom parsing from
+`adapter-rss`; `adapter-podcast` may reuse it solely to select the matching
+Apple Podcasts RSS enclosure. Source-specific URL normalization and metadata
+interpretation stay in the consuming adapter. Do not create a generic `utils`
+package. `pnpm check:deps` enforces these rules automatically.
 
 Test-only exception: adapters and providers may declare `@owlieio/testing` as a
 `devDependency` to use its fakes and contract-test helpers; it is never a
@@ -232,7 +233,11 @@ A change is done when: it compiles, `pnpm check` passes, tests cover the
 behavior, documentation is updated and internally consistent — including the
 governing status in §2/§3 and any ADR whose decisions the change reverses
 (see §14) — dependency rules hold, no credentials or hosted concepts were
-introduced, and nothing was committed, pushed, or published.
+introduced, and nothing was committed, pushed, or published. A user-facing
+change (to `apps/cli` or any package `src/`) must also record a changeset
+(`pnpm changeset`) or carry the `no-changeset` label, and any new code that
+interprets a remote response body must validate its declared content type
+before parsing it (see `docs/security-model.md`).
 
 ## 20. Prefer existing contracts
 

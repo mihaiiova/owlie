@@ -2,6 +2,7 @@ import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import {
+  ApplePodcastsResolver,
   DirectMediaResolver,
   GenericEpisodePageResolver,
   PodcastAdapter,
@@ -50,6 +51,7 @@ export function defaultItemAdapters(
       cacheDir: options.cacheDir ?? '.owlie-cache',
       resolvers: [
         new DirectMediaResolver(),
+        new ApplePodcastsResolver({ fetcher: podcastFetcher }),
         new GenericEpisodePageResolver({ fetcher: podcastFetcher }),
       ],
     }),
