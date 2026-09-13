@@ -23,6 +23,7 @@
     "test": "vitest run --config ../../vitest.config.ts packages/adapter-podcast"
   },
   "dependencies": {
+    "@owlieio/adapter-rss": "workspace:*",
     "@owlieio/core": "workspace:*"
   },
   "devDependencies": {

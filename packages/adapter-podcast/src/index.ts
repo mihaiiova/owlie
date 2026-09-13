@@ -1,3 +1,5 @@
+export { ApplePodcastsResolver, parseAppleEpisodeUrl } from './apple.js';
+export type { AppleEpisodeReference, ApplePodcastsResolverOptions } from './apple.js';
 export {
   DirectMediaResolver,
   GenericEpisodePageResolver,

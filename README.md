@@ -10,8 +10,8 @@ processed with an LLM — entirely on your machine.
 
 > **Status: scaffold.** This repository is the foundation of the open-source
 > core. It compiles, lints, and tests cleanly. The v0.1 milestone is the first
-> functional slice: `owlie extract` (YouTube transcripts, podcast media and
-> declarative episode pages, articles, and feed batches) and `owlie process`
+> functional slice: `owlie extract` (YouTube transcripts, podcast media, Apple
+> Podcasts episodes, declarative episode pages, articles, and feed batches) and `owlie process`
 > (DeepSeek or OpenAI). See
 > [Product scope](docs/product-scope.md) for what works and what does not.
 
@@ -23,9 +23,10 @@ v0.1 delivers a small, pipeable CLI:
 # Extract a transcript from an individual YouTube video
 owlie extract "https://youtube.com/watch?v=..."
 
-# Transcribe podcast audio from a direct media URL or a server-rendered episode page
+# Transcribe podcast audio from a direct media URL, Apple Podcasts URL, or server-rendered episode page
 # (requires local Python/faster-whisper, ffmpeg, ffprobe)
 owlie extract "https://cdn.example.com/episode.mp3"
+owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 owlie extract "https://publisher.example/episodes/my-episode"
 
 # Extract the readable text of a static article
@@ -57,7 +58,7 @@ Individual items:
 
 - YouTube video (v0.1)
 - Static article (v0.1, via universal `extract`)
-- Podcast direct-media URL or declarative server-rendered episode page (v0.1)
+- Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
 
@@ -77,7 +78,7 @@ Collections (deferred — not implemented in v0.1):
 - `list` items in a collection (RSS/Atom feeds)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
-- `extract` a transcript from podcast media or a declarative episode page via local Whisper (v0.1)
+- `extract` a transcript from podcast media, an Apple Podcasts episode, or a declarative episode page via local Whisper (v0.1)
 - `process` each item in other (non-feed) collections with an LLM (deferred)
 
 Owlie CLI does **not** monitor sources or schedule recurring work.
@@ -88,7 +89,7 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor
-owlie extract URL   # YouTube video, podcast media/episode page, article, or bounded feed
+owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
@@ -147,7 +148,7 @@ packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article adapter
-packages/adapter-podcast/    Podcast media and episode-page adapter
+packages/adapter-podcast/    Podcast media, Apple episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-openai/    OpenAI content processor
@@ -163,7 +164,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                          |
 | `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                             |
 | `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`  | Podcast media and declarative episode pages                     |
+| `@owlieio/adapter-podcast`  | Podcast media, Apple episodes, and declarative episode pages    |
 | `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
 | `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                                       |

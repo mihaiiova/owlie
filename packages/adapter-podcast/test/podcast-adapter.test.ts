@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
-import { GenericEpisodePageResolver, PodcastAdapter } from '@owlieio/adapter-podcast';
+import {
+  ApplePodcastsResolver,
+  GenericEpisodePageResolver,
+  PodcastAdapter,
+} from '@owlieio/adapter-podcast';
 import { FakeTranscriber } from '@owlieio/testing';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
 
@@ -40,6 +44,35 @@ afterAll(async () => {
 });
 
 describe('PodcastAdapter extraction', () => {
+  it('resolves an Apple episode then downloads and transcribes its media', async () => {
+    const downloads: string[] = [];
+    const fetcher = fakeFetcher(downloads);
+    fetcher.fetch = async (lookupUrl) => ({
+      url: lookupUrl,
+      contentType: 'application/json',
+      text: JSON.stringify({
+        results: [{ trackId: 67890, trackName: 'Apple episode', episodeUrl: url }],
+      }),
+    });
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+      resolvers: [new ApplePodcastsResolver({ fetcher })],
+    });
+
+    const item = await adapter.resolveItem({
+      url: 'https://podcasts.apple.com/us/podcast/example/id12345?i=67890',
+    });
+    const document = await adapter.extract(item);
+
+    expect(downloads).toEqual([url]);
+    expect(document).toMatchObject({
+      canonicalUrl: url,
+      metadata: { title: 'Apple episode', resolvedFrom: 'apple', fake: true },
+    });
+  });
+
   it('resolves a page enclosure, then downloads and transcribes the resolved media URL', async () => {
     const downloads: string[] = [];
     const fetcher = fakeFetcher(downloads);

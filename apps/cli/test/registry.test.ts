@@ -3,6 +3,14 @@ import { ConfigurationError } from '@owlieio/core';
 import { assertKnownProvider, defaultItemAdapters, listProviders, resolveProcessor } from 'owlie';
 
 describe('defaultItemAdapters', () => {
+  it('claims Apple Podcasts episode URLs with the podcast adapter', () => {
+    const adapter = defaultItemAdapters().find((candidate) =>
+      candidate.recognize({ url: 'https://podcasts.apple.com/us/podcast/example/id12345?i=67890' }),
+    );
+
+    expect(adapter?.id).toBe('podcast');
+  });
+
   it('claims safe episode pages with the podcast adapter before the article fallback', () => {
     const adapter = defaultItemAdapters().find((candidate) =>
       candidate.recognize({ url: 'https://publisher.example/episodes/one' }),

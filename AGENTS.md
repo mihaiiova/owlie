@@ -13,8 +13,8 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (YouTube transcripts, podcast direct-media URLs and declarative
-server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
+`owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
+episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
 `owlie list`, `owlie process` (DeepSeek or OpenAI; single document or feed
 `--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the saved active
 provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
@@ -33,12 +33,12 @@ differ from older v1 plans.
 ### v0.1 (current milestone)
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
-URL or declarative server-rendered episode page, a static article, or a bounded
+URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
 RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie
 --help`, `owlie --version`. In scope: individual YouTube video transcript
-extraction, direct-media and declarative episode-page podcast transcription via
-local faster-whisper, static article extraction via the universal `extract`
+extraction, direct-media, Apple Podcasts episode, and declarative episode-page
+podcast transcription via local faster-whisper, static article extraction via the universal `extract`
 dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
 feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), explicit provider selection
@@ -113,10 +113,11 @@ providers            → @owlieio/core only (never adapters/CLI/hosted)
 owlie (published)    → bundles core, adapters, providers (owns terminal/env/config)
 ```
 
-Documented exception: `adapter-reddit` may reuse public RSS/Atom parsing from
-`adapter-rss`. Reddit URL normalization and metadata interpretation stay in
-`adapter-reddit`. Do not create a generic `utils` package. `pnpm check:deps`
-enforces these rules automatically.
+Documented exceptions: `adapter-reddit` may reuse public RSS/Atom parsing from
+`adapter-rss`; `adapter-podcast` may reuse it solely to select the matching
+Apple Podcasts RSS enclosure. Source-specific URL normalization and metadata
+interpretation stay in the consuming adapter. Do not create a generic `utils`
+package. `pnpm check:deps` enforces these rules automatically.
 
 Test-only exception: adapters and providers may declare `@owlieio/testing` as a
 `devDependency` to use its fakes and contract-test helpers; it is never a
