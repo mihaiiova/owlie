@@ -7,7 +7,7 @@ import type {
   ItemAdapter,
   NormalizedDocument,
 } from '@owlieio/core';
-import { ExtractionError } from '@owlieio/core';
+import { ExtractionError, NotHandledError } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
@@ -50,6 +50,7 @@ function capture() {
 interface FakeItemOptions {
   recognize?: (url: string) => boolean;
   text?: string | ((url: string) => string);
+  resolveError?: unknown;
   extractError?: (url: string) => unknown;
 }
 
@@ -60,6 +61,7 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
     sourceType: id === 'youtube' ? 'youtube' : 'article',
     recognize: (locator) => (options.recognize ? options.recognize(locator.url) : true),
     async resolveItem(locator) {
+      if (options.resolveError) throw options.resolveError;
       urls.push(locator.url);
       return {
         id: `${id}:${locator.url}`,
@@ -416,6 +418,28 @@ describe('extract — direct dispatch', () => {
     const doc = JSON.parse(stdout());
     expect(doc.text).toBe('article body');
     expect(doc.sourceType).toBe('article');
+  });
+
+  it('falls back to the article adapter when the podcast probe finds no enclosure', async () => {
+    const podcast = makeItemAdapter('podcast', {
+      recognize: (url) => url.startsWith('https://'),
+      resolveError: new NotHandledError('no podcast audio enclosure found at ' + ARTICLE_URL),
+    });
+    const article = makeItemAdapter('article', {
+      recognize: (url) => url.startsWith('https://'),
+      text: 'article body',
+    });
+    const feed = makeFeedAdapter([]);
+
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['extract', ARTICLE_URL],
+      io,
+      itemDeps([podcast.adapter, article.adapter], feed.adapter),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe('article body\n');
+    expect(stderr()).toContain('no podcast audio enclosure found');
   });
 
   it('fails with a clear error when no adapter recognizes a direct URL', async () => {

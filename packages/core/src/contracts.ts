@@ -21,6 +21,11 @@ export interface ExtractionOptions {
   progress?: ProgressSink;
 }
 
+/** Options shared by item-resolution operations. */
+export interface ResolutionOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * The minimal capability every source adapter shares: it can say whether it
  * recognizes a locator.
@@ -63,7 +68,7 @@ export interface CollectionAdapter extends SourceAdapter {
  * {@link NormalizedDocument}.
  */
 export interface ItemAdapter extends SourceAdapter {
-  resolveItem?(locator: ContentLocator): Promise<ContentItem>;
+  resolveItem?(locator: ContentLocator, options?: ResolutionOptions): Promise<ContentItem>;
   extract(item: ContentItem, options?: ExtractionOptions): Promise<NormalizedDocument>;
 }
 

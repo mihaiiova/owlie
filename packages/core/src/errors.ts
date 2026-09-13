@@ -64,3 +64,14 @@ export class NotImplementedError extends OwlieError {
     super(message, { code: 'NOT_IMPLEMENTED', cause: options.cause });
   }
 }
+
+/**
+ * Raised when an adapter recognizes a locator's shape but cannot actually
+ * handle it — for example a generic episode page with no audio enclosure.
+ * Dispatch treats it as "defer to the next adapter" rather than a failure.
+ */
+export class NotHandledError extends OwlieError {
+  constructor(message: string, options: { cause?: unknown } = {}) {
+    super(message, { code: 'NOT_HANDLED', cause: options.cause });
+  }
+}

@@ -1,12 +1,6 @@
 import type { ItemAdapter, NormalizedDocument, ProgressSink } from '@owlieio/core';
-import {
-  assertNoUrlCredentials,
-  ExtractionError,
-  OwlieError,
-  extractItem,
-  resolveItem,
-} from '@owlieio/core';
-import { selectItemAdapter } from './dispatch.js';
+import { assertNoUrlCredentials, OwlieError } from '@owlieio/core';
+import { extractWithFallback } from './dispatch.js';
 
 /** A successfully extracted linked item, keyed by its URL and title. */
 export interface LinkedItemResult {
@@ -28,15 +22,14 @@ export async function extractLinkedItem(opts: {
   progress?: ProgressSink;
 }): Promise<LinkedItemResult> {
   assertNoUrlCredentials(opts.url);
-  const adapter = selectItemAdapter(opts.itemAdapters, { url: opts.url });
-  if (!adapter) {
-    throw new ExtractionError(`no adapter recognizes linked URL: ${opts.url}`);
-  }
-  const item = await resolveItem(adapter, { url: opts.url });
-  const document = await extractItem(adapter, item, {
-    signal: opts.signal,
-    progress: opts.progress,
-  });
+  const { document } = await extractWithFallback(
+    opts.itemAdapters,
+    { url: opts.url },
+    {
+      signal: opts.signal,
+      progress: opts.progress,
+    },
+  );
   return { url: opts.url, ...(opts.title !== undefined ? { title: opts.title } : {}), document };
 }
 

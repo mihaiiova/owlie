@@ -1,7 +1,11 @@
 import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
-import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import {
+  DirectMediaResolver,
+  GenericEpisodePageResolver,
+  PodcastAdapter,
+} from '@owlieio/adapter-podcast';
 import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
@@ -25,9 +29,9 @@ export const ADAPTER_IDS: readonly string[] = [
 
 /**
  * The default ordered item adapters for universal `extract` dispatch: the
- * specialized YouTube adapter first, then direct podcast media, then the
- * article fallback for any other safe HTTP(S) URL. The CLI passes explicit
- * language/proxy/transcription configuration.
+ * specialized YouTube adapter first, then podcast media and declarative
+ * episode pages, then the article fallback for any remaining safe HTTP(S)
+ * URL. The CLI passes explicit language/proxy/transcription configuration.
  */
 export function defaultItemAdapters(
   options: {
@@ -37,12 +41,17 @@ export function defaultItemAdapters(
     whisperModel?: string;
   } = {},
 ): ItemAdapter[] {
+  const podcastFetcher = new DefaultHttpFetcher();
   return [
     new YouTubeAdapter({ languages: options.languages, proxy: options.proxy }),
     new PodcastAdapter({
-      fetcher: new DefaultHttpFetcher(),
+      fetcher: podcastFetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
       cacheDir: options.cacheDir ?? '.owlie-cache',
+      resolvers: [
+        new DirectMediaResolver(),
+        new GenericEpisodePageResolver({ fetcher: podcastFetcher }),
+      ],
     }),
     new ArticleAdapter(),
   ];

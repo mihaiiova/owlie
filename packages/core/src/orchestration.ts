@@ -4,6 +4,7 @@ import type {
   CollectionListResult,
   ExtractionOptions,
   ItemAdapter,
+  ResolutionOptions,
 } from './contracts.js';
 import { ConfigurationError } from './errors.js';
 import type { ContentItem, ContentLocator, NormalizedDocument } from './types.js';
@@ -27,11 +28,13 @@ export async function listCollection(
 export async function resolveItem(
   adapter: ItemAdapter,
   locator: ContentLocator,
+  options: ResolutionOptions = {},
 ): Promise<ContentItem> {
   if (!adapter.resolveItem) {
     throw new ConfigurationError(`adapter "${adapter.id}" cannot resolve item locators`);
   }
-  return adapter.resolveItem(locator);
+  options.signal?.throwIfAborted();
+  return adapter.resolveItem(locator, options);
 }
 
 export async function extractItem(

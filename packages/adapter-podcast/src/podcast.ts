@@ -1,8 +1,22 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { ExtractionOptions, HttpFetcher, ItemAdapter, Transcriber } from '@owlieio/core';
+import type {
+  ExtractionOptions,
+  HttpFetcher,
+  HttpFetchPolicy,
+  ItemAdapter,
+  ResolutionOptions,
+  Transcriber,
+} from '@owlieio/core';
 import type { ContentItem, ContentLocator, NormalizedDocument } from '@owlieio/core';
-import { CancelledError, ConfigurationError, ExtractionError } from '@owlieio/core';
+import {
+  assertSafeHttpUrl,
+  CancelledError,
+  ConfigurationError,
+  DefaultHttpFetcher,
+  ExtractionError,
+  NotHandledError,
+} from '@owlieio/core';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.flac'];
 const MEDIA_MAX_BYTES = 512 * 1024 * 1024;
@@ -12,6 +26,7 @@ export interface PodcastAudioResolver {
   recognize(locator: ContentLocator): boolean;
   resolve(
     locator: ContentLocator,
+    options?: { signal?: AbortSignal },
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }>;
 }
 
@@ -27,6 +42,282 @@ export class DirectMediaResolver implements PodcastAudioResolver {
       throw new ConfigurationError(`not a recognized podcast media URL: ${locator.url}`);
     return { mediaUrl: locator.url };
   }
+}
+
+export interface GenericEpisodePageResolverOptions {
+  fetcher?: HttpFetcher;
+  policy?: HttpFetchPolicy;
+}
+
+type ResolvedAudio = { mediaUrl: string; title?: string };
+
+/**
+ * Resolves declarative audio metadata from a server-rendered podcast episode
+ * page. It deliberately does not execute page scripts or scrape page prose.
+ */
+export class GenericEpisodePageResolver implements PodcastAudioResolver {
+  private readonly fetcher: HttpFetcher;
+  private readonly policy: HttpFetchPolicy | undefined;
+
+  constructor(options: GenericEpisodePageResolverOptions = {}) {
+    this.fetcher = options.fetcher ?? new DefaultHttpFetcher();
+    this.policy = options.policy;
+  }
+
+  recognize(locator: ContentLocator): boolean {
+    if (recognizePodcastUrl(locator.url)) return false;
+    try {
+      assertSafeHttpUrl(locator.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async resolve(
+    locator: ContentLocator,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }> {
+    if (!this.recognize(locator))
+      throw new ConfigurationError(`not a recognized podcast episode URL: ${locator.url}`);
+    if (options.signal?.aborted) throw new CancelledError('podcast episode resolution cancelled');
+
+    const page = await this.fetcher.fetch(locator.url, {
+      signal: options.signal,
+      policy: this.policy,
+    });
+    if (!isHtmlContentType(page.contentType)) {
+      throw new NotHandledError(
+        `not a podcast episode page: unsupported content type ${page.contentType ?? 'missing'}`,
+      );
+    }
+    const resolved =
+      resolveJsonLdAudio(page.text, page.url) ??
+      (await this.resolveOembedAudio(page.text, page.url, options.signal)) ??
+      resolveAudioElement(page.text, page.url) ??
+      (await this.resolveFeedAudio(page.text, page.url, options.signal));
+    if (!resolved) throw new NotHandledError(`no podcast audio enclosure found at ${page.url}`);
+
+    const safeMediaUrl = assertSafeHttpUrl(resolved.mediaUrl, {
+      allowPrivateHosts: this.policy?.allowPrivateHosts,
+    }).toString();
+    return {
+      mediaUrl: safeMediaUrl,
+      metadata: {
+        ...(resolved.title ? { title: resolved.title } : {}),
+        resolvedFrom: 'page',
+      },
+    };
+  }
+
+  private async resolveOembedAudio(
+    html: string,
+    pageUrl: string,
+    signal: AbortSignal | undefined,
+  ): Promise<ResolvedAudio | undefined> {
+    const link = findTag(html, 'link').find((tag) => {
+      const attrs = attributes(tag);
+      return attrs.type?.toLowerCase() === 'application/json+oembed' && Boolean(attrs.href);
+    });
+    if (!link) return undefined;
+    try {
+      const href = safeResolveUrl(attributes(link).href!, pageUrl);
+      if (!href) return undefined;
+      const response = await this.fetcher.fetch(href, {
+        signal,
+        policy: this.policy,
+      });
+      if (!isJsonContentType(response.contentType)) return undefined;
+      const data: unknown = JSON.parse(response.text);
+      if (!data || typeof data !== 'object') return undefined;
+      const record = data as Record<string, unknown>;
+      if (!isAudioOembedType(record.type)) return undefined;
+      if (typeof record.url !== 'string') return undefined;
+      const mediaUrl = safeResolveUrl(record.url, response.url);
+      return mediaUrl ? { mediaUrl, title: stringValue(record.title) } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async resolveFeedAudio(
+    html: string,
+    pageUrl: string,
+    signal: AbortSignal | undefined,
+  ): Promise<ResolvedAudio | undefined> {
+    const inline = resolveEnclosure(html, pageUrl);
+    if (inline) return inline;
+    const feed = findTag(html, 'link').find((tag) => {
+      const attrs = attributes(tag);
+      return (
+        attrs.rel?.toLowerCase().split(/\s+/).includes('alternate') &&
+        Boolean(attrs.href) &&
+        /(?:rss|atom|xml)/i.test(attrs.type ?? attrs.href ?? '')
+      );
+    });
+    if (!feed) return undefined;
+    try {
+      const href = safeResolveUrl(attributes(feed).href!, pageUrl);
+      if (!href) return undefined;
+      const response = await this.fetcher.fetch(href, {
+        signal,
+        policy: this.policy,
+      });
+      if (!isFeedContentType(response.contentType)) return undefined;
+      return resolveEnclosure(response.text, response.url);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function resolveJsonLdAudio(html: string, pageUrl: string): ResolvedAudio | undefined {
+  for (const script of html.matchAll(
+    /<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script\s*>/gi,
+  )) {
+    try {
+      const found = findJsonLdAudio(JSON.parse(script[2] ?? ''));
+      if (!found) continue;
+      const mediaUrl = safeResolveUrl(found.mediaUrl, pageUrl);
+      if (mediaUrl && !isSameUrl(mediaUrl, pageUrl)) {
+        return { mediaUrl, title: found.title };
+      }
+    } catch {
+      // A malformed publisher block must not prevent lower-priority signals.
+    }
+  }
+  return undefined;
+}
+
+function findJsonLdAudio(value: unknown): ResolvedAudio | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findJsonLdAudio(entry);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const types = Array.isArray(record['@type']) ? record['@type'] : [record['@type']];
+  const isAudio = types.some((type) =>
+    ['AudioObject', 'PodcastEpisode', 'MusicRecording'].includes(String(type)),
+  );
+  // A container type's own `url` is usually the page, not the media, so prefer
+  // nested media fields before a node's own URL.
+  for (const key of ['associatedMedia', 'audio', 'encoding', 'subjectOf', '@graph']) {
+    const found = findJsonLdAudio(record[key]);
+    if (found) return { ...found, title: stringValue(record.name) ?? found.title };
+  }
+  if (isAudio) {
+    const ownUrl = [record.contentUrl, record.embedUrl, record.url].find(
+      (candidate): candidate is string => typeof candidate === 'string',
+    );
+    if (ownUrl) return { mediaUrl: ownUrl, title: stringValue(record.name) };
+  }
+  return undefined;
+}
+
+function resolveAudioElement(html: string, pageUrl: string): ResolvedAudio | undefined {
+  const mediaUrl = audioUrlFromHtml(html, pageUrl);
+  return mediaUrl ? { mediaUrl } : undefined;
+}
+
+function audioUrlFromHtml(html: unknown, pageUrl: string): string | undefined {
+  if (typeof html !== 'string') return undefined;
+  for (const tag of [...findTag(html, 'audio'), ...findTag(html, 'source')]) {
+    const src = attributes(tag).src;
+    const mediaUrl = src ? safeResolveUrl(src, pageUrl) : undefined;
+    if (mediaUrl) return mediaUrl;
+  }
+  return undefined;
+}
+
+function resolveEnclosure(markup: string, baseUrl: string): ResolvedAudio | undefined {
+  for (const tag of [...findTag(markup, 'enclosure'), ...findTag(markup, 'link')]) {
+    const attrs = attributes(tag);
+    const candidate =
+      attrs.url ??
+      (attrs.rel?.toLowerCase().split(/\s+/).includes('enclosure') ? attrs.href : undefined);
+    const mediaUrl = candidate ? safeResolveUrl(candidate, baseUrl) : undefined;
+    if (mediaUrl) return { mediaUrl };
+  }
+  return undefined;
+}
+
+function findTag(markup: string, name: string): string[] {
+  return markup.match(new RegExp(`<${name}\\b[^>]*>`, 'gi')) ?? [];
+}
+
+function attributes(tag: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const match of tag.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g)) {
+    const name = match[1];
+    const value = match[3];
+    if (name !== undefined && value !== undefined) result[name.toLowerCase()] = value;
+  }
+  return result;
+}
+
+/** Resolves a possibly-relative URL against a base; `undefined` when malformed. */
+function safeResolveUrl(value: string, baseUrl: string): string | undefined {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Compares two absolute URLs ignoring the fragment. */
+function isSameUrl(a: string, b: string): boolean {
+  try {
+    const left = new URL(a);
+    const right = new URL(b);
+    left.hash = '';
+    right.hash = '';
+    return left.toString() === right.toString();
+  } catch {
+    return a === b;
+  }
+}
+
+function mediaTypeOf(contentType: string | null): string | undefined {
+  return contentType?.split(';', 1)[0]?.trim().toLowerCase();
+}
+
+function isHtmlContentType(contentType: string | null): boolean {
+  const mediaType = mediaTypeOf(contentType);
+  return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
+}
+
+function isJsonContentType(contentType: string | null): boolean {
+  const mediaType = mediaTypeOf(contentType);
+  return (
+    mediaType === 'application/json' ||
+    mediaType === 'application/ld+json' ||
+    (mediaType?.endsWith('+json') ?? false)
+  );
+}
+
+function isFeedContentType(contentType: string | null): boolean {
+  const mediaType = mediaTypeOf(contentType);
+  return (
+    mediaType === 'application/rss+xml' ||
+    mediaType === 'application/atom+xml' ||
+    mediaType === 'application/xml' ||
+    mediaType === 'text/xml' ||
+    (mediaType?.endsWith('+xml') ?? false)
+  );
+}
+
+/** Accepts oEmbed responses whose declared type can carry an enclosure. */
+function isAudioOembedType(type: unknown): boolean {
+  if (typeof type !== 'string' || type.trim() === '') return true;
+  return ['rich', 'video', 'audio'].includes(type.trim().toLowerCase());
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 /** Detects a podcast media URL by file extension. Pure; makes no network calls. */
@@ -72,11 +363,16 @@ export class PodcastAdapter implements ItemAdapter {
     );
   }
 
-  async resolveItem(locator: ContentLocator): Promise<ContentItem> {
+  async resolveItem(
+    locator: ContentLocator,
+    options: ResolutionOptions = {},
+  ): Promise<ContentItem> {
     const resolver = this.resolvers.find((candidate) => candidate.recognize(locator));
     if (!resolver && locator.hint !== 'podcast')
       throw new ConfigurationError(`not a recognized podcast media URL: ${locator.url}`);
-    const resolved = resolver ? await resolver.resolve(locator) : { mediaUrl: locator.url };
+    const resolved = resolver
+      ? await resolver.resolve(locator, { signal: options.signal })
+      : { mediaUrl: locator.url };
     return {
       id: `podcast:episode:${resolved.mediaUrl}`,
       sourceType: 'podcast',

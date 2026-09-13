@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
-import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import { GenericEpisodePageResolver, PodcastAdapter } from '@owlieio/adapter-podcast';
 import { FakeTranscriber } from '@owlieio/testing';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
 
@@ -40,6 +40,31 @@ afterAll(async () => {
 });
 
 describe('PodcastAdapter extraction', () => {
+  it('resolves a page enclosure, then downloads and transcribes the resolved media URL', async () => {
+    const downloads: string[] = [];
+    const fetcher = fakeFetcher(downloads);
+    fetcher.fetch = async (pageUrl) => ({
+      url: pageUrl,
+      contentType: 'text/html',
+      text: '<audio src="/audio/episode.mp3"></audio>',
+    });
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+      resolvers: [new GenericEpisodePageResolver({ fetcher })],
+    });
+
+    const item = await adapter.resolveItem({ url: 'https://publisher.example/episodes/one' });
+    const document = await adapter.extract(item);
+
+    expect(downloads).toEqual(['https://publisher.example/audio/episode.mp3']);
+    expect(document).toMatchObject({
+      canonicalUrl: 'https://publisher.example/audio/episode.mp3',
+      metadata: { resolvedFrom: 'page', fake: true },
+    });
+  });
+
   it('downloads through the binary seam and returns a timed podcast transcript', async () => {
     const downloads: string[] = [];
     const adapter = new PodcastAdapter({
@@ -58,6 +83,30 @@ describe('PodcastAdapter extraction', () => {
       metadata: { fake: true, language: 'en' },
     });
     await expect(readdir(cacheDir)).resolves.toEqual([]);
+  });
+
+  it('passes a cancellation signal through resolveItem to the page resolver', async () => {
+    const fetcher = fakeFetcher([]);
+    fetcher.fetch = async (pageUrl) => ({
+      url: pageUrl,
+      contentType: 'text/html',
+      text: '<audio src="/audio/episode.mp3"></audio>',
+    });
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+      resolvers: [new GenericEpisodePageResolver({ fetcher })],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      adapter.resolveItem(
+        { url: 'https://publisher.example/episodes/one' },
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow('podcast episode resolution cancelled');
   });
 });
 
