@@ -13,7 +13,10 @@ publishedAt?, author?, metadata }`
 - `NormalizedDocument` — `{ schemaVersion: 1, id, sourceType, canonicalUrl,
 mediaType, title?, text, publishedAt?, author?, metadata }`
 - `ProcessRequest` — `{ document, instruction?, outputSchema? }`
-- `ProcessResult` — `{ output, format: 'text'|'markdown'|'json', metadata }`
+- `ProcessResult` — `{ output, format: ProcessResultFormat, metadata }`, where
+  `ProcessResultFormat` is `'text' | 'markdown' | 'json'` (a single-result
+  format; the reserved serializer's `OutputFormat` also carries the streaming
+  `jsonl` form, which is never a single-result format)
 
 `publishedAt` (and other timestamps) are canonicalized to a stable ISO 8601
 UTC string in `toISOString()` form, e.g. `2025-08-19T10:00:00.000Z`. Adapters
@@ -64,7 +67,8 @@ source-specific fields.
 - `Transcriber` — `id`, `transcribe(input, options?)` → `TranscriptionResult`.
 - `ContentProcessor` — `id`, `process(request, options?)` → `ProcessResult`.
 - `ProgressSink` — `emit(event)`.
-- `OutputSerializer` — `id`, `format`, `serialize(value, options?)`.
+- `OutputSerializer` — `id`, `format: OutputFormat`, `serialize(value, options?)`
+  (reserved; not implemented in v0.1).
 
 ### `ProcessResult.metadata` convention (v0.1)
 

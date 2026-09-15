@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isFeedContentType, isHtmlContentType, isJsonContentType, mediaTypeOf } from '@owlieio/core';
+import {
+  isFeedContentType,
+  isHtmlContentType,
+  isJsonContentType,
+  mediaTypeOf,
+} from '@owlieio/core';
 
 describe('mediaTypeOf', () => {
   it('parses the media type before any parameters and lowercases it', () => {

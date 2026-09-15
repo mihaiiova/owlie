@@ -15,9 +15,6 @@ function pageFetcher(html: string, responses: Record<string, FetchResponse> = {}
         text: response?.text ?? html,
       };
     },
-    async fetchText(url) {
-      return (await this.fetch(url)).text;
-    },
   };
 }
 

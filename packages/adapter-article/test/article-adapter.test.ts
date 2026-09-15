@@ -14,9 +14,6 @@ const fetcher: HttpFetcher = {
       text: CLEAN_ARTICLE,
     };
   },
-  async fetchText() {
-    return CLEAN_ARTICLE;
-  },
 };
 
 describe('normalizeDate', () => {
@@ -211,9 +208,6 @@ describe('ArticleAdapter.extractDeferred', () => {
     const countingFetcher: HttpFetcher = {
       async fetch() {
         fetches += 1;
-        throw new Error('should not fetch');
-      },
-      async fetchText() {
         throw new Error('should not fetch');
       },
     };

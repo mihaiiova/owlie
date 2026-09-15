@@ -15,9 +15,6 @@ function fetcher(responses: Record<string, string>): HttpFetcher {
         text,
       };
     },
-    async fetchText(url) {
-      return (await this.fetch(url)).text;
-    },
   };
 }
 
@@ -135,9 +132,6 @@ describe('ApplePodcastsResolver', () => {
       fetcher: {
         async fetch(url) {
           return { url, contentType: 'text/html', text: '<html></html>' };
-        },
-        async fetchText(url) {
-          return (await this.fetch(url)).text;
         },
       },
     });
