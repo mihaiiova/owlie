@@ -17,7 +17,7 @@ compile, tests pass, and `pnpm check` is green. Functional commands today:
 episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
 `owlie list`, `owlie process` (DeepSeek or OpenAI; a single local text or
 stdin document, a normalized JSON document, or a feed `--each` batch, selected
-by `--provider`/`OWLIE_PROVIDER`/the saved active provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
+by `--provider`/`OWLIE_PROVIDER`/the saved active provider), `owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. Search,
 other podcast provider-specific lookup, and audio transcription beyond resolved
 media URLs remain deferred.
 
@@ -35,8 +35,8 @@ differ from older v1 plans.
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
 RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
-process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie
---help`, `owlie --version`. In scope: individual YouTube video transcript
+process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie setup`, `owlie --help`,
+`owlie --version`. In scope: individual YouTube video transcript
 extraction, direct-media, Apple Podcasts episode, and declarative episode-page
 podcast transcription via local faster-whisper, static article extraction via the universal `extract`
 dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
@@ -95,6 +95,7 @@ packages/adapter-youtube/    @owlieio/adapter-youtube
 packages/adapter-podcast/    @owlieio/adapter-podcast
 packages/adapter-rss/        @owlieio/adapter-rss
 packages/adapter-reddit/     @owlieio/adapter-reddit
+packages/provider-deepseek/  @owlieio/provider-deepseek
 packages/provider-openai/    @owlieio/provider-openai
 packages/provider-whisper/   @owlieio/provider-whisper
 docs/                        Architecture, contracts, security, decisions

@@ -151,6 +151,7 @@ packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast media, Apple episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
+packages/provider-deepseek/  DeepSeek content processor
 packages/provider-openai/    OpenAI content processor
 packages/provider-whisper/   Local faster-whisper transcriber
 docs/                        Architecture, contracts, security, decisions
@@ -158,18 +159,19 @@ docs/                        Architecture, contracts, security, decisions
 
 ## Packages
 
-| Package                     | Purpose                                                         |
-| --------------------------- | --------------------------------------------------------------- |
-| `@owlieio/core`             | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
-| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                          |
-| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                             |
-| `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`  | Podcast media, Apple episodes, and declarative episode pages    |
-| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
-| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                                       |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber`                              |
-| `owlie`                     | The `owlie` command-line interface (published)                  |
+| Package                      | Purpose                                                         |
+| ---------------------------- | --------------------------------------------------------------- |
+| `@owlieio/core`              | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
+| `@owlieio/testing`           | Fakes, fixtures, contract-test helpers                          |
+| `@owlieio/adapter-youtube`   | YouTube videos (playlists deferred)                             |
+| `@owlieio/adapter-article`   | Safe static server-rendered editorial-page extraction           |
+| `@owlieio/adapter-podcast`   | Podcast media, Apple episodes, and declarative episode pages    |
+| `@owlieio/adapter-rss`       | RSS/Atom feeds and entries (fetch, list, extract)               |
+| `@owlieio/adapter-reddit`    | Subreddits via public Atom feeds (scaffold)                     |
+| `@owlieio/provider-deepseek` | DeepSeek `ContentProcessor`                                     |
+| `@owlieio/provider-openai`   | OpenAI `ContentProcessor`                                       |
+| `@owlieio/provider-whisper`  | Local faster-whisper `Transcriber`                              |
+| `owlie`                      | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and

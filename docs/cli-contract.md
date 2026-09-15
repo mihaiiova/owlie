@@ -84,7 +84,7 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 
 - `--quiet` / `-q` suppress diagnostics on stderr.
 - `--json` emits machine-readable JSON on stdout.
-- `--env-file PATH` loads an explicit environment file (reserved).
+- `--env-file PATH` loads an explicit environment file (functional).
 - Commands support cancellation signals; libraries never call `process.exit`.
 - Broken pipes (`EPIPE`) terminate quietly (exit 0) rather than dumping a stack
   trace.

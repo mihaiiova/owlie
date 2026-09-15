@@ -21,7 +21,7 @@ Options:
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
   --each           Process each linked item of an RSS/Atom feed (process only)
-  --env-file PATH  Load an explicit environment file (reserved)
+  --env-file PATH  Load an explicit environment file
 
 Exit codes:
   0 success, 1 error, 2 usage error, 3 not implemented

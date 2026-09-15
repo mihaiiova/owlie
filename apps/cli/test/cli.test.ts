@@ -42,6 +42,8 @@ describe('--help', () => {
     expect(stdout()).toContain('process');
     expect(stdout()).toContain('setup');
     expect(stdout()).toContain('doctor');
+    expect(stdout()).toContain('--env-file PATH');
+    expect(stdout()).not.toContain('(reserved)');
     expect(stdout()).not.toContain('search');
     expect(stdout()).not.toContain('config');
     expect(stderr()).toBe('');
