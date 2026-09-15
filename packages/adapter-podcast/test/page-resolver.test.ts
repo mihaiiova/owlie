@@ -162,6 +162,20 @@ describe('GenericEpisodePageResolver', () => {
     ).rejects.toThrow('unsupported content type');
   });
 
+  it('declines a page with no declared content type', async () => {
+    const fetcher = pageFetcher('');
+    fetcher.fetch = async (url) => ({
+      url,
+      contentType: null,
+      text: '<article>No audio here</article>',
+    });
+    const resolver = new GenericEpisodePageResolver({ fetcher });
+
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
+    ).rejects.toThrow('unsupported content type');
+  });
+
   it('attaches the fetched response when it declines a non-HTML page', async () => {
     const fetcher = pageFetcher('');
     fetcher.fetch = async (url) => ({ url, contentType: 'application/pdf', text: '%PDF' });
