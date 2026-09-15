@@ -8,6 +8,7 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isHtmlContentType,
   type ExtractionOptions,
   type HttpFetcher,
   type HttpFetchPolicy,
@@ -113,11 +114,6 @@ const ARTICLE_EXTRACTOR_ALLOWED_TAGS = [
   'kbd',
   'wbr',
 ];
-
-function isHtmlContentType(contentType: string | null): boolean {
-  const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
-  return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
-}
 
 function plainText(html: string): string {
   return decodeHTML(html)

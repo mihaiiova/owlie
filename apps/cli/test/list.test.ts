@@ -260,9 +260,6 @@ describe('list command', () => {
       async fetch(url) {
         return { url, contentType: 'application/rss+xml', text: RSS20 };
       },
-      async fetchText() {
-        return RSS20;
-      },
     };
     const { io, stdout } = capture();
     const code = await run(['list', FEED_URL, '--json'], io, {

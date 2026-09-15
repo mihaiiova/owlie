@@ -215,9 +215,6 @@ describe('extractWithFallback', () => {
         fetches += 1;
         return { url, contentType: 'text/html', text: ARTICLE_HTML };
       },
-      async fetchText(url) {
-        return (await this.fetch(url)).text;
-      },
     };
     const fakeTranscriber: Transcriber = {
       id: 'fake',

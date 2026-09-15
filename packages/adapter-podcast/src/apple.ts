@@ -6,8 +6,9 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isFeedContentType,
+  isJsonContentType,
 } from '@owlieio/core';
-import { isFeedContentType, isJsonContentType } from './podcast.js';
 import type { PodcastAudioResolver } from './podcast.js';
 
 export interface AppleEpisodeReference {

@@ -15,9 +15,6 @@ function pageFetcher(html: string, responses: Record<string, FetchResponse> = {}
         text: response?.text ?? html,
       };
     },
-    async fetchText(url) {
-      return (await this.fetch(url)).text;
-    },
   };
 }
 
@@ -158,6 +155,20 @@ describe('GenericEpisodePageResolver', () => {
   it('declines a page whose content type is not HTML', async () => {
     const fetcher = pageFetcher(''); // unused body
     fetcher.fetch = async (url) => ({ url, contentType: 'application/pdf', text: '' });
+    const resolver = new GenericEpisodePageResolver({ fetcher });
+
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
+    ).rejects.toThrow('unsupported content type');
+  });
+
+  it('declines a page with no declared content type', async () => {
+    const fetcher = pageFetcher('');
+    fetcher.fetch = async (url) => ({
+      url,
+      contentType: null,
+      text: '<article>No audio here</article>',
+    });
     const resolver = new GenericEpisodePageResolver({ fetcher });
 
     await expect(

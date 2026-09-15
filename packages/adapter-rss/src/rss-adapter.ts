@@ -16,17 +16,11 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isFeedContentType,
   type HttpFetcher,
   type HttpFetchPolicy,
 } from '@owlieio/core';
-import {
-  documentFromItem,
-  entryToItem,
-  isFeedMediaType,
-  isFeedUrl,
-  normalizeFeedUrl,
-  parseFeed,
-} from './feed.js';
+import { documentFromItem, entryToItem, isFeedUrl, normalizeFeedUrl, parseFeed } from './feed.js';
 
 /** Options accepted by the {@link RssAdapter} constructor. */
 export interface RssAdapterOptions {
@@ -139,9 +133,15 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   }
 }
 
-/** Rejects a declared non-feed media type before XML parsing. */
+/**
+ * Rejects a declared non-feed media type before XML parsing. A missing or
+ * empty declaration is accepted as a documented compatibility decision: a feed
+ * URL without a declared media type is still parsed, while a declared
+ * incompatible type is rejected.
+ */
 function assertFeedMediaType(contentType: string | null): void {
-  if (!isFeedMediaType(contentType)) {
+  const declared = contentType !== null && contentType.trim() !== '';
+  if (declared && !isFeedContentType(contentType)) {
     throw new ExtractionError(
       `refusing to parse a feed with an incompatible content type: ${contentType ?? '(none)'}`,
     );

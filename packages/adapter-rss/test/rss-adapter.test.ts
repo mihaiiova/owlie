@@ -15,7 +15,6 @@ const fakeFetcher: HttpFetcher = {
     contentType: 'application/rss+xml',
     text: RSS20,
   }),
-  fetchText: async () => RSS20,
 };
 
 function resolveCollection(adapter = new RssAdapter({ fetcher: fakeFetcher })) {
@@ -158,7 +157,6 @@ describe('RssAdapter feed media-type gate', () => {
       contentType: 'text/html',
       text: RSS20,
     }),
-    fetchText: async () => RSS20,
   };
   const noTypeFetcher: HttpFetcher = {
     fetch: async () => ({
@@ -166,7 +164,6 @@ describe('RssAdapter feed media-type gate', () => {
       contentType: null,
       text: RSS20,
     }),
-    fetchText: async () => RSS20,
   };
 
   it('rejects a declared non-feed content type before parsing', async () => {
@@ -191,5 +188,21 @@ describe('RssAdapter feed media-type gate', () => {
     const collection = await resolveCollection(adapter);
     const result = await adapter.list(collection, { limit: 10 });
     expect(result.items).toHaveLength(2);
+  });
+
+  it('accepts an empty or whitespace-only declared content type (compat preserved)', async () => {
+    for (const contentType of ['', '   ']) {
+      const fetcher: HttpFetcher = {
+        fetch: async () => ({
+          url: 'https://example.com/feed.xml',
+          contentType,
+          text: RSS20,
+        }),
+      };
+      const adapter = new RssAdapter({ fetcher });
+      const collection = await resolveCollection(adapter);
+      const result = await adapter.list(collection, { limit: 10 });
+      expect(result.items).toHaveLength(2);
+    }
   });
 });

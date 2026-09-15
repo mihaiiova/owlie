@@ -50,7 +50,6 @@ export interface HttpFetcher {
     options?: HttpFetchOptions,
   ): Promise<{ url: string; contentType: string | null; bytes: number }>;
   fetch(url: string, options?: HttpFetchOptions): Promise<HttpTextResponse>;
-  fetchText(url: string, options?: HttpFetchOptions): Promise<string>;
 }
 
 /** The platform fetch signature, injectable for offline tests. */
@@ -437,9 +436,5 @@ export class DefaultHttpFetcher implements HttpFetcher {
       options,
     );
     return { url: result.url, contentType: result.contentType, text: result.body };
-  }
-
-  async fetchText(url: string, options: HttpFetchOptions = {}): Promise<string> {
-    return (await this.fetch(url, options)).text;
   }
 }

@@ -355,9 +355,6 @@ describe('extract — feed batch', () => {
       async fetch(url) {
         return { url, contentType: 'application/rss+xml', text: RSS20 };
       },
-      async fetchText() {
-        return RSS20;
-      },
     };
     const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
     const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });

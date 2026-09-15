@@ -1,7 +1,12 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline/promises';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
-import { DefaultHttpFetcher, type HttpFetcher, type HttpFetchPolicy } from '@owlieio/core';
+import {
+  DefaultHttpFetcher,
+  isJsonContentType,
+  type HttpFetcher,
+  type HttpFetchPolicy,
+} from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -44,15 +49,6 @@ export const WHISPER_MODELS = [
   'large-v3-turbo',
 ] as const;
 
-const JSON_MEDIA_TYPES = ['application/json', 'application/ld+json'];
-
-/** Accepts only JSON media types for provider model discovery. */
-function isJsonMediaType(contentType: string | null): boolean {
-  if (contentType === null) return false;
-  const mediaType = contentType.split(';', 1)[0]!.trim().toLowerCase();
-  return JSON_MEDIA_TYPES.includes(mediaType) || mediaType.endsWith('+json');
-}
-
 /**
  * Fetches a provider's live model list from its OpenAI-compatible `/models`.
  * The authenticated request goes through the safe core {@link HttpFetcher}
@@ -69,7 +65,7 @@ export async function listProviderModels(
     headers: { Authorization: `Bearer ${options.apiKey}` },
     policy: options.policy,
   });
-  if (!isJsonMediaType(response.contentType)) {
+  if (!isJsonContentType(response.contentType)) {
     throw new Error('provider model discovery returned a non-JSON response');
   }
   let body: unknown;

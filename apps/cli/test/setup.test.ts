@@ -326,6 +326,15 @@ describe('listProviderModels', () => {
     );
   });
 
+  it('rejects a missing content type before parsing', async () => {
+    const fetchFn: HttpFetchFn = async () => new Response('{"data":[]}', { status: 200 });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(listProviderModels(provider, { apiKey: 'sk-test', fetcher })).rejects.toThrow(
+      /non-JSON response/,
+    );
+  });
+
   it('rejects malformed JSON', async () => {
     const fetchFn: HttpFetchFn = async () => jsonResponse('not-json');
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);

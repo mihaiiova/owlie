@@ -72,9 +72,17 @@ export interface ProcessRequest {
   outputSchema?: Record<string, unknown>;
 }
 
+/**
+ * The single-result output format carried by a {@link ProcessResult}. This is
+ * distinct from the reserved {@link OutputFormat} serializer vocabulary, whose
+ * `jsonl` member is a streaming/serialization format and never a single-result
+ * format.
+ */
+export type ProcessResultFormat = 'text' | 'markdown' | 'json';
+
 /** The result of processing a document. */
 export interface ProcessResult {
   output: string;
-  format: 'text' | 'markdown' | 'json';
+  format: ProcessResultFormat;
   metadata: Record<string, unknown>;
 }

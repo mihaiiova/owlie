@@ -15,6 +15,9 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isFeedContentType,
+  isHtmlContentType,
+  isJsonContentType,
   NotHandledError,
 } from '@owlieio/core';
 
@@ -283,35 +286,6 @@ function isSameUrl(a: string, b: string): boolean {
   } catch {
     return a === b;
   }
-}
-
-function mediaTypeOf(contentType: string | null): string | undefined {
-  return contentType?.split(';', 1)[0]?.trim().toLowerCase();
-}
-
-function isHtmlContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
-}
-
-export function isJsonContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return (
-    mediaType === 'application/json' ||
-    mediaType === 'application/ld+json' ||
-    (mediaType?.endsWith('+json') ?? false)
-  );
-}
-
-export function isFeedContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return (
-    mediaType === 'application/rss+xml' ||
-    mediaType === 'application/atom+xml' ||
-    mediaType === 'application/xml' ||
-    mediaType === 'text/xml' ||
-    (mediaType?.endsWith('+xml') ?? false)
-  );
 }
 
 /** Accepts oEmbed responses whose declared type can carry an enclosure. */

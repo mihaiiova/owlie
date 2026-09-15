@@ -25,9 +25,6 @@ function fakeFetcher(downloads: string[]): HttpFetcher {
     async fetch(mediaUrl) {
       return { url: mediaUrl, contentType: 'text/plain', text: '' };
     },
-    async fetchText() {
-      return '';
-    },
   };
 }
 
