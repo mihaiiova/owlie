@@ -41,9 +41,9 @@ a selected model fails with a clear configuration error. DeepSeek documents a
 
 ## Environment files
 
-`--env-file /path/to/credentials.env` is reserved for an explicit environment
-file. `.env.example` documents empty, supported provider variables. Never
-commit real credentials.
+`--env-file /path/to/credentials.env` loads an explicit environment file, and
+takes precedence over `.env.local` and `.env`. `.env.example` documents empty,
+supported provider variables. Never commit real credentials.
 
 ## User configuration
 
