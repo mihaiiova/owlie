@@ -1,6 +1,7 @@
 import type {
   ContentItem,
   ContentLocator,
+  DeferredResponseItemAdapter,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
@@ -27,12 +28,20 @@ export interface ExtractWithFallbackOptions {
   onFallback?: (error: NotHandledError) => void;
 }
 
+function canConsumeDeferredResponse(
+  adapter: ItemAdapter,
+): adapter is ItemAdapter & DeferredResponseItemAdapter {
+  return typeof (adapter as unknown as DeferredResponseItemAdapter).extractDeferred === 'function';
+}
+
 /**
  * Resolves and extracts a locator by trying each recognizing adapter in order.
  * An adapter that recognizes the locator's shape but cannot actually handle it
  * throws {@link NotHandledError}, which defers to the next adapter (for example
  * a generic episode page with no audio enclosure falls back to the article
- * adapter). Every other error propagates.
+ * adapter). When the deferral carries an already safe-fetched response and the
+ * next adapter can consume it, that response is reused instead of re-fetching.
+ * Every other error propagates.
  */
 export async function extractWithFallback(
   adapters: readonly ItemAdapter[],
@@ -44,6 +53,13 @@ export async function extractWithFallback(
   for (const adapter of candidates) {
     try {
       const item = await resolveItem(adapter, locator, { signal: options.signal });
+      if (deferred?.deferredResponse && canConsumeDeferredResponse(adapter)) {
+        const document = await adapter.extractDeferred(item, deferred.deferredResponse, {
+          signal: options.signal,
+          progress: options.progress,
+        });
+        return { item, document };
+      }
       const document = await extractItem(adapter, item, {
         signal: options.signal,
         progress: options.progress,

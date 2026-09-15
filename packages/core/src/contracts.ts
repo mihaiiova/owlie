@@ -9,6 +9,7 @@ import type {
   SourceType,
 } from './types.js';
 import type { OutputFormat } from './output.js';
+import type { HttpTextResponse } from './http.js';
 
 /** A sink for provider-neutral progress events. */
 export interface ProgressSink {
@@ -70,6 +71,22 @@ export interface CollectionAdapter extends SourceAdapter {
 export interface ItemAdapter extends SourceAdapter {
   resolveItem?(locator: ContentLocator, options?: ResolutionOptions): Promise<ContentItem>;
   extract(item: ContentItem, options?: ExtractionOptions): Promise<NormalizedDocument>;
+}
+
+/**
+ * Internal fallback seam (not part of the public {@link ItemAdapter}
+ * contract): an item adapter that can consume an already safe-fetched
+ * {@link HttpTextResponse} instead of re-fetching it. Dispatch uses this when
+ * a recognizing adapter defers via {@link NotHandledError} carrying a deferred
+ * response, avoiding a duplicate request (for example the generic episode-page
+ * resolver defers to the article adapter).
+ */
+export interface DeferredResponseItemAdapter {
+  extractDeferred(
+    item: ContentItem,
+    response: HttpTextResponse,
+    options?: ExtractionOptions,
+  ): Promise<NormalizedDocument>;
 }
 
 /**

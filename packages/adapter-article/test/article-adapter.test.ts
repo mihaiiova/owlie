@@ -205,6 +205,100 @@ describe('ArticleAdapter.extract', () => {
   });
 });
 
+describe('ArticleAdapter.extractDeferred', () => {
+  it('extracts from an already-fetched response without fetching again', async () => {
+    let fetches = 0;
+    const countingFetcher: HttpFetcher = {
+      async fetch() {
+        fetches += 1;
+        throw new Error('should not fetch');
+      },
+      async fetchText() {
+        throw new Error('should not fetch');
+      },
+    };
+    const adapter = new ArticleAdapter({ fetcher: countingFetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/articles/useful-story' });
+
+    const document = await adapter.extractDeferred(item, {
+      url: 'https://example.com/articles/useful-story',
+      contentType: 'text/html; charset=utf-8',
+      text: CLEAN_ARTICLE,
+    });
+
+    expect(fetches).toBe(0);
+    expect(document).toMatchObject({
+      id: 'article:https://example.com/articles/useful-story',
+      sourceType: 'article',
+      canonicalUrl: 'https://example.com/articles/useful-story',
+      mediaType: 'text',
+      title: 'A useful article title',
+      text: expect.stringContaining('deliberately substantial first paragraph'),
+    });
+  });
+
+  it('uses the final post-redirect URL for the document identity', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/go/story' });
+
+    await expect(
+      adapter.extractDeferred(item, {
+        url: 'https://example.com/articles/canonical-story#section',
+        contentType: 'application/xhtml+xml',
+        text: CLEAN_ARTICLE,
+      }),
+    ).resolves.toMatchObject({
+      id: 'article:https://example.com/articles/canonical-story',
+      canonicalUrl: 'https://example.com/articles/canonical-story',
+    });
+  });
+
+  it('refuses a response whose final URL is not safe-validated', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/articles/useful-story' });
+
+    await expect(
+      adapter.extractDeferred(item, {
+        url: 'http://127.0.0.1/private.html',
+        contentType: 'text/html',
+        text: CLEAN_ARTICLE,
+      }),
+    ).rejects.toBeInstanceOf(ExtractionError);
+  });
+
+  it('rejects a non-HTML deferred response before parsing', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/file.pdf' });
+
+    await expect(
+      adapter.extractDeferred(item, {
+        url: 'https://example.com/file.pdf',
+        contentType: 'application/pdf',
+        text: '%PDF',
+      }),
+    ).rejects.toBeInstanceOf(ExtractionError);
+  });
+
+  it('preserves cancellation from the caller signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const adapter = new ArticleAdapter({ fetcher });
+    const item = await adapter.resolveItem({ url: 'https://example.com/articles/useful-story' });
+
+    await expect(
+      adapter.extractDeferred(
+        item,
+        {
+          url: 'https://example.com/articles/useful-story',
+          contentType: 'text/html',
+          text: CLEAN_ARTICLE,
+        },
+        { signal: controller.signal },
+      ),
+    ).rejects.toBeInstanceOf(CancelledError);
+  });
+});
+
 itemAdapterContract('article', () => new ArticleAdapter({ fetcher }), {
   url: 'https://example.com/articles/useful-story',
 });

@@ -89,6 +89,7 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
     if (!isHtmlContentType(page.contentType)) {
       throw new NotHandledError(
         `not a podcast episode page: unsupported content type ${page.contentType ?? 'missing'}`,
+        { deferredResponse: page },
       );
     }
     const resolved =
@@ -96,7 +97,10 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       (await this.resolveOembedAudio(page.text, page.url, options.signal)) ??
       resolveAudioElement(page.text, page.url) ??
       (await this.resolveFeedAudio(page.text, page.url, options.signal));
-    if (!resolved) throw new NotHandledError(`no podcast audio enclosure found at ${page.url}`);
+    if (!resolved)
+      throw new NotHandledError(`no podcast audio enclosure found at ${page.url}`, {
+        deferredResponse: page,
+      });
 
     const safeMediaUrl = assertSafeHttpUrl(resolved.mediaUrl, {
       allowPrivateHosts: this.policy?.allowPrivateHosts,
