@@ -1,11 +1,22 @@
 import type {
   CollectionAdapter,
+  ContentItem,
+  HttpFetcher,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
+  Transcriber,
 } from '@owlieio/core';
-import { assertNoUrlCredentials, CancelledError, listCollection } from '@owlieio/core';
+import {
+  assertNoUrlCredentials,
+  CancelledError,
+  ConfigurationError,
+  DefaultHttpFetcher,
+  listCollection,
+} from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
+import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -15,6 +26,7 @@ import { extractWithFallback } from '../dispatch.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
+import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
@@ -27,6 +39,12 @@ export interface ExtractDeps {
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
+  /** Fetcher used by explicit resolver-selection flag extraction. */
+  fetcher?: HttpFetcher;
+  /** Transcriber used by explicit resolver-selection flag extraction. */
+  transcriber?: Transcriber;
+  /** Cache directory used by explicit resolver-selection flag extraction. */
+  cacheDir?: string;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -82,6 +100,11 @@ export async function runExtractCommand(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
+
+  if (options.resolver !== undefined) {
+    return runResolverExtraction(url, io, options, deps, options.resolver, readConfig);
+  }
+
   const itemAdapters =
     deps.itemAdapters ??
     defaultItemAdapters({
@@ -126,6 +149,7 @@ async function runDirectExtraction(
   const progress: ProgressSink = {
     emit: (event) => {
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     },
   };
   const { document } = await extractWithFallback(
@@ -149,6 +173,75 @@ async function runDirectExtraction(
     io.stdout.write(document.text + '\n');
   }
   return ExitCode.Success;
+}
+
+/**
+ * Runs an explicitly selected audio resolver: resolve → download → transcribe.
+ * The selected resolver is authoritative — a URL it does not recognize is a
+ * usage error, and a resolution failure does not fall back to another resolver
+ * or the article adapter.
+ */
+async function runResolverExtraction(
+  url: string,
+  io: CliIo,
+  options: CliOptions,
+  deps: ExtractDeps,
+  resolverName: string,
+  readConfig: () => UserConfig,
+): Promise<number> {
+  const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
+  const transcriber =
+    deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
+  const workCacheDir = deps.cacheDir ?? cacheDir();
+  const spinner =
+    deps.spinner ??
+    new Spinner({
+      write: (text) => {
+        if (!options.quiet) io.stderr.write(text);
+      },
+    });
+
+  try {
+    assertNoUrlCredentials(url);
+    const resolved = await resolvePodcastAudio(url, {
+      fetcher,
+      resolverName,
+      signal: deps.signal,
+    });
+    const item: ContentItem = {
+      id: `podcast:episode:${resolved.mediaUrl}`,
+      sourceType: 'podcast',
+      canonicalUrl: resolved.mediaUrl,
+      metadata: { platform: 'podcast', ...(resolved.metadata ?? {}) },
+    };
+    const adapter = new PodcastAdapter({ fetcher, transcriber, cacheDir: workCacheDir });
+    const progress: ProgressSink = {
+      emit: (event) => {
+        if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+        else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+      },
+    };
+    const document = await adapter.extract(item, { signal: deps.signal, progress });
+    spinner.stop();
+
+    if (options.json) {
+      io.stdout.write(JSON.stringify(document) + '\n');
+    } else {
+      io.stdout.write(document.text + '\n');
+    }
+    return ExitCode.Success;
+  } catch (error) {
+    spinner.stop();
+    if (error instanceof ConfigurationError) {
+      if (!options.quiet) io.stderr.write(`owlie: ${error.message}\n`);
+      return ExitCode.Usage;
+    }
+    if (!options.quiet) {
+      const message = error instanceof Error ? error.message : String(error);
+      io.stderr.write(`owlie: ${message}\n`);
+    }
+    return exitCodeForError(error);
+  }
 }
 
 async function runFeedExtraction(

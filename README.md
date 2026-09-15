@@ -29,6 +29,14 @@ owlie extract "https://cdn.example.com/episode.mp3"
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 owlie extract "https://publisher.example/episodes/my-episode"
 
+# Explicitly select which resolver finds the audio URL (authoritative; no fallback)
+owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890" --podcast-apple
+
+# Resolve a URL to its validated audio media URL without downloading or transcribing
+# (for orchestrators that run their own transcription)
+owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
+owlie resolve "https://publisher.example/episodes/my-episode" --json
+
 # Extract the readable text of a static article
 owlie extract "https://example.com/story"
 
@@ -90,6 +98,7 @@ owlie --help
 owlie --version
 owlie doctor
 owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
+owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
@@ -102,7 +111,9 @@ to work.
 
 `owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
 dispatches a direct URL to the YouTube, podcast, or article adapter — or, for a feed
-URL, extracts its bounded linked items into one JSON envelope. Remote text
+URL, extracts its bounded linked items into one JSON envelope. `owlie resolve`
+prints a validated audio media URL without transcribing it, with optional
+`--podcast-media`/`--podcast-page`/`--podcast-apple` resolver selection. Remote text
 fetches allow only globally routable destinations by default, canonically
 classify IPv4/IPv6 addresses, reject URL userinfo, and omit URL query and
 fragment data from diagnostics.

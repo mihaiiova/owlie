@@ -38,6 +38,7 @@ describe('--help', () => {
     const code = await run(['--help'], io);
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('extract');
+    expect(stdout()).toContain('resolve');
     expect(stdout()).toContain('list');
     expect(stdout()).toContain('process');
     expect(stdout()).toContain('setup');
