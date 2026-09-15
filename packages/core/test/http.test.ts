@@ -259,6 +259,234 @@ describe('DefaultHttpFetcher', () => {
     }
   });
 
+  describe('fetchToFile parity', () => {
+    function chunkedStream(chunks: Uint8Array[]) {
+      let index = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index < chunks.length) {
+            controller.enqueue(chunks[index]!);
+            index += 1;
+          } else {
+            controller.close();
+          }
+        },
+      });
+    }
+
+    function stallingStream(first: Uint8Array) {
+      let sent = false;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (!sent) {
+            sent = true;
+            controller.enqueue(first);
+          }
+        },
+      });
+    }
+
+    async function tempFile() {
+      const dir = await mkdtemp(join(tmpdir(), 'owlie-http-file-'));
+      return { dir, path: join(dir, 'download.bin') };
+    }
+
+    it('rejects a blocked host before creating the target file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('http://169.254.169.254/latest/meta-data', path),
+        ).rejects.toThrow(ExtractionError);
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects URL credentials before creating the target file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://alice:secret@example.com/a.bin', path, {
+            policy: { allowPrivateHosts: true },
+          }),
+        ).rejects.toThrow(ExtractionError);
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects a hostname resolving to a private address before creating the file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const resolver: DnsResolver = async () => ['192.168.1.50'];
+        const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+        await expect(fetcher.fetchToFile('https://evil.example.com/a.bin', path)).rejects.toThrow(
+          ExtractionError,
+        );
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('follows redirects and re-validates each hop for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          if (url === 'https://example.com/a') {
+            return new Response('', {
+              status: 302,
+              headers: { location: 'https://example.com/b' },
+            });
+          }
+          return ok('bytes!', { headers: { 'content-type': 'application/octet-stream' } });
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(fetcher.fetchToFile('https://example.com/a', path)).resolves.toMatchObject({
+          url: 'https://example.com/b',
+          contentType: 'application/octet-stream',
+          bytes: 6,
+        });
+        await expect(readFile(path, 'utf8')).resolves.toBe('bytes!');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects a redirect to a blocked host for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          if (url === 'https://example.com/a') {
+            return new Response('', {
+              status: 302,
+              headers: { location: 'http://127.0.0.1/x' },
+            });
+          }
+          return ok('final');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(fetcher.fetchToFile('https://example.com/a', path)).rejects.toThrow(
+          ExtractionError,
+        );
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('caps redirects for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const visited: string[] = [];
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          visited.push(url);
+          const n = visited.length;
+          return new Response('', {
+            status: 302,
+            headers: { location: `https://example.com/n${n}` },
+          });
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/n0', path, { policy: { maxRedirects: 2 } }),
+        ).rejects.toThrow(ExtractionError);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('enforces a size limit and cleans up the partial file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(
+            chunkedStream([new Uint8Array([1, 2, 3, 4, 5]), new Uint8Array([6, 7, 8, 9, 10])]),
+          );
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/a.bin', path, {
+            policy: { maxResponseBytes: 7 },
+          }),
+        ).rejects.toThrow(ExtractionError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('cleans up a partial file on timeout', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(stallingStream(new Uint8Array([1, 2, 3])));
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/a.bin', path, { policy: { timeoutMs: 20 } }),
+        ).rejects.toThrow(CancelledError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('cleans up a partial file on external abort', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let firstChunkDelivered: (() => void) | undefined;
+        const firstChunk = new Promise<void>((resolve) => {
+          firstChunkDelivered = resolve;
+        });
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull(controller) {
+                controller.enqueue(new Uint8Array([1, 2, 3]));
+                firstChunkDelivered?.();
+                // never enqueue again or close: stall the stream
+              },
+            }),
+          );
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        const controller = new AbortController();
+        const promise = fetcher.fetchToFile('https://example.com/a.bin', path, {
+          signal: controller.signal,
+        });
+        await firstChunk;
+        controller.abort();
+        await expect(promise).rejects.toThrow(CancelledError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   it('returns the response body and sends an identifying User-Agent', async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];
     const fetchFn: HttpFetchFn = async (input, init) => {
