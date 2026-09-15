@@ -28,22 +28,29 @@ export interface HttpTextResponse {
   text: string;
 }
 
+/** Per-request options for a {@link HttpFetcher} call. */
+export interface HttpFetchOptions {
+  signal?: AbortSignal;
+  policy?: HttpFetchPolicy;
+  /**
+   * Caller-supplied request headers. Core merges them with and retains control
+   * of its identifying `user-agent`. Caller headers are dropped on a redirect
+   * to a different origin so sensitive headers (e.g. `authorization`) do not
+   * leak cross-origin.
+   */
+  headers?: Record<string, string>;
+}
+
 /** A seam for safely fetching bounded text from an HTTP(S) URL. */
 export interface HttpFetcher {
   /** Streams a bounded binary response into a caller-owned file path. */
   fetchToFile?(
     url: string,
     path: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
+    options?: HttpFetchOptions,
   ): Promise<{ url: string; contentType: string | null; bytes: number }>;
-  fetch(
-    url: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
-  ): Promise<HttpTextResponse>;
-  fetchText(
-    url: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
-  ): Promise<string>;
+  fetch(url: string, options?: HttpFetchOptions): Promise<HttpTextResponse>;
+  fetchText(url: string, options?: HttpFetchOptions): Promise<string>;
 }
 
 /** The platform fetch signature, injectable for offline tests. */
@@ -284,6 +291,7 @@ function formatDiagnosticUrl(url: string | URL): string {
  * destination policy per hop, a redirect cap, a timeout, a response-size cap,
  * and an identifying User-Agent.
  */
+
 export class DefaultHttpFetcher implements HttpFetcher {
   private readonly fetchFn: HttpFetchFn;
   private readonly resolve: DnsResolver;
@@ -293,24 +301,45 @@ export class DefaultHttpFetcher implements HttpFetcher {
     this.resolve = resolve;
   }
 
+  private buildHeaders(
+    callerHeaders: Record<string, string>,
+    forwardCallerHeaders: boolean,
+    userAgent: string,
+  ): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (forwardCallerHeaders) {
+      for (const [name, value] of Object.entries(callerHeaders)) {
+        if (name.toLowerCase() !== 'user-agent') headers[name] = value;
+      }
+    }
+    // Core retains control of the identifying User-Agent regardless of casing.
+    headers['user-agent'] = userAgent;
+    return headers;
+  }
+
   /**
    * Runs one validated HTTP exchange: per-hop SSRF/credential checks, manual
    * redirects, timeout, cancellation mapping, and redacted error mapping. The
    * caller supplies a narrow body sink that consumes the successful response.
+   * Caller-supplied headers are merged in, but core retains control of the
+   * identifying User-Agent, and caller headers are dropped on a cross-origin
+   * redirect so sensitive headers (e.g. `authorization`) do not leak.
    */
   private async exchange<T>(
     url: string,
     sink: (response: Response, signal: AbortSignal) => Promise<T>,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+    options: HttpFetchOptions = {},
   ): Promise<{ url: string; contentType: string | null; body: T }> {
     const policy = options.policy ?? {};
     const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
     const userAgent = policy.userAgent ?? DEFAULT_USER_AGENT;
     const allowPrivateHosts = policy.allowPrivateHosts ?? false;
     const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const callerHeaders = options.headers ?? {};
 
     let current = url;
     let redirects = 0;
+    let forwardCallerHeaders = true;
 
     for (;;) {
       const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
@@ -332,7 +361,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
         const response = await this.fetchFn(current, {
           redirect: 'manual',
           signal: controller.signal,
-          headers: { 'user-agent': userAgent },
+          headers: this.buildHeaders(callerHeaders, forwardCallerHeaders, userAgent),
         });
 
         if (isRedirect(response.status)) {
@@ -347,7 +376,11 @@ export class DefaultHttpFetcher implements HttpFetcher {
               `too many redirects (max ${maxRedirects}) for ${formatDiagnosticUrl(url)}`,
             );
           }
-          current = new URL(location, current).toString();
+          const next = new URL(location, current).toString();
+          if (forwardCallerHeaders && new URL(next).origin !== safeUrl.origin) {
+            forwardCallerHeaders = false;
+          }
+          current = next;
           redirects += 1;
           await response.body?.cancel();
           continue;
@@ -385,7 +418,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
   async fetchToFile(
     url: string,
     path: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+    options: HttpFetchOptions = {},
   ): Promise<{ url: string; contentType: string | null; bytes: number }> {
     const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const result = await this.exchange(
@@ -396,10 +429,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
     return { url: result.url, contentType: result.contentType, bytes: result.body };
   }
 
-  async fetch(
-    url: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<HttpTextResponse> {
+  async fetch(url: string, options: HttpFetchOptions = {}): Promise<HttpTextResponse> {
     const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const result = await this.exchange(
       url,
@@ -409,10 +439,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
     return { url: result.url, contentType: result.contentType, text: result.body };
   }
 
-  async fetchText(
-    url: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<string> {
+  async fetchText(url: string, options: HttpFetchOptions = {}): Promise<string> {
     return (await this.fetch(url, options)).text;
   }
 }

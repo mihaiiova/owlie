@@ -20,7 +20,8 @@ export type { ExtractDeps } from './commands/extract.js';
 export { parseListLimit } from './commands/list.js';
 export type { ListDeps } from './commands/list.js';
 export type { ProcessDeps } from './commands/process.js';
-export type { SetupDeps } from './commands/setup.js';
+export { listProviderModels } from './commands/setup.js';
+export type { ListModelsOptions, SetupDeps } from './commands/setup.js';
 export { VERSION } from './version.js';
 export {
   cacheDir,

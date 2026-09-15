@@ -3,6 +3,7 @@ import {
   decodeXmlEntities,
   detectFeedFormat,
   htmlToText,
+  isFeedMediaType,
   isFeedUrl,
   normalizeFeedUrl,
   parseFeed,
@@ -54,6 +55,33 @@ describe('feed URL helpers', () => {
     expect(isFeedUrl('https://example.com/feed.xml')).toBe(true);
     expect(isFeedUrl('https://example.com/feed')).toBe(true);
     expect(isFeedUrl('https://example.com/page')).toBe(false);
+  });
+});
+
+describe('isFeedMediaType', () => {
+  it('accepts RSS, Atom, XML, and any +xml media type', () => {
+    for (const contentType of [
+      'application/rss+xml',
+      'application/atom+xml',
+      'application/xml',
+      'text/xml',
+      'application/rdf+xml; charset=utf-8',
+    ]) {
+      expect(isFeedMediaType(contentType)).toBe(true);
+    }
+  });
+
+  it('accepts a missing or empty declared content type as a compatibility case', () => {
+    expect(isFeedMediaType(null)).toBe(true);
+    expect(isFeedMediaType(undefined)).toBe(true);
+    expect(isFeedMediaType('')).toBe(true);
+    expect(isFeedMediaType('   ')).toBe(true);
+  });
+
+  it('rejects declared incompatible media types', () => {
+    for (const contentType of ['text/html', 'application/json', 'text/plain', 'image/png']) {
+      expect(isFeedMediaType(contentType)).toBe(false);
+    }
   });
 });
 
