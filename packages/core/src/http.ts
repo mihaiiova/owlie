@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { open } from 'node:fs/promises';
+import { open, rm } from 'node:fs/promises';
 import ipaddr from 'ipaddr.js';
 
 import { CancelledError, ConfigurationError, ExtractionError } from './errors.js';
@@ -241,11 +241,15 @@ async function writeBodyToFile(
   };
   signal.addEventListener('abort', onAbort, { once: true });
   let total = 0;
+  let completed = false;
   try {
     for (;;) {
       if (signal.aborted) throw new CancelledError('fetch timed out or was cancelled');
       const { done, value } = await Promise.race([reader.read(), aborted]);
-      if (done) return total;
+      if (done) {
+        completed = true;
+        return total;
+      }
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel();
@@ -256,6 +260,9 @@ async function writeBodyToFile(
   } finally {
     signal.removeEventListener('abort', onAbort);
     await file.close();
+    if (!completed) {
+      await rm(path, { force: true });
+    }
   }
 }
 
@@ -286,81 +293,18 @@ export class DefaultHttpFetcher implements HttpFetcher {
     this.resolve = resolve;
   }
 
-  async fetchToFile(
+  /**
+   * Runs one validated HTTP exchange: per-hop SSRF/credential checks, manual
+   * redirects, timeout, cancellation mapping, and redacted error mapping. The
+   * caller supplies a narrow body sink that consumes the successful response.
+   */
+  private async exchange<T>(
     url: string,
-    path: string,
+    sink: (response: Response, signal: AbortSignal) => Promise<T>,
     options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<{ url: string; contentType: string | null; bytes: number }> {
+  ): Promise<{ url: string; contentType: string | null; body: T }> {
     const policy = options.policy ?? {};
     const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
-    const maxResponseBytes = policy.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-    const userAgent = policy.userAgent ?? DEFAULT_USER_AGENT;
-    const allowPrivateHosts = policy.allowPrivateHosts ?? false;
-    const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    let current = url;
-    let redirects = 0;
-    for (;;) {
-      const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
-      await assertSafeResolvedHost(safeUrl.hostname, this.resolve, { allowPrivateHosts });
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const onAbort = () => controller.abort();
-      if (options.signal) {
-        if (options.signal.aborted) throw new CancelledError('fetch cancelled');
-        options.signal.addEventListener('abort', onAbort, { once: true });
-      }
-      try {
-        const response = await this.fetchFn(current, {
-          redirect: 'manual',
-          signal: controller.signal,
-          headers: { 'user-agent': userAgent },
-        });
-        if (isRedirect(response.status)) {
-          const location = response.headers.get('location');
-          if (!location)
-            throw new ExtractionError(
-              `redirect response from ${formatDiagnosticUrl(current)} has no Location header`,
-            );
-          if (redirects >= maxRedirects)
-            throw new ExtractionError(
-              `too many redirects (max ${maxRedirects}) for ${formatDiagnosticUrl(url)}`,
-            );
-          current = new URL(location, current).toString();
-          redirects += 1;
-          await response.body?.cancel();
-          continue;
-        }
-        if (!response.ok)
-          throw new ExtractionError(
-            `HTTP ${response.status} ${response.statusText} for ${formatDiagnosticUrl(current)}`,
-          );
-        return {
-          url: current,
-          contentType: response.headers.get('content-type'),
-          bytes: await writeBodyToFile(response, path, maxResponseBytes, controller.signal),
-        };
-      } catch (error) {
-        if (error instanceof CancelledError || error instanceof ExtractionError) throw error;
-        if (controller.signal.aborted)
-          throw new CancelledError('fetch timed out or was cancelled', { cause: error });
-        throw new ExtractionError(
-          `failed to fetch ${formatDiagnosticUrl(current)}: ${describe(error)}`,
-          { cause: error },
-        );
-      } finally {
-        clearTimeout(timer);
-        options.signal?.removeEventListener('abort', onAbort);
-      }
-    }
-  }
-
-  async fetch(
-    url: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<HttpTextResponse> {
-    const policy = options.policy ?? {};
-    const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
-    const maxResponseBytes = policy.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const userAgent = policy.userAgent ?? DEFAULT_USER_AGENT;
     const allowPrivateHosts = policy.allowPrivateHosts ?? false;
     const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -418,7 +362,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
         return {
           url: current,
           contentType: response.headers.get('content-type'),
-          text: await readBody(response, maxResponseBytes, controller.signal),
+          body: await sink(response, controller.signal),
         };
       } catch (error) {
         if (error instanceof CancelledError || error instanceof ExtractionError) throw error;
@@ -436,6 +380,33 @@ export class DefaultHttpFetcher implements HttpFetcher {
         options.signal?.removeEventListener('abort', onAbort);
       }
     }
+  }
+
+  async fetchToFile(
+    url: string,
+    path: string,
+    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+  ): Promise<{ url: string; contentType: string | null; bytes: number }> {
+    const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    const result = await this.exchange(
+      url,
+      (response, signal) => writeBodyToFile(response, path, maxResponseBytes, signal),
+      options,
+    );
+    return { url: result.url, contentType: result.contentType, bytes: result.body };
+  }
+
+  async fetch(
+    url: string,
+    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+  ): Promise<HttpTextResponse> {
+    const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    const result = await this.exchange(
+      url,
+      (response, signal) => readBody(response, maxResponseBytes, signal),
+      options,
+    );
+    return { url: result.url, contentType: result.contentType, text: result.body };
   }
 
   async fetchText(
