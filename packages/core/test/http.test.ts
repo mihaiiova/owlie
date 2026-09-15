@@ -306,6 +306,66 @@ describe('DefaultHttpFetcher', () => {
     expect(calls[0]).toBe('test-agent');
   });
 
+  it('merges caller-supplied headers with the identifying User-Agent', async () => {
+    const calls: Array<Record<string, string>> = [];
+    const fetchFn: HttpFetchFn = async (_input, init) => {
+      calls.push(Object.fromEntries(new Headers(init?.headers).entries()));
+      return ok('body');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetchText('https://example.com/', {
+      headers: { authorization: 'Bearer sk-test', 'x-custom': 'yes' },
+    });
+
+    expect(calls[0]).toMatchObject({ authorization: 'Bearer sk-test', 'x-custom': 'yes' });
+    expect(calls[0]!['user-agent']).toBe('owlie-cli');
+  });
+
+  it('retains control of the identifying User-Agent over caller headers', async () => {
+    const calls: Array<string> = [];
+    const fetchFn: HttpFetchFn = async (_input, init) => {
+      calls.push(new Headers(init?.headers).get('user-agent') ?? '');
+      return ok('body');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetchText('https://example.com/', {
+      headers: { 'user-agent': 'caller-agent' },
+    });
+
+    expect(calls[0]).toBe('owlie-cli');
+  });
+
+  it('retains caller headers on same-origin redirects and drops them cross-origin', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetchFn: HttpFetchFn = async (input, init) => {
+      const url = String(input);
+      const headers = Object.fromEntries(new Headers(init?.headers).entries());
+      calls.push({ url, headers });
+      if (url === 'https://example.com/a') {
+        return new Response('', { status: 302, headers: { location: 'https://example.com/b' } });
+      }
+      if (url === 'https://example.com/b') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://other.example.com/c' },
+        });
+      }
+      return ok('final');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetchText('https://example.com/a', {
+      headers: { authorization: 'Bearer sk-secret' },
+    });
+
+    expect(calls).toHaveLength(3);
+    expect(calls[0]!.headers.authorization).toBe('Bearer sk-secret');
+    expect(calls[1]!.headers.authorization).toBe('Bearer sk-secret');
+    expect(calls[2]!.headers.authorization).toBeUndefined();
+    for (const call of calls) {
+      expect(call.headers['user-agent']).toBe('owlie-cli');
+    }
+  });
+
   it('rejects a blocked host before fetching', async () => {
     let called = false;
     const fetchFn: HttpFetchFn = async () => {

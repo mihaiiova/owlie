@@ -28,22 +28,29 @@ export interface HttpTextResponse {
   text: string;
 }
 
+/** Per-request options for a {@link HttpFetcher} call. */
+export interface HttpFetchOptions {
+  signal?: AbortSignal;
+  policy?: HttpFetchPolicy;
+  /**
+   * Caller-supplied request headers. Core merges them with and retains control
+   * of its identifying `user-agent`. Caller headers are dropped on a redirect
+   * to a different origin so sensitive headers (e.g. `authorization`) do not
+   * leak cross-origin.
+   */
+  headers?: Record<string, string>;
+}
+
 /** A seam for safely fetching bounded text from an HTTP(S) URL. */
 export interface HttpFetcher {
   /** Streams a bounded binary response into a caller-owned file path. */
   fetchToFile?(
     url: string,
     path: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
+    options?: HttpFetchOptions,
   ): Promise<{ url: string; contentType: string | null; bytes: number }>;
-  fetch(
-    url: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
-  ): Promise<HttpTextResponse>;
-  fetchText(
-    url: string,
-    options?: { signal?: AbortSignal; policy?: HttpFetchPolicy },
-  ): Promise<string>;
+  fetch(url: string, options?: HttpFetchOptions): Promise<HttpTextResponse>;
+  fetchText(url: string, options?: HttpFetchOptions): Promise<string>;
 }
 
 /** The platform fetch signature, injectable for offline tests. */
@@ -286,10 +293,26 @@ export class DefaultHttpFetcher implements HttpFetcher {
     this.resolve = resolve;
   }
 
+  private buildHeaders(
+    callerHeaders: Record<string, string>,
+    forwardCallerHeaders: boolean,
+    userAgent: string,
+  ): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (forwardCallerHeaders) {
+      for (const [name, value] of Object.entries(callerHeaders)) {
+        if (name.toLowerCase() !== 'user-agent') headers[name] = value;
+      }
+    }
+    // Core retains control of the identifying User-Agent regardless of casing.
+    headers['user-agent'] = userAgent;
+    return headers;
+  }
+
   async fetchToFile(
     url: string,
     path: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+    options: HttpFetchOptions = {},
   ): Promise<{ url: string; contentType: string | null; bytes: number }> {
     const policy = options.policy ?? {};
     const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
@@ -297,8 +320,10 @@ export class DefaultHttpFetcher implements HttpFetcher {
     const userAgent = policy.userAgent ?? DEFAULT_USER_AGENT;
     const allowPrivateHosts = policy.allowPrivateHosts ?? false;
     const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const callerHeaders = options.headers ?? {};
     let current = url;
     let redirects = 0;
+    let forwardCallerHeaders = true;
     for (;;) {
       const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
       await assertSafeResolvedHost(safeUrl.hostname, this.resolve, { allowPrivateHosts });
@@ -313,7 +338,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
         const response = await this.fetchFn(current, {
           redirect: 'manual',
           signal: controller.signal,
-          headers: { 'user-agent': userAgent },
+          headers: this.buildHeaders(callerHeaders, forwardCallerHeaders, userAgent),
         });
         if (isRedirect(response.status)) {
           const location = response.headers.get('location');
@@ -325,7 +350,11 @@ export class DefaultHttpFetcher implements HttpFetcher {
             throw new ExtractionError(
               `too many redirects (max ${maxRedirects}) for ${formatDiagnosticUrl(url)}`,
             );
-          current = new URL(location, current).toString();
+          const next = new URL(location, current).toString();
+          if (forwardCallerHeaders && new URL(next).origin !== safeUrl.origin) {
+            forwardCallerHeaders = false;
+          }
+          current = next;
           redirects += 1;
           await response.body?.cancel();
           continue;
@@ -354,19 +383,18 @@ export class DefaultHttpFetcher implements HttpFetcher {
     }
   }
 
-  async fetch(
-    url: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<HttpTextResponse> {
+  async fetch(url: string, options: HttpFetchOptions = {}): Promise<HttpTextResponse> {
     const policy = options.policy ?? {};
     const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
     const maxResponseBytes = policy.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const userAgent = policy.userAgent ?? DEFAULT_USER_AGENT;
     const allowPrivateHosts = policy.allowPrivateHosts ?? false;
     const timeoutMs = policy.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const callerHeaders = options.headers ?? {};
 
     let current = url;
     let redirects = 0;
+    let forwardCallerHeaders = true;
 
     for (;;) {
       const safeUrl = assertSafeHttpUrl(current, { allowPrivateHosts });
@@ -388,7 +416,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
         const response = await this.fetchFn(current, {
           redirect: 'manual',
           signal: controller.signal,
-          headers: { 'user-agent': userAgent },
+          headers: this.buildHeaders(callerHeaders, forwardCallerHeaders, userAgent),
         });
 
         if (isRedirect(response.status)) {
@@ -403,7 +431,11 @@ export class DefaultHttpFetcher implements HttpFetcher {
               `too many redirects (max ${maxRedirects}) for ${formatDiagnosticUrl(url)}`,
             );
           }
-          current = new URL(location, current).toString();
+          const next = new URL(location, current).toString();
+          if (forwardCallerHeaders && new URL(next).origin !== safeUrl.origin) {
+            forwardCallerHeaders = false;
+          }
+          current = next;
           redirects += 1;
           await response.body?.cancel();
           continue;
@@ -438,10 +470,7 @@ export class DefaultHttpFetcher implements HttpFetcher {
     }
   }
 
-  async fetchText(
-    url: string,
-    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
-  ): Promise<string> {
+  async fetchText(url: string, options: HttpFetchOptions = {}): Promise<string> {
     return (await this.fetch(url, options)).text;
   }
 }

@@ -415,6 +415,29 @@ export function normalizeFeedUrl(input: string): string {
   return url.toString();
 }
 
+const FEED_MEDIA_TYPES = [
+  'application/rss+xml',
+  'application/atom+xml',
+  'application/xml',
+  'text/xml',
+];
+
+/**
+ * Whether a declared `Content-Type` is a compatible RSS/Atom/XML feed type.
+ *
+ * A missing or empty declaration is accepted as an explicit compatibility
+ * decision (documented and tested): a feed URL without a declared media type
+ * is still parsed, while a declared incompatible type is rejected before XML
+ * parsing. Any `*+xml` media type is accepted alongside the RSS/Atom/XML list.
+ */
+export function isFeedMediaType(contentType: string | null | undefined): boolean {
+  if (contentType === null || contentType === undefined || contentType.trim() === '') {
+    return true;
+  }
+  const mediaType = contentType.split(';', 1)[0]!.trim().toLowerCase();
+  return FEED_MEDIA_TYPES.includes(mediaType) || mediaType.endsWith('+xml');
+}
+
 const FEED_SUFFIXES = ['.rss', '.atom', '.xml', '/feed', '/feed/', '/rss', '/rss/'];
 
 export function isFeedUrl(input: string): boolean {
