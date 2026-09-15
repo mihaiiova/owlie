@@ -74,6 +74,24 @@ describe('extract resolver-selection flags', () => {
     expect(doc.metadata).toMatchObject({ title: 'Episode', resolvedFrom: 'apple', fake: true });
   });
 
+  it('transcribes a direct media URL with --podcast-media without resolving a page', async () => {
+    const mediaFetcher: HttpFetcher = {
+      async fetch() {
+        throw new Error('direct media resolver must not fetch');
+      },
+      async fetchToFile(url, path) {
+        await writeFile(path, Buffer.from([0, 1]));
+        return { url, contentType: 'audio/mpeg', bytes: 2 };
+      },
+    };
+    const { io, stdout } = capture();
+    const code = await run(['extract', MEDIA_URL, '--podcast-media'], io, {
+      extract: { fetcher: mediaFetcher, transcriber, cacheDir },
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe(`transcript of ${MEDIA_URL}\n`);
+  });
+
   it('rejects an incompatible resolver flag as a usage error (no article fallback)', async () => {
     const { io, stdout, stderr } = capture();
     const code = await run(

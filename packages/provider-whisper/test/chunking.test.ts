@@ -146,4 +146,21 @@ describe('WhisperLocalTranscriber chunked transcription', () => {
       ),
     ).rejects.toThrow(CancelledError);
   });
+
+  it('propagates mid-transcription cancellation as CancelledError', async () => {
+    const controller = new AbortController();
+    const transcriber = new WhisperLocalTranscriber({}, async (file) => {
+      if (file === 'python3') {
+        controller.abort();
+        throw new CancelledError('transcription cancelled', {});
+      }
+      return '';
+    });
+    await expect(
+      transcriber.transcribe(
+        { mediaPath: '/tmp/x.mp3', metadata: {} },
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow(CancelledError);
+  });
 });
