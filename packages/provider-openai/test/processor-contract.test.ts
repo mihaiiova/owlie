@@ -1,4 +1,4 @@
-import { processorContract } from '@owlieio/testing/contract-tests';
+import { processorContract, processorResultContract } from '@owlieio/testing/contract-tests';
 import { OpenAIProcessor } from '@owlieio/provider-openai';
 import type { OpenAIClient } from '@owlieio/provider-openai';
 
@@ -9,6 +9,11 @@ const client: OpenAIClient = {
 };
 
 processorContract(
+  'openai',
+  () => new OpenAIProcessor({ apiKey: 'sk-test', model: 'gpt-4o-mini' }, { client }),
+);
+
+processorResultContract(
   'openai',
   () => new OpenAIProcessor({ apiKey: 'sk-test', model: 'gpt-4o-mini' }, { client }),
 );

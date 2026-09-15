@@ -4,7 +4,12 @@ import type {
   ProcessResult,
   ProcessorOptions,
 } from '@owlieio/core';
-import { CancelledError, ConfigurationError, ProcessingError } from '@owlieio/core';
+import {
+  buildProcessResult,
+  ConfigurationError,
+  mapProcessingError,
+  renderPrompt,
+} from '@owlieio/core';
 import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
@@ -66,23 +71,6 @@ export function createDefaultOpenAIClient(config: OpenAIConfig): OpenAIClient {
   };
 }
 
-function buildPrompt(request: ProcessRequest): string {
-  const parts: string[] = [];
-  const instruction = request.instruction?.trim();
-  if (instruction) parts.push(instruction);
-  if (request.outputSchema) {
-    parts.push(
-      'Respond with JSON that matches this schema: ' + JSON.stringify(request.outputSchema),
-    );
-  }
-  parts.push(request.document.text.trim());
-  return parts.join('\n\n').trim();
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
 /**
  * OpenAI content processor. Implements the provider-neutral
  * {@link ContentProcessor} contract; configuration is an explicit object and
@@ -108,33 +96,20 @@ export class OpenAIProcessor implements ContentProcessor {
     try {
       const result = await this.client.generate({
         model,
-        prompt: buildPrompt(request),
+        prompt: renderPrompt(request),
         abortSignal: options.signal,
         timeoutMs: this.config.timeoutMs,
       });
 
-      const metadata: Record<string, unknown> = { provider: this.id, model };
-      if (result.usage) {
-        metadata.usage = {
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-          totalTokens: result.usage.totalTokens,
-        };
-      }
-
-      return {
+      return buildProcessResult({
         output: result.text,
-        format: request.outputSchema ? 'json' : 'text',
-        metadata,
-      };
+        provider: this.id,
+        model,
+        usage: result.usage,
+        outputSchema: request.outputSchema,
+      });
     } catch (error) {
-      if (options.signal?.aborted || isAbortError(error)) {
-        throw new CancelledError('OpenAI processing was cancelled', { cause: error });
-      }
-      throw new ProcessingError(
-        `OpenAI processing failed: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
+      mapProcessingError('OpenAI', error, options.signal);
     }
   }
 }

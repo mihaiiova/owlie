@@ -5,4 +5,5 @@ export * from './errors.js';
 export * from './limits.js';
 export * from './output.js';
 export * from './orchestration.js';
+export * from './processing.js';
 export * from './http.js';
