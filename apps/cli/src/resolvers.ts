@@ -48,11 +48,6 @@ export const PODCAST_RESOLVER_REGISTRY: readonly PodcastResolverRegistration[] =
   },
 ];
 
-/** Every resolver selection flag, in recognition order. */
-export function resolverFlags(): readonly string[] {
-  return PODCAST_RESOLVER_REGISTRY.map((entry) => entry.flag);
-}
-
 /** Maps a resolver selection flag to its stable resolver name, or `undefined`. */
 export function resolverNameForFlag(flag: string): string | undefined {
   return PODCAST_RESOLVER_REGISTRY.find((entry) => entry.flag === flag)?.name;

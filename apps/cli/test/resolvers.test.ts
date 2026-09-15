@@ -7,7 +7,6 @@ import {
   createPodcastResolvers,
   resolvePodcastAudio,
   resolverFlagForName,
-  resolverFlags,
   resolverNameForFlag,
 } from 'owlie';
 
@@ -36,7 +35,7 @@ describe('PODCAST_RESOLVER_REGISTRY', () => {
   });
 });
 
-describe('resolverNameForFlag / resolverFlagForName / resolverFlags', () => {
+describe('resolverNameForFlag / resolverFlagForName', () => {
   it('maps each flag to its stable name and back', () => {
     expect(resolverNameForFlag('--podcast-apple')).toBe('podcast-apple');
     expect(resolverNameForFlag('--podcast-media')).toBe('podcast-media');
@@ -44,7 +43,6 @@ describe('resolverNameForFlag / resolverFlagForName / resolverFlags', () => {
     expect(resolverFlagForName('podcast-apple')).toBe('--podcast-apple');
     expect(resolverFlagForName('podcast-shopify')).toBeUndefined();
     expect(resolverNameForFlag('--podcast-shopify')).toBeUndefined();
-    expect(resolverFlags()).toEqual(['--podcast-media', '--podcast-apple', '--podcast-page']);
   });
 });
 

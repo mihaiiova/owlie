@@ -41,6 +41,7 @@ async function main(): Promise<void> {
         extract: { signal: controller.signal },
         list: { signal: controller.signal },
         process: { signal: controller.signal },
+        resolve: { signal: controller.signal },
       },
     );
     process.exitCode = code;

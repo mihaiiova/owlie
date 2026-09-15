@@ -50,7 +50,6 @@ export {
   createPodcastResolvers,
   resolvePodcastAudio,
   resolverFlagForName,
-  resolverFlags,
   resolverNameForFlag,
 } from './resolvers.js';
 export type {
