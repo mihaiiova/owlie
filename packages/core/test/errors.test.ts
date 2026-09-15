@@ -5,6 +5,7 @@ import {
   ConfigurationError,
   ExtractionError,
   NotImplementedError,
+  NotHandledError,
   OwlieError,
 } from '@owlieio/core';
 
@@ -35,5 +36,16 @@ describe('error hierarchy', () => {
     const err = new CaptionsUnavailableError('no captions');
     expect(err).toBeInstanceOf(ExtractionError);
     expect(err).toBeInstanceOf(OwlieError);
+  });
+
+  it('carries an optional already-fetched response through NotHandledError', () => {
+    const response = {
+      url: 'https://example.com/story',
+      contentType: 'text/html',
+      text: '<p>story</p>',
+    };
+    const err = new NotHandledError('not handled', { deferredResponse: response });
+    expect(err.deferredResponse).toBe(response);
+    expect(err.code).toBe('NOT_HANDLED');
   });
 });
