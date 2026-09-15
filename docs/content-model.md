@@ -37,12 +37,17 @@ Not every document is a transcript:
 
 - YouTube and podcast documents may contain transcripts.
 - Reddit and RSS documents contain normalized written text.
+- Local documents (`sourceType: 'local'`) contain user-supplied text with no
+  remote canonical URL (represented as an empty string). Their identity is
+  `local:stdin` for piped stdin or `local:file:<basename>` for a text file.
 
 ## Stable identities
 
 Identities must be stable across runs so callers can correlate items and
 deduplicate results. Adapters derive them from canonical URLs and provider
-identifiers — never from volatile page structure.
+identifiers — never from volatile page structure. Local documents derive their
+identity from the resolved input (stdin or the file basename), which stays
+stable for the same input without leaking host-specific absolute paths.
 
 ## Discriminated unions
 

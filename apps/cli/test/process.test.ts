@@ -69,7 +69,88 @@ describe('process command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('Summarize:the transcript\n');
     expect(requests[0]?.document.id).toBe('youtube:video:abc');
+    expect(requests[0]?.document.sourceType).toBe('youtube');
     expect(requests[0]?.document.metadata).toMatchObject({ videoId: 'abc' });
+  });
+
+  it('models piped stdin as a local document with a stable identity', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const { io } = capture({ isTTY: false, content: 'hello world' });
+    const code = await run(['process', '--prompt', 'Summarize'], io, deps({ processor }));
+    expect(code).toBe(ExitCode.Success);
+    const doc = requests[0]?.document;
+    expect(doc?.sourceType).toBe('local');
+    expect(doc?.id).toBe('local:stdin');
+    expect(doc?.canonicalUrl).toBe('');
+  });
+
+  it('models a positional text file as local content without host paths', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-process-'));
+    const file = join(dir, 'notes.txt');
+    writeFileSync(file, 'file content', 'utf8');
+    try {
+      const { io } = capture({ isTTY: true });
+      const code = await run(['process', file, '--prompt', 'Summarize'], io, deps({ processor }));
+      expect(code).toBe(ExitCode.Success);
+      const doc = requests[0]?.document;
+      expect(doc?.sourceType).toBe('local');
+      expect(doc?.id).toBe('local:file:notes.txt');
+      expect(doc?.id).not.toContain(dir);
+      expect(doc?.canonicalUrl).toBe('');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('models --input text as local content', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const dir = mkdtempSync(join(tmpdir(), 'owlie-process-'));
+    const file = join(dir, 'draft.md');
+    writeFileSync(file, 'draft', 'utf8');
+    try {
+      const { io } = capture({ isTTY: true });
+      const code = await run(
+        ['process', '--input', file, '--prompt', 'x'],
+        io,
+        deps({ processor }),
+      );
+      expect(code).toBe(ExitCode.Success);
+      expect(requests[0]?.document.sourceType).toBe('local');
+      expect(requests[0]?.document.id).toBe('local:file:draft.md');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a JSON document with a malformed sourceType', async () => {
+    const { io, stdout, stderr } = capture({
+      isTTY: false,
+      content: JSON.stringify({ text: 'hi', sourceType: 'garbage' }),
+    });
+    const code = await run(
+      ['process', '--input-format', 'json', '--prompt', 'x'],
+      io,
+      deps({ processor: makeFakeProcessor().processor }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('sourceType');
+  });
+
+  it('rejects a JSON document missing sourceType instead of defaulting to rss', async () => {
+    const { io, stdout, stderr } = capture({
+      isTTY: false,
+      content: JSON.stringify({ text: 'hi' }),
+    });
+    const code = await run(
+      ['process', '--input-format', 'json', '--prompt', 'x'],
+      io,
+      deps({ processor: makeFakeProcessor().processor }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('sourceType');
   });
 
   it('reads a positional file', async () => {

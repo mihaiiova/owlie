@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import type {
   CollectionAdapter,
   ContentProcessor,
@@ -7,7 +8,13 @@ import type {
   ProcessRequest,
   ProgressSink,
 } from '@owlieio/core';
-import { CancelledError, ConfigurationError, OwlieError, listCollection } from '@owlieio/core';
+import {
+  CancelledError,
+  ConfigurationError,
+  OwlieError,
+  isSourceType,
+  listCollection,
+} from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -56,11 +63,11 @@ async function readInputFile(path: string): Promise<string> {
   }
 }
 
-function textDocument(text: string): NormalizedDocument {
+function textDocument(text: string, source: ProcessInputSource): NormalizedDocument {
   return {
     schemaVersion: 1,
-    id: 'text:input',
-    sourceType: 'rss',
+    id: source.kind === 'stdin' ? 'local:stdin' : `local:file:${basename(source.path)}`,
+    sourceType: 'local',
     canonicalUrl: '',
     mediaType: 'text',
     text,
@@ -79,10 +86,13 @@ function parseDocument(json: string): NormalizedDocument {
   if (typeof doc.text !== 'string' || doc.text.trim() === '') {
     throw new OwlieError('JSON input is missing a non-empty "text" field');
   }
+  if (!isSourceType(doc.sourceType)) {
+    throw new OwlieError('JSON input has an invalid or missing "sourceType" field');
+  }
   return {
     schemaVersion: 1,
     id: doc.id ?? 'text:input',
-    sourceType: doc.sourceType ?? 'rss',
+    sourceType: doc.sourceType,
     canonicalUrl: doc.canonicalUrl ?? '',
     mediaType: doc.mediaType ?? 'text',
     title: doc.title,
@@ -98,7 +108,7 @@ async function readDocument(
   inputFormat: 'text' | 'json' | undefined,
 ): Promise<NormalizedDocument> {
   const raw = source.kind === 'stdin' ? source.content : await readInputFile(source.path);
-  return inputFormat === 'json' ? parseDocument(raw) : textDocument(raw);
+  return inputFormat === 'json' ? parseDocument(raw) : textDocument(raw, source);
 }
 
 function resolveConfiguredProcessor(
