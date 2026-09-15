@@ -1,7 +1,7 @@
 # ADR 0021 — Media-type and output-format vocabulary in `@owlieio/core`
 
 - **Status:** Accepted
-- **Date:** 2026-09-16
+- **Date:** 2026-09-15
 
 ## Context
 
