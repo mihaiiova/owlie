@@ -15,9 +15,9 @@ This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
 episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
-`owlie list`, `owlie process` (DeepSeek or OpenAI; single document or feed
-`--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the saved active
-provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
+`owlie list`, `owlie process` (DeepSeek or OpenAI; a single local text or
+stdin document, a normalized JSON document, or a feed `--each` batch, selected
+by `--provider`/`OWLIE_PROVIDER`/the saved active provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
 other podcast provider-specific lookup, and audio transcription beyond resolved
 media URLs remain deferred.
 
@@ -43,7 +43,8 @@ dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
 feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), explicit provider selection
 with provider-keyed profiles, live model discovery in `owlie setup`, pipe-first
-stream/output contracts, secure configuration, and the shared core and
+stream/output contracts, local text/stdin input modeled as the `local` source
+type, secure configuration, and the shared core and
 coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific

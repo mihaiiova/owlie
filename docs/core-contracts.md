@@ -5,7 +5,7 @@ and the CLI build on. See `packages/core/src/` for the canonical definitions.
 
 ## Data types
 
-- `SourceType` — `youtube`, `podcast`, `reddit`, `rss`, or the narrow static `article` source.
+- `SourceType` — `youtube`, `podcast`, `reddit`, `rss`, the narrow static `article` source, or `local` for user-supplied local content (text files and stdin).
 - `ContentLocator` — `{ url, hint? }`
 - `ContentCollection` — `{ id, sourceType, canonicalUrl, title?, metadata }`
 - `ContentItem` — `{ id, sourceType, canonicalUrl, title?, description?,

@@ -7,7 +7,15 @@
  */
 
 /** The kind of source a locator, collection, item, or document came from. */
-export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss' | 'article';
+export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss' | 'article' | 'local';
+
+/** Every {@link SourceType} value, kept as the single runtime source of truth. */
+export const SOURCE_TYPES = ['youtube', 'podcast', 'reddit', 'rss', 'article', 'local'] as const;
+
+/** Whether a runtime value is a valid {@link SourceType}. */
+export function isSourceType(value: unknown): value is SourceType {
+  return typeof value === 'string' && (SOURCE_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * The kind of media a normalized document contains. Not every document is a
