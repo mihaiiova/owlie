@@ -7,24 +7,24 @@ import {
   DEFAULT_WHISPER_MODEL,
   WhisperLocalTranscriber,
 } from '@owlieio/provider-whisper';
+import type { SubprocessRunner } from '@owlieio/provider-whisper';
 
-const runner = async (
-  _file: string,
-  args: readonly string[],
-  _options: { signal?: AbortSignal },
-) => {
-  if (args[0] === '-c') {
-    const output = args[3]!;
+const runner: SubprocessRunner = async (file, args, _options) => {
+  if (file === 'python3') {
+    const output = args[2]!;
     await mkdir(output.slice(0, output.lastIndexOf('/')), { recursive: true });
     await writeFile(
       output,
-      JSON.stringify({
-        text: 'hello world',
-        language: 'en',
-        segments: [{ start: 0, end: 1, text: 'hello world' }],
-      }),
+      JSON.stringify([
+        {
+          text: 'hello world',
+          language: 'en',
+          segments: [{ start: 0, end: 1, text: 'hello world' }],
+        },
+      ]),
     );
   }
+  return '';
 };
 
 describe('whisper defaults', () => {
@@ -41,6 +41,7 @@ describe('WhisperLocalTranscriber', () => {
     const transcriber = new WhisperLocalTranscriber({}, async (file, args, options) => {
       calls.push({ file, args });
       await runner(file, args, options);
+      return '';
     });
     const result = await transcriber.transcribe({ mediaPath: '/tmp/audio.mp3', metadata: {} });
     expect(calls.map((call) => call.file)).toEqual(['ffprobe', 'ffmpeg', 'python3']);

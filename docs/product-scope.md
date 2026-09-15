@@ -22,8 +22,14 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
 - `owlie extract URL` — extract an available transcript from an individual
   YouTube video, a direct podcast media URL, Apple Podcasts episode URL, or
-  declarative server-rendered episode page (local faster-whisper), the readable text of a static article, or
-  the bounded linked items of an RSS/Atom feed, as normalized documents.
+  declarative server-rendered episode page (local faster-whisper, chunked),
+  the readable text of a static article, or the bounded linked items of an
+  RSS/Atom feed, as normalized documents. Optional
+  `--podcast-media`/`--podcast-page`/`--podcast-apple` flags select the audio
+  resolver explicitly (authoritative, no fallback).
+- `owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]` —
+  resolve a URL to its validated audio media URL without downloading or
+  transcribing, for consumers that run their own transcription.
 - `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
   RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized

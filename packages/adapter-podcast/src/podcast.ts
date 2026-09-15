@@ -43,7 +43,7 @@ export class DirectMediaResolver implements PodcastAudioResolver {
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }> {
     if (!this.recognize(locator))
       throw new ConfigurationError(`not a recognized podcast media URL: ${locator.url}`);
-    return { mediaUrl: locator.url };
+    return { mediaUrl: assertSafeHttpUrl(locator.url).toString() };
   }
 }
 
