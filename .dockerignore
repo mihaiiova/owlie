@@ -1,0 +1,16 @@
+# Keep the controlled-runtime image lean: the build regenerates dist, and
+# node_modules is installed fresh inside the image.
+node_modules/
+dist/
+coverage/
+.git/
+.github/
+**/*.tsbuildinfo
+**/__pycache__/
+**/*.pyc
+*.log
+.env
+.env.*
+.DS_Store
+.pi/
+.agents/

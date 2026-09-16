@@ -83,8 +83,8 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     deps.dirWritable(configDir()),
     deps.dirWritable(cacheDir()),
     toolAvailable('python3'),
-    toolAvailable('ffmpeg'),
-    toolAvailable('ffprobe'),
+    toolAvailable('ffmpeg', ['-version']),
+    toolAvailable('ffprobe', ['-version']),
     toolAvailable('python3', ['-c', 'import faster_whisper']),
   ]);
 

@@ -66,3 +66,31 @@ classification, retry policy, secret redaction, report generation, scenario
 assertions, and corpus validation — are covered by the offline default suite in
 `scripts/release-e2e/*.test.ts`. The live runner itself never runs in the
 default suite or ordinary CI.
+
+## Packaged extractor runtime verification (opt-in)
+
+The packed `owlie` executable's direct-media extractor contract is verified at
+the installed-executable boundary by `pnpm verify:extractor-runtime`
+(`scripts/verify-extractor-runtime.mjs`). It packs and installs `owlie`, then
+runs the installed binary against the controlled audio fixture in
+`e2e/corpus/`, asserting:
+
+- `doctor --json` readiness;
+- the direct-media `extract --json` transcript document, its stdout/stderr
+  separation, and exit code;
+- prerequisite failure guidance (missing prerequisite → installation guidance on
+  stderr, exit 1);
+- the never-downloads-model-weights guarantee (missing pre-provisioned model →
+  guidance, not a download).
+
+Its default mode replaces `ffprobe`/`ffmpeg`/`python3` with generated command
+shims backed by a pure, unit-tested behavior module, so it requires no local
+runtime and no model download (see [ADR 0025](decisions/0025-packaged-extractor-runtime-verification.md)).
+The default suite covers the pure seams (`scripts/extractor-runtime/*.test.ts`);
+the live runner is opt-in and not part of `pnpm check`.
+
+A gated `--real` mode (and a Dockerfile plus a manual `workflow_dispatch`)
+runs the same scenarios against the real Python + faster-whisper + ffmpeg +
+ffprobe runtime with a pre-provisioned model and `HF_HUB_OFFLINE=1`, proving
+prerequisite discovery and local-only model loading. It never runs in the
+default suite or ordinary CI.
