@@ -74,9 +74,10 @@ function providerReports(
   env: Record<string, string | undefined>,
   readConfig: () => UserConfig,
   loadFile: (path: string) => Record<string, string>,
+  envFile?: string,
 ): ProviderReport[] {
   return PROVIDER_IDS.map((id) => {
-    const settings = resolveProviderSettings(id, {}, env, loadFile, readConfig);
+    const settings = resolveProviderSettings(id, { envFile }, env, loadFile, readConfig);
     return {
       id,
       apiKey: settings.apiKey ? 'set' : 'not set',
@@ -85,7 +86,7 @@ function providerReports(
   });
 }
 
-async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
+async function collectDoctorReport(deps: DoctorDeps, envFile?: string): Promise<DoctorReport> {
   const toolAvailable = deps.toolAvailable ?? defaultDoctorDeps.toolAvailable!;
   const [configWritable, cacheWritable, python, ffmpeg, ffprobe, whisper] = await Promise.all([
     deps.dirWritable(configDir()),
@@ -104,7 +105,7 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     platform: process.platform,
     arch: process.arch,
     adapters: [...ADAPTER_IDS],
-    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv),
+    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv, envFile),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
     transcription: {
@@ -142,7 +143,7 @@ export async function runDoctorCommand(
   options: CliOptions,
   deps?: DoctorDeps,
 ): Promise<number> {
-  const report = await collectDoctorReport(deps ?? defaultDoctorDeps);
+  const report = await collectDoctorReport(deps ?? defaultDoctorDeps, options.envFile);
   if (options.json) {
     io.stdout.write(JSON.stringify(report, null, 2) + '\n');
   } else {

@@ -133,6 +133,25 @@ describe('doctor', () => {
     ]);
   });
 
+  it('resolves provider config from an explicit --env-file', async () => {
+    const { io, stdout } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: {},
+        loadFile: (path: string): Record<string, string> =>
+          path === 'custom.env'
+            ? { DEEPSEEK_API_KEY: 'sk-file', DEEPSEEK_MODEL: 'deepseek-chat' }
+            : {},
+        toolAvailable: async () => true,
+      },
+    };
+    const code = await run(['doctor', '--json', '--env-file', 'custom.env'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    const report = JSON.parse(stdout());
+    expect(report.providers[0]).toEqual({ id: 'deepseek', apiKey: 'set', model: 'deepseek-chat' });
+  });
+
   it('probes ffmpeg/ffprobe with -version and python3 with --version', async () => {
     const calls: Array<{ tool: string; args?: readonly string[] }> = [];
     const { io } = capture();
