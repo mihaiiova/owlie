@@ -45,7 +45,9 @@ and processing must be built.
 - **Temporary-file cleanup** — remove temp downloads and intermediates even on
   failure and cancellation.
 - **Safe subprocess invocation** — invoke `ffmpeg`, `ffprobe`, and Python with
-  `execFile`-style argument arrays, never shell interpolation.
+  `execFile`-style argument arrays, never shell interpolation. `ffprobe` must
+  validate readable audio before transcoding; URL extensions and HTTP
+  `Content-Type` headers are not media validation.
 - **Malicious filename protection** — sanitize names derived from remote
   content before writing to disk.
 - **Archive and decompression limits** — bound archive extraction by size,

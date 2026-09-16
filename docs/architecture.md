@@ -6,24 +6,17 @@ provider-neutral core.
 ## Package diagram
 
 ```text
-                        ┌──────────────────────┐
-                        │        owlie         │  apps/cli (published)
-                        │  (owlie executable)  │
-                        └──────┬─────────┬─────┘
-                               │ bundles │
-        ┌──────────────┬───────┴────┐ ┌────┴───────────────┐
-        ▼              ▼            ▼ ▼                    ▼
- adapter-youtube   adapter-article  adapter-reddit    provider-openai
- adapter-podcast                            provider-whisper
-        │              │            │  │           │
-        └──────────────┴───┬────────┘  └─────┬─────┘
-                           ▼                 ▼
-                     ┌───────────────────────────┐
-                     │        @owlieio/core      │
-                     │  types · contracts · ops  │
-                     └───────────────────────────┘
+apps/cli (owlie, published)
+  └─ bundles ─┬─ adapter-youtube    ─▶ @owlieio/core
+              ├─ adapter-podcast    ─▶ @owlieio/core
+              ├─ adapter-article    ─▶ @owlieio/core
+              ├─ adapter-rss        ─▶ @owlieio/core
+              ├─ adapter-reddit     ─▶ @owlieio/core (reuses adapter-rss parsing)
+              ├─ provider-openai    ─▶ @owlieio/core
+              ├─ provider-deepseek  ─▶ @owlieio/core
+              └─ provider-whisper   ─▶ @owlieio/core
 
-        @owlieio/testing  ──depends on──▶  @owlieio/core
+@owlieio/testing ─▶ @owlieio/core
 ```
 
 Only `owlie` is published. The `@owlieio/*` packages are internal (private) and
@@ -84,8 +77,9 @@ imports.
    `@owlieio/provider-deepseek` and `@owlieio/provider-openai`. The provider
    is selected explicitly (flag → `OWLIE_PROVIDER` → saved active provider),
    then a model is selected within it.
-3. The `ProcessResult` (`text` | `markdown` | `json`) is serialized by an
-   `OutputSerializer` and written to stdout or a file.
+3. The `ProcessResult` (`text` | `markdown` | `json`) is written directly to
+   stdout (or a file) by the CLI. `OutputSerializer` remains a reserved
+   provider-neutral contract with no v0.1 implementation.
 
 ## CLI composition
 

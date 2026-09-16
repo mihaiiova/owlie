@@ -1,18 +1,14 @@
 import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
-import {
-  ApplePodcastsResolver,
-  DirectMediaResolver,
-  GenericEpisodePageResolver,
-  PodcastAdapter,
-} from '@owlieio/adapter-podcast';
+import { PodcastAdapter } from '@owlieio/adapter-podcast';
 import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 import { OpenAIProcessor } from '@owlieio/provider-openai';
+import { createPodcastResolvers } from './resolvers.js';
 
 /**
  * The functional adapters bundled into `owlie`: the YouTube video item
@@ -40,6 +36,7 @@ export function defaultItemAdapters(
     proxy?: TranscriptProxy;
     cacheDir?: string;
     whisperModel?: string;
+    mediaMaxBytes?: number;
   } = {},
 ): ItemAdapter[] {
   const podcastFetcher = new DefaultHttpFetcher();
@@ -49,11 +46,11 @@ export function defaultItemAdapters(
       fetcher: podcastFetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
       cacheDir: options.cacheDir ?? '.owlie-cache',
-      resolvers: [
-        new DirectMediaResolver(),
-        new ApplePodcastsResolver({ fetcher: podcastFetcher }),
-        new GenericEpisodePageResolver({ fetcher: podcastFetcher }),
-      ],
+      mediaFetchPolicy:
+        options.mediaMaxBytes === undefined
+          ? undefined
+          : { maxResponseBytes: options.mediaMaxBytes },
+      resolvers: createPodcastResolvers(podcastFetcher),
     }),
     new ArticleAdapter(),
   ];

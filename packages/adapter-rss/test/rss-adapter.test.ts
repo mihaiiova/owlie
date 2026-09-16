@@ -15,7 +15,6 @@ const fakeFetcher: HttpFetcher = {
     contentType: 'application/rss+xml',
     text: RSS20,
   }),
-  fetchText: async () => RSS20,
 };
 
 function resolveCollection(adapter = new RssAdapter({ fetcher: fakeFetcher })) {
@@ -148,5 +147,62 @@ describe('RssAdapter.extract', () => {
 describe('RssAdapter contract', () => {
   collectionAdapterContract('RSS adapter', () => new RssAdapter({ fetcher: fakeFetcher }), {
     url: 'https://example.com/feed.xml',
+  });
+});
+
+describe('RssAdapter feed media-type gate', () => {
+  const htmlFetcher: HttpFetcher = {
+    fetch: async () => ({
+      url: 'https://example.com/feed.xml',
+      contentType: 'text/html',
+      text: RSS20,
+    }),
+  };
+  const noTypeFetcher: HttpFetcher = {
+    fetch: async () => ({
+      url: 'https://example.com/feed.xml',
+      contentType: null,
+      text: RSS20,
+    }),
+  };
+
+  it('rejects a declared non-feed content type before parsing', async () => {
+    const adapter = new RssAdapter({ fetcher: htmlFetcher });
+    const collection = await resolveCollection(adapter);
+    await expect(adapter.list(collection, { limit: 10 })).rejects.toThrow(ExtractionError);
+  });
+
+  it('rejects a declared non-feed content type during extract re-fetch', async () => {
+    const adapter = new RssAdapter({ fetcher: htmlFetcher });
+    const bare: ContentItem = {
+      id: 'rss:entry:post-1',
+      sourceType: 'rss',
+      canonicalUrl: 'https://example.com/1',
+      metadata: { entryId: 'post-1', feedUrl: 'https://example.com/feed.xml' },
+    };
+    await expect(adapter.extract(bare)).rejects.toThrow(ExtractionError);
+  });
+
+  it('accepts a feed without a declared content type (documented compatibility case)', async () => {
+    const adapter = new RssAdapter({ fetcher: noTypeFetcher });
+    const collection = await resolveCollection(adapter);
+    const result = await adapter.list(collection, { limit: 10 });
+    expect(result.items).toHaveLength(2);
+  });
+
+  it('accepts an empty or whitespace-only declared content type (compat preserved)', async () => {
+    for (const contentType of ['', '   ']) {
+      const fetcher: HttpFetcher = {
+        fetch: async () => ({
+          url: 'https://example.com/feed.xml',
+          contentType,
+          text: RSS20,
+        }),
+      };
+      const adapter = new RssAdapter({ fetcher });
+      const collection = await resolveCollection(adapter);
+      const result = await adapter.list(collection, { limit: 10 });
+      expect(result.items).toHaveLength(2);
+    }
   });
 });

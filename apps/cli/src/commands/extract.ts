@@ -1,11 +1,22 @@
 import type {
   CollectionAdapter,
+  ContentItem,
+  HttpFetcher,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
+  Transcriber,
 } from '@owlieio/core';
-import { assertNoUrlCredentials, CancelledError, listCollection } from '@owlieio/core';
+import {
+  assertNoUrlCredentials,
+  CancelledError,
+  ConfigurationError,
+  DefaultHttpFetcher,
+  listCollection,
+} from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
+import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -15,6 +26,7 @@ import { extractWithFallback } from '../dispatch.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
+import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
@@ -27,6 +39,12 @@ export interface ExtractDeps {
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
+  /** Fetcher used by explicit resolver-selection flag extraction. */
+  fetcher?: HttpFetcher;
+  /** Transcriber used by explicit resolver-selection flag extraction. */
+  transcriber?: Transcriber;
+  /** Cache directory used by explicit resolver-selection flag extraction. */
+  cacheDir?: string;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -61,6 +79,40 @@ export interface ExtractBatchEnvelope {
   truncated: boolean;
 }
 
+function parsePositiveInteger(value: string | undefined, flag: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
+    throw new ConfigurationError(`${flag} must be a positive integer`);
+  }
+  return Number(value);
+}
+
+/** Combines process cancellation with the extract command's single operation deadline. */
+function deadlineSignal(
+  parent: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+): {
+  signal: AbortSignal | undefined;
+  cleanup: () => void;
+} {
+  if (timeoutMs === undefined) return { signal: parent, cleanup: () => {} };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onAbort = (): void => controller.abort();
+  timer.unref();
+  if (parent) {
+    if (parent.aborted) controller.abort();
+    else parent.addEventListener('abort', onAbort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parent?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
 function toExtractError(error: unknown): ExtractBatchError {
   return toBatchError(error, 'extraction');
 }
@@ -81,7 +133,31 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
+  let timeoutMs: number | undefined;
+  let maxMediaBytes: number | undefined;
+  try {
+    timeoutMs = parsePositiveInteger(options.timeoutMs, '--timeout-ms');
+    maxMediaBytes = parsePositiveInteger(options.maxMediaBytes, '--max-media-bytes');
+  } catch (error) {
+    if (!options.quiet) io.stderr.write(`owlie: ${(error as Error).message}\n`);
+    return ExitCode.Usage;
+  }
+
   const readConfig = deps.readConfig ?? readUserConfig;
+
+  if (options.resolver !== undefined) {
+    return runResolverExtraction(
+      url,
+      io,
+      options,
+      deps,
+      options.resolver,
+      readConfig,
+      timeoutMs,
+      maxMediaBytes,
+    );
+  }
+
   const itemAdapters =
     deps.itemAdapters ??
     defaultItemAdapters({
@@ -89,6 +165,7 @@ export async function runExtractCommand(
       proxy: readConfig().proxy,
       cacheDir: cacheDir(),
       whisperModel: readConfig().transcription?.model,
+      mediaMaxBytes: maxMediaBytes,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
   const spinner =
@@ -103,7 +180,7 @@ export async function runExtractCommand(
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
-    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps);
+    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps, timeoutMs);
   } catch (error) {
     spinner.stop();
     if (!options.quiet) {
@@ -121,26 +198,34 @@ async function runDirectExtraction(
   spinner: SpinnerLike,
   options: CliOptions,
   deps: ExtractDeps,
+  timeoutMs: number | undefined,
 ): Promise<number> {
   assertNoUrlCredentials(url);
   const progress: ProgressSink = {
     emit: (event) => {
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     },
   };
-  const { document } = await extractWithFallback(
-    itemAdapters,
-    { url },
-    {
-      signal: deps.signal,
-      progress,
-      onFallback: (error) => {
-        if (!options.quiet) {
-          io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
-        }
+  const operation = deadlineSignal(deps.signal, timeoutMs);
+  let document: NormalizedDocument;
+  try {
+    ({ document } = await extractWithFallback(
+      itemAdapters,
+      { url },
+      {
+        signal: operation.signal,
+        progress,
+        onFallback: (error) => {
+          if (!options.quiet) {
+            io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
+          }
+        },
       },
-    },
-  );
+    ));
+  } finally {
+    operation.cleanup();
+  }
   spinner.stop();
 
   if (options.json) {
@@ -149,6 +234,86 @@ async function runDirectExtraction(
     io.stdout.write(document.text + '\n');
   }
   return ExitCode.Success;
+}
+
+/**
+ * Runs an explicitly selected audio resolver: resolve → download → transcribe.
+ * The selected resolver is authoritative — a URL it does not recognize is a
+ * usage error, and a resolution failure does not fall back to another resolver
+ * or the article adapter.
+ */
+async function runResolverExtraction(
+  url: string,
+  io: CliIo,
+  options: CliOptions,
+  deps: ExtractDeps,
+  resolverName: string,
+  readConfig: () => UserConfig,
+  timeoutMs: number | undefined,
+  maxMediaBytes: number | undefined,
+): Promise<number> {
+  const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
+  const transcriber =
+    deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
+  const workCacheDir = deps.cacheDir ?? cacheDir();
+  const spinner =
+    deps.spinner ??
+    new Spinner({
+      write: (text) => {
+        if (!options.quiet) io.stderr.write(text);
+      },
+    });
+
+  const operation = deadlineSignal(deps.signal, timeoutMs);
+  try {
+    assertNoUrlCredentials(url);
+    const resolved = await resolvePodcastAudio(url, {
+      fetcher,
+      resolverName,
+      signal: operation.signal,
+    });
+    const item: ContentItem = {
+      id: `podcast:episode:${resolved.mediaUrl}`,
+      sourceType: 'podcast',
+      canonicalUrl: resolved.mediaUrl,
+      metadata: { platform: 'podcast', ...(resolved.metadata ?? {}) },
+    };
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber,
+      cacheDir: workCacheDir,
+      mediaFetchPolicy:
+        maxMediaBytes === undefined ? undefined : { maxResponseBytes: maxMediaBytes },
+    });
+    const progress: ProgressSink = {
+      emit: (event) => {
+        if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+        else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+      },
+    };
+    const document = await adapter.extract(item, { signal: operation.signal, progress });
+    spinner.stop();
+
+    if (options.json) {
+      io.stdout.write(JSON.stringify(document) + '\n');
+    } else {
+      io.stdout.write(document.text + '\n');
+    }
+    return ExitCode.Success;
+  } catch (error) {
+    spinner.stop();
+    if (error instanceof ConfigurationError) {
+      if (!options.quiet) io.stderr.write(`owlie: ${error.message}\n`);
+      return ExitCode.Usage;
+    }
+    if (!options.quiet) {
+      const message = error instanceof Error ? error.message : String(error);
+      io.stderr.write(`owlie: ${message}\n`);
+    }
+    return exitCodeForError(error);
+  } finally {
+    operation.cleanup();
+  }
 }
 
 async function runFeedExtraction(

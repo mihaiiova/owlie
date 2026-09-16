@@ -5,7 +5,9 @@ import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runListCommand, type ListDeps } from './commands/list.js';
 import { runProcessCommand, type ProcessDeps } from './commands/process.js';
+import { runResolveCommand, type ResolveDeps } from './commands/resolve.js';
 import { runSetupCommand, type SetupDeps } from './commands/setup.js';
+import { resolverFlagForName, resolverNameForFlag } from './resolvers.js';
 import { VERSION } from './version.js';
 
 export interface CliOptions {
@@ -20,6 +22,12 @@ export interface CliOptions {
   provider?: string;
   language?: string;
   limit?: string;
+  /** End-to-end extraction deadline in milliseconds for direct media. */
+  timeoutMs?: string;
+  /** Maximum direct-media download size in bytes. */
+  maxMediaBytes?: string;
+  /** Stable name of the selected audio resolver (from a resolver-selection flag). */
+  resolver?: string;
 }
 
 export interface CliDeps {
@@ -27,6 +35,7 @@ export interface CliDeps {
   extract?: ExtractDeps;
   list?: ListDeps;
   process?: ProcessDeps;
+  resolve?: ResolveDeps;
   setup?: SetupDeps;
 }
 
@@ -54,6 +63,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--provider',
     '--language',
     '--limit',
+    '--timeout-ms',
+    '--max-media-bytes',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -90,12 +101,28 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--limit':
         options.limit = value;
         break;
+      case '--timeout-ms':
+        options.timeoutMs = value;
+        break;
+      case '--max-media-bytes':
+        options.maxMediaBytes = value;
+        break;
     }
   };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === undefined) continue;
+    const resolverName = resolverNameForFlag(arg);
+    if (resolverName !== undefined) {
+      if (options.resolver !== undefined) {
+        const previous = resolverFlagForName(options.resolver) ?? options.resolver;
+        usageError = `cannot combine resolver flags "${previous}" and "${arg}"`;
+      } else {
+        options.resolver = resolverName;
+      }
+      continue;
+    }
     switch (arg) {
       case '--help':
       case '-h':
@@ -180,6 +207,10 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'process') {
     return runProcessCommand(parsed.args.slice(1), io, options, deps.process);
+  }
+
+  if (command === 'resolve') {
+    return runResolveCommand(parsed.args.slice(1), io, options, deps.resolve);
   }
 
   if (command === 'setup') {

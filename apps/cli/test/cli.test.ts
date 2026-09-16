@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExitCode, run, VERSION } from 'owlie';
+import { ExitCode, parseArgs, run, VERSION } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
 function capture() {
@@ -38,13 +38,30 @@ describe('--help', () => {
     const code = await run(['--help'], io);
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('extract');
+    expect(stdout()).toContain('resolve');
     expect(stdout()).toContain('list');
     expect(stdout()).toContain('process');
     expect(stdout()).toContain('setup');
     expect(stdout()).toContain('doctor');
+    expect(stdout()).toContain('--env-file PATH');
+    expect(stdout()).not.toContain('(reserved)');
     expect(stdout()).not.toContain('search');
     expect(stdout()).not.toContain('config');
     expect(stderr()).toBe('');
+  });
+});
+
+describe('direct-media limit flags', () => {
+  it('parses timeout and byte limits as command options', () => {
+    expect(
+      parseArgs([
+        'extract',
+        'https://cdn.example.com/episode.mp3',
+        '--timeout-ms=5000',
+        '--max-media-bytes',
+        '1024',
+      ]).options,
+    ).toMatchObject({ timeoutMs: '5000', maxMediaBytes: '1024' });
   });
 });
 
@@ -93,6 +110,32 @@ describe('doctor', () => {
     expect(report.deepSeekApiKey).toBeUndefined();
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
+  });
+
+  it('probes ffmpeg/ffprobe with -version and python3 with --version', async () => {
+    const calls: Array<{ tool: string; args?: readonly string[] }> = [];
+    const { io } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: {},
+        toolAvailable: async (tool, args) => {
+          calls.push({ tool, args });
+          return true;
+        },
+      },
+    };
+    const code = await run(['doctor', '--json'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    expect(calls.find((c) => c.tool === 'ffmpeg')?.args).toEqual(['-version']);
+    expect(calls.find((c) => c.tool === 'ffprobe')?.args).toEqual(['-version']);
+    const pythonCalls = calls.filter((c) => c.tool === 'python3');
+    expect(pythonCalls.some((c) => c.args === undefined)).toBe(true);
+    expect(
+      pythonCalls.some(
+        (c) => c.args && c.args[0] === '-c' && c.args[1] === 'import faster_whisper',
+      ),
+    ).toBe(true);
   });
 });
 

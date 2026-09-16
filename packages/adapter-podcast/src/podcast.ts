@@ -15,6 +15,9 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isFeedContentType,
+  isHtmlContentType,
+  isJsonContentType,
   NotHandledError,
 } from '@owlieio/core';
 
@@ -40,7 +43,7 @@ export class DirectMediaResolver implements PodcastAudioResolver {
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }> {
     if (!this.recognize(locator))
       throw new ConfigurationError(`not a recognized podcast media URL: ${locator.url}`);
-    return { mediaUrl: locator.url };
+    return { mediaUrl: assertSafeHttpUrl(locator.url).toString() };
   }
 }
 
@@ -89,6 +92,7 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
     if (!isHtmlContentType(page.contentType)) {
       throw new NotHandledError(
         `not a podcast episode page: unsupported content type ${page.contentType ?? 'missing'}`,
+        { deferredResponse: page },
       );
     }
     const resolved =
@@ -96,7 +100,10 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       (await this.resolveOembedAudio(page.text, page.url, options.signal)) ??
       resolveAudioElement(page.text, page.url) ??
       (await this.resolveFeedAudio(page.text, page.url, options.signal));
-    if (!resolved) throw new NotHandledError(`no podcast audio enclosure found at ${page.url}`);
+    if (!resolved)
+      throw new NotHandledError(`no podcast audio enclosure found at ${page.url}`, {
+        deferredResponse: page,
+      });
 
     const safeMediaUrl = assertSafeHttpUrl(resolved.mediaUrl, {
       allowPrivateHosts: this.policy?.allowPrivateHosts,
@@ -281,35 +288,6 @@ function isSameUrl(a: string, b: string): boolean {
   }
 }
 
-function mediaTypeOf(contentType: string | null): string | undefined {
-  return contentType?.split(';', 1)[0]?.trim().toLowerCase();
-}
-
-function isHtmlContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
-}
-
-export function isJsonContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return (
-    mediaType === 'application/json' ||
-    mediaType === 'application/ld+json' ||
-    (mediaType?.endsWith('+json') ?? false)
-  );
-}
-
-export function isFeedContentType(contentType: string | null): boolean {
-  const mediaType = mediaTypeOf(contentType);
-  return (
-    mediaType === 'application/rss+xml' ||
-    mediaType === 'application/atom+xml' ||
-    mediaType === 'application/xml' ||
-    mediaType === 'text/xml' ||
-    (mediaType?.endsWith('+xml') ?? false)
-  );
-}
-
 /** Accepts oEmbed responses whose declared type can carry an enclosure. */
 function isAudioOembedType(type: unknown): boolean {
   if (typeof type !== 'string' || type.trim() === '') return true;
@@ -337,6 +315,8 @@ export interface PodcastAdapterOptions {
   fetcher: HttpFetcher;
   transcriber: Transcriber;
   cacheDir: string;
+  /** Bounded-download policy supplied by the invoking application. */
+  mediaFetchPolicy?: HttpFetchPolicy;
   resolvers?: readonly PodcastAudioResolver[];
 }
 
@@ -348,12 +328,14 @@ export class PodcastAdapter implements ItemAdapter {
   private readonly fetcher?: HttpFetcher;
   private readonly transcriber?: Transcriber;
   private readonly cacheDir?: string;
+  private readonly mediaFetchPolicy: HttpFetchPolicy;
   private readonly resolvers: readonly PodcastAudioResolver[];
 
   constructor(options?: PodcastAdapterOptions) {
     this.fetcher = options?.fetcher;
     this.transcriber = options?.transcriber;
     this.cacheDir = options?.cacheDir;
+    this.mediaFetchPolicy = { maxResponseBytes: MEDIA_MAX_BYTES, ...options?.mediaFetchPolicy };
     this.resolvers = options?.resolvers ?? [new DirectMediaResolver()];
   }
 
@@ -396,7 +378,7 @@ export class PodcastAdapter implements ItemAdapter {
     try {
       await this.fetcher.fetchToFile!(item.canonicalUrl, mediaPath, {
         signal: options.signal,
-        policy: { maxResponseBytes: MEDIA_MAX_BYTES },
+        policy: this.mediaFetchPolicy,
       });
       options.progress?.emit({
         type: 'progress',

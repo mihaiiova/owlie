@@ -7,6 +7,7 @@ exit codes.
 
 ```text
 owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
+owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
 owlie list     List entries in an RSS/Atom feed            (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
@@ -29,7 +30,8 @@ error (code 2) rather than pretending to process content.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--json] [--language LANG] [--limit N]
+owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-media-bytes N]
+owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]
 owlie list FEED_URL [--limit N] [--json]
 owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]
 owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
@@ -48,12 +50,32 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
   `NormalizedDocument` with `--json`. `--language LANG` sets a comma-separated
   language priority list for YouTube transcripts (default `en`). Podcast
   transcription requires local Python with faster-whisper, ffmpeg, and ffprobe.
+  A resolver-selection flag (`--podcast-media`, `--podcast-page`,
+  `--podcast-apple`) asserts which podcast resolver finds the audio URL; at
+  most one may be supplied, it overrides URL recognition, and a URL the selected
+  resolver does not recognize is a usage error (exit code 2) rather than a
+  fallback to another resolver or the article adapter. `--timeout-ms N` and
+  `--max-media-bytes N` are positive integers for direct podcast-media
+  extraction: the former creates one deadline shared by audio resolution,
+  download, ffprobe, ffmpeg, and local faster-whisper; the latter bounds the
+  binary download, retaining its safe default when omitted. Cancellation or the
+  deadline terminates the active local command and cleans temporary media and
+  transcription artifacts. Long media is transcribed in bounded five-minute
+  chunks (two-second overlap) with monotonic progress.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
   extraction and always writes a single JSON envelope (regardless of `--json`)
   with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
   It carries on after per-item extraction errors and exits 1 if any item
   failed. `--limit N` bounds the batch (default 10, maximum 500); invalid or
   oversized limits fail with a clear error.
+- `resolve` resolves a URL to a validated audio media URL without downloading
+  or transcribing it. It accepts exactly one URL and zero or one
+  resolver-selection flag. With no flag, podcast resolvers run in recognition
+  order; it never dispatches to article extraction. It writes the media URL
+  plus a newline to stdout, or a stable JSON envelope with `--json`:
+  `{ schemaVersion: 1, resolver, mediaUrl, metadata }`. A flag the URL does not
+  match is a usage error (exit code 2); resolution failures (no enclosure,
+  unsafe media URL, incompatible content type) are general errors (exit code 1).
 - `list` resolves an RSS/Atom feed URL and writes a bounded, line-oriented
   summary of its entries to stdout, or a single JSON envelope with `--json`
   (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
@@ -84,7 +106,7 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 
 - `--quiet` / `-q` suppress diagnostics on stderr.
 - `--json` emits machine-readable JSON on stdout.
-- `--env-file PATH` loads an explicit environment file (reserved).
+- `--env-file PATH` loads an explicit environment file (functional).
 - Commands support cancellation signals; libraries never call `process.exit`.
 - Broken pipes (`EPIPE`) terminate quietly (exit 0) rather than dumping a stack
   trace.

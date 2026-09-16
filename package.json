@@ -21,6 +21,7 @@
     "format:check": "prettier --check .",
     "verify:exports": "node scripts/verify-exports.mjs",
     "verify:artifact": "node scripts/verify-artifact.mjs",
+    "verify:extractor-runtime": "node scripts/verify-extractor-runtime.mjs",
     "check:deps": "node scripts/check-dependencies.mjs",
     "smoke": "node scripts/cli-smoke.mjs",
     "cli": "node apps/cli/dist/bin.js",

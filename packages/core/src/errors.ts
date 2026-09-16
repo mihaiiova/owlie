@@ -3,6 +3,8 @@
  * `process.exit`; they throw these instead and let the CLI entry point decide
  * how to translate failures into exit codes.
  */
+import type { HttpTextResponse } from './http.js';
+
 export class OwlieError extends Error {
   readonly code: string;
 
@@ -71,7 +73,14 @@ export class NotImplementedError extends OwlieError {
  * Dispatch treats it as "defer to the next adapter" rather than a failure.
  */
 export class NotHandledError extends OwlieError {
-  constructor(message: string, options: { cause?: unknown } = {}) {
+  /** An already safe-fetched response the fallback adapter may reuse. */
+  readonly deferredResponse?: HttpTextResponse;
+
+  constructor(
+    message: string,
+    options: { cause?: unknown; deferredResponse?: HttpTextResponse } = {},
+  ) {
     super(message, { code: 'NOT_HANDLED', cause: options.cause });
+    this.deferredResponse = options.deferredResponse;
   }
 }

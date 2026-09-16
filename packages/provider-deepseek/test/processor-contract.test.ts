@@ -1,4 +1,4 @@
-import { processorContract } from '@owlieio/testing/contract-tests';
+import { processorContract, processorResultContract } from '@owlieio/testing/contract-tests';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 import type { DeepSeekClient } from '@owlieio/provider-deepseek';
 
@@ -9,3 +9,5 @@ const client: DeepSeekClient = {
 };
 
 processorContract('deepseek', () => new DeepSeekProcessor({ apiKey: 'sk-test' }, { client }));
+
+processorResultContract('deepseek', () => new DeepSeekProcessor({ apiKey: 'sk-test' }, { client }));

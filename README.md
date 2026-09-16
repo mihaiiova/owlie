@@ -24,10 +24,19 @@ v0.1 delivers a small, pipeable CLI:
 owlie extract "https://youtube.com/watch?v=..."
 
 # Transcribe podcast audio from a direct media URL, Apple Podcasts URL, or server-rendered episode page
-# (requires local Python/faster-whisper, ffmpeg, ffprobe)
-owlie extract "https://cdn.example.com/episode.mp3"
+# (requires local Python/faster-whisper, ffmpeg, ffprobe, and a pre-provisioned Whisper model)
+# A direct-media invocation can bound the full operation and download size.
+owlie extract "https://cdn.example.com/episode.mp3" --timeout-ms 900000 --max-media-bytes 536870912
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 owlie extract "https://publisher.example/episodes/my-episode"
+
+# Explicitly select which resolver finds the audio URL (authoritative; no fallback)
+owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890" --podcast-apple
+
+# Resolve a URL to its validated audio media URL without downloading or transcribing
+# (for orchestrators that run their own transcription)
+owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
+owlie resolve "https://publisher.example/episodes/my-episode" --json
 
 # Extract the readable text of a static article
 owlie extract "https://example.com/story"
@@ -90,6 +99,7 @@ owlie --help
 owlie --version
 owlie doctor
 owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
+owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
@@ -102,10 +112,19 @@ to work.
 
 `owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
 dispatches a direct URL to the YouTube, podcast, or article adapter — or, for a feed
-URL, extracts its bounded linked items into one JSON envelope. Remote text
+URL, extracts its bounded linked items into one JSON envelope. `owlie resolve`
+prints a validated audio media URL without transcribing it, with optional
+`--podcast-media`/`--podcast-page`/`--podcast-apple` resolver selection. Remote text
 fetches allow only globally routable destinations by default, canonically
 classify IPv4/IPv6 addresses, reject URL userinfo, and omit URL query and
-fragment data from diagnostics.
+fragment data from diagnostics. For direct podcast media, `--timeout-ms` applies
+one deadline across resolution, download, ffprobe, ffmpeg, and local Whisper;
+`--max-media-bytes` caps the download (the existing safe HTTP cap remains the
+default). Both values must be positive integers. `ffprobe` validates downloaded
+media before transcoding, independently of weak or absent HTTP content types;
+invalid media is rejected. The configured Whisper model must already be local,
+because extraction never downloads model weights. Cancellation terminates active
+local transcription commands and removes temporary downloads/intermediates.
 
 ## Non-goals
 
@@ -151,6 +170,7 @@ packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast media, Apple episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
+packages/provider-deepseek/  DeepSeek content processor
 packages/provider-openai/    OpenAI content processor
 packages/provider-whisper/   Local faster-whisper transcriber
 docs/                        Architecture, contracts, security, decisions
@@ -158,18 +178,19 @@ docs/                        Architecture, contracts, security, decisions
 
 ## Packages
 
-| Package                     | Purpose                                                         |
-| --------------------------- | --------------------------------------------------------------- |
-| `@owlieio/core`             | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
-| `@owlieio/testing`          | Fakes, fixtures, contract-test helpers                          |
-| `@owlieio/adapter-youtube`  | YouTube videos (playlists deferred)                             |
-| `@owlieio/adapter-article`  | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`  | Podcast media, Apple episodes, and declarative episode pages    |
-| `@owlieio/adapter-rss`      | RSS/Atom feeds and entries (fetch, list, extract)               |
-| `@owlieio/adapter-reddit`   | Subreddits via public Atom feeds (scaffold)                     |
-| `@owlieio/provider-openai`  | OpenAI `ContentProcessor`                                       |
-| `@owlieio/provider-whisper` | Local faster-whisper `Transcriber`                              |
-| `owlie`                     | The `owlie` command-line interface (published)                  |
+| Package                      | Purpose                                                         |
+| ---------------------------- | --------------------------------------------------------------- |
+| `@owlieio/core`              | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
+| `@owlieio/testing`           | Fakes, fixtures, contract-test helpers                          |
+| `@owlieio/adapter-youtube`   | YouTube videos (playlists deferred)                             |
+| `@owlieio/adapter-article`   | Safe static server-rendered editorial-page extraction           |
+| `@owlieio/adapter-podcast`   | Podcast media, Apple episodes, and declarative episode pages    |
+| `@owlieio/adapter-rss`       | RSS/Atom feeds and entries (fetch, list, extract)               |
+| `@owlieio/adapter-reddit`    | Subreddits via public Atom feeds (scaffold)                     |
+| `@owlieio/provider-deepseek` | DeepSeek `ContentProcessor`                                     |
+| `@owlieio/provider-openai`   | OpenAI `ContentProcessor`                                       |
+| `@owlieio/provider-whisper`  | Local faster-whisper `Transcriber`                              |
+| `owlie`                      | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and

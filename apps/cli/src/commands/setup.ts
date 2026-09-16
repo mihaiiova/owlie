@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline/promises';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
+import {
+  DefaultHttpFetcher,
+  isJsonContentType,
+  type HttpFetcher,
+  type HttpFetchPolicy,
+} from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -8,6 +14,14 @@ import { readUserConfig, writeUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { listProviders } from '../registry.js';
 import type { ProviderInfo } from '../registry.js';
+
+/** Options for authenticated provider model discovery. */
+export interface ListModelsOptions {
+  baseUrl?: string;
+  apiKey: string;
+  fetcher?: HttpFetcher;
+  policy?: HttpFetchPolicy;
+}
 
 export interface SetupDeps {
   /** Detects a local executable without installing it. */
@@ -21,10 +35,7 @@ export interface SetupDeps {
     options: readonly string[],
     opts?: { default?: string },
   ) => Promise<string>;
-  listModels?: (
-    provider: ProviderInfo,
-    options: { baseUrl?: string; apiKey: string },
-  ) => Promise<string[]>;
+  listModels?: (provider: ProviderInfo, options: ListModelsOptions) => Promise<string[]>;
 }
 
 /** Top-level `owlie setup` sections (future sections append here). */
@@ -38,20 +49,34 @@ export const WHISPER_MODELS = [
   'large-v3-turbo',
 ] as const;
 
-/** Fetches a provider's live model list from its OpenAI-compatible `/models`. */
+/**
+ * Fetches a provider's live model list from its OpenAI-compatible `/models`.
+ * The authenticated request goes through the safe core {@link HttpFetcher}
+ * seam (SSRF policy, redirect bounds, timeout, size limits, and User-Agent),
+ * and the declared content type is validated as JSON before parsing.
+ */
 export async function listProviderModels(
   provider: ProviderInfo,
-  options: { baseUrl?: string; apiKey: string },
+  options: ListModelsOptions,
 ): Promise<string[]> {
   const baseUrl = options.baseUrl ?? provider.baseUrl;
-  const response = await fetch(`${baseUrl}/models`, {
+  const fetcher = options.fetcher ?? new DefaultHttpFetcher();
+  const response = await fetcher.fetch(`${baseUrl}/models`, {
     headers: { Authorization: `Bearer ${options.apiKey}` },
+    policy: options.policy,
   });
-  if (!response.ok) {
-    throw new Error(`failed to list models (HTTP ${response.status})`);
+  if (!isJsonContentType(response.contentType)) {
+    throw new Error('provider model discovery returned a non-JSON response');
   }
-  const body = (await response.json()) as { data?: { id?: string }[] };
-  return (body.data ?? [])
+  let body: unknown;
+  try {
+    body = JSON.parse(response.text);
+  } catch {
+    throw new Error('provider model discovery returned malformed JSON');
+  }
+  const parsed =
+    body !== null && typeof body === 'object' ? (body as { data?: { id?: unknown }[] }) : {};
+  return (parsed.data ?? [])
     .map((model) => model.id)
     .filter((id): id is string => typeof id === 'string');
 }
@@ -70,6 +95,27 @@ export function defaultPrompt(question: string, options?: { default?: string }):
       rl.close();
       throw error;
     });
+}
+
+/** Probes an executable and treats any nonzero exit as unavailable. */
+export async function defaultToolAvailable(
+  tool: string,
+  args: readonly string[] = ['--version'],
+  spawnTool: typeof spawn = spawn,
+): Promise<boolean> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawnTool(tool, [...args], { stdio: 'ignore' });
+      child.once('error', reject);
+      child.once('exit', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`${tool} exited with code ${code ?? 'unknown'}`));
+      });
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Interactive numbered menu backed by stdin/stderr (used as the default). */
@@ -105,20 +151,7 @@ export async function runSetupCommand(
   const prompt = deps.prompt ?? defaultPrompt;
   const select = deps.select ?? defaultSelect;
   const listModels = deps.listModels ?? listProviderModels;
-  const toolAvailable =
-    deps.toolAvailable ??
-    (async (tool: string, args: readonly string[] = ['--version']) => {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const child = spawn(tool, [...args], { stdio: 'ignore' });
-          child.once('error', reject);
-          child.once('exit', () => resolve());
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    });
+  const toolAvailable = deps.toolAvailable ?? defaultToolAvailable;
 
   const existing = readConfig();
 

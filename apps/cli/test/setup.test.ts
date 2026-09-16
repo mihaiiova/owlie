@@ -1,7 +1,14 @@
+import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import type { UserConfig } from 'owlie';
-import { ExitCode, run } from 'owlie';
+import { defaultToolAvailable, ExitCode, listProviderModels, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
+import {
+  CancelledError,
+  DefaultHttpFetcher,
+  ExtractionError,
+  type HttpFetchFn,
+} from '@owlieio/core';
 
 function capture() {
   let stdout = '';
@@ -45,6 +52,18 @@ function makeSetup(opts: {
   };
   return { deps, writes };
 }
+
+describe('default setup prerequisite probe', () => {
+  it('treats a nonzero tool exit as unavailable through its spawn seam', async () => {
+    const spawnTool = (() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit('exit', 1));
+      return child;
+    }) as unknown as typeof import('node:child_process').spawn;
+
+    await expect(defaultToolAvailable('ffmpeg', ['--version'], spawnTool)).resolves.toBe(false);
+  });
+});
 
 describe('owlie setup', () => {
   it('navigates section → provider → key → live models → model, then persists a profile', async () => {
@@ -267,5 +286,102 @@ describe('owlie setup', () => {
     const code = await run(['setup'], io, deps);
     expect(code).toBe(ExitCode.Success);
     expect(writes[0]?.proxy).toBeUndefined();
+  });
+});
+
+describe('listProviderModels', () => {
+  const provider = { id: 'deepseek', baseUrl: 'https://api.deepseek.com' };
+  const publicResolver = async () => ['8.8.8.8'];
+
+  function jsonResponse(body: string, contentType = 'application/json') {
+    return new Response(body, { status: 200, headers: { 'content-type': contentType } });
+  }
+
+  it('sends Authorization through the core seam and returns model ids', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetchFn: HttpFetchFn = async (input, init) => {
+      const url = String(input);
+      calls.push({ url, headers: Object.fromEntries(new Headers(init?.headers).entries()) });
+      return jsonResponse(
+        JSON.stringify({ data: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }] }),
+      );
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    const models = await listProviderModels(provider, { apiKey: 'sk-test', fetcher });
+
+    expect(models).toEqual(['deepseek-chat', 'deepseek-reasoner']);
+    expect(calls[0]!.url).toBe('https://api.deepseek.com/models');
+    expect(calls[0]!.headers.authorization).toBe('Bearer sk-test');
+    expect(calls[0]!.headers['user-agent']).toBe('owlie-cli');
+  });
+
+  it('refuses a private/local base URL before fetching', async () => {
+    let called = false;
+    const fetchFn: HttpFetchFn = async () => {
+      called = true;
+      return jsonResponse('{}');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(
+      listProviderModels(provider, { baseUrl: 'http://127.0.0.1', apiKey: 'sk-test', fetcher }),
+    ).rejects.toThrow(ExtractionError);
+    expect(called).toBe(false);
+  });
+
+  it('rejects a declared non-JSON content type before parsing', async () => {
+    const fetchFn: HttpFetchFn = async () => jsonResponse('{"data":[]}', 'text/html');
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(listProviderModels(provider, { apiKey: 'sk-test', fetcher })).rejects.toThrow(
+      /non-JSON response/,
+    );
+  });
+
+  it('rejects a missing content type before parsing', async () => {
+    const fetchFn: HttpFetchFn = async () => new Response('{"data":[]}', { status: 200 });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(listProviderModels(provider, { apiKey: 'sk-test', fetcher })).rejects.toThrow(
+      /non-JSON response/,
+    );
+  });
+
+  it('rejects malformed JSON', async () => {
+    const fetchFn: HttpFetchFn = async () => jsonResponse('not-json');
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(listProviderModels(provider, { apiKey: 'sk-test', fetcher })).rejects.toThrow(
+      /malformed JSON/,
+    );
+  });
+
+  it('propagates the response size policy', async () => {
+    const fetchFn: HttpFetchFn = async () =>
+      jsonResponse(JSON.stringify({ data: [{ id: 'x'.repeat(200) }] }));
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(
+      listProviderModels(provider, {
+        apiKey: 'sk-test',
+        fetcher,
+        policy: { maxResponseBytes: 32 },
+      }),
+    ).rejects.toThrow(ExtractionError);
+  });
+
+  it('propagates the timeout policy', async () => {
+    const fetchFn: HttpFetchFn = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('AbortError')), {
+          once: true,
+        });
+      });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+
+    await expect(
+      listProviderModels(provider, { apiKey: 'sk-test', fetcher, policy: { timeoutMs: 20 } }),
+    ).rejects.toThrow(CancelledError);
   });
 });

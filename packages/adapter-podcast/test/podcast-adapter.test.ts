@@ -2,6 +2,7 @@ import { readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TranscriptionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import {
   ApplePodcastsResolver,
@@ -24,9 +25,6 @@ function fakeFetcher(downloads: string[]): HttpFetcher {
     },
     async fetch(mediaUrl) {
       return { url: mediaUrl, contentType: 'text/plain', text: '' };
-    },
-    async fetchText() {
-      return '';
     },
   };
 }
@@ -116,6 +114,87 @@ describe('PodcastAdapter extraction', () => {
       metadata: { fake: true, language: 'en' },
     });
     await expect(readdir(cacheDir)).resolves.toEqual([]);
+  });
+
+  it('maps unreadable downloaded media to extraction failure and removes the work directory', async () => {
+    const adapter = new PodcastAdapter({
+      fetcher: fakeFetcher([]),
+      transcriber: {
+        id: 'failing-transcriber',
+        async transcribe() {
+          throw new TranscriptionError('ffprobe determined media is not readable audio');
+        },
+      },
+      cacheDir,
+    });
+    const item = await adapter.resolveItem({ url });
+
+    await expect(adapter.extract(item)).rejects.toThrow('podcast extraction failed');
+    await expect(readdir(cacheDir)).resolves.toEqual([]);
+  });
+
+  it('extracts a valid direct-media URL regardless of a missing or generic download content type', async () => {
+    for (const contentType of [null, 'application/octet-stream']) {
+      const downloads: string[] = [];
+      const fetcher = fakeFetcher(downloads);
+      fetcher.fetchToFile = async (mediaUrl, path) => {
+        downloads.push(mediaUrl);
+        await writeFile(path, Buffer.from([0, 255, 1]));
+        return { url: mediaUrl, contentType, bytes: 3 };
+      };
+      const adapter = new PodcastAdapter({
+        fetcher,
+        transcriber: new FakeTranscriber(),
+        cacheDir,
+      });
+
+      const item = await adapter.resolveItem({ url });
+      const document = await adapter.extract(item);
+
+      expect(downloads).toEqual([url]);
+      expect(document).toMatchObject({ canonicalUrl: url, mediaType: 'transcript' });
+    }
+  });
+
+  it('keeps the safe default byte cap when no caller override is supplied', async () => {
+    let maxResponseBytes: number | undefined;
+    const fetcher = fakeFetcher([]);
+    const originalFetchToFile = fetcher.fetchToFile!;
+    fetcher.fetchToFile = async (mediaUrl, path, options) => {
+      maxResponseBytes = options?.policy?.maxResponseBytes;
+      return originalFetchToFile(mediaUrl, path, options);
+    };
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+    });
+
+    const item = await adapter.resolveItem({ url });
+    await adapter.extract(item);
+
+    expect(maxResponseBytes).toBe(512 * 1024 * 1024);
+  });
+
+  it('applies a caller-provided byte cap to the media download', async () => {
+    let maxResponseBytes: number | undefined;
+    const fetcher = fakeFetcher([]);
+    const originalFetchToFile = fetcher.fetchToFile!;
+    fetcher.fetchToFile = async (mediaUrl, path, options) => {
+      maxResponseBytes = options?.policy?.maxResponseBytes;
+      return originalFetchToFile(mediaUrl, path, options);
+    };
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+      mediaFetchPolicy: { maxResponseBytes: 42 },
+    });
+
+    const item = await adapter.resolveItem({ url });
+    await adapter.extract(item);
+
+    expect(maxResponseBytes).toBe(42);
   });
 
   it('passes a cancellation signal through resolveItem to the page resolver', async () => {

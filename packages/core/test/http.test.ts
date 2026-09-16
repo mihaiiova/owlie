@@ -259,6 +259,234 @@ describe('DefaultHttpFetcher', () => {
     }
   });
 
+  describe('fetchToFile parity', () => {
+    function chunkedStream(chunks: Uint8Array[]) {
+      let index = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index < chunks.length) {
+            controller.enqueue(chunks[index]!);
+            index += 1;
+          } else {
+            controller.close();
+          }
+        },
+      });
+    }
+
+    function stallingStream(first: Uint8Array) {
+      let sent = false;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (!sent) {
+            sent = true;
+            controller.enqueue(first);
+          }
+        },
+      });
+    }
+
+    async function tempFile() {
+      const dir = await mkdtemp(join(tmpdir(), 'owlie-http-file-'));
+      return { dir, path: join(dir, 'download.bin') };
+    }
+
+    it('rejects a blocked host before creating the target file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('http://169.254.169.254/latest/meta-data', path),
+        ).rejects.toThrow(ExtractionError);
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects URL credentials before creating the target file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://alice:secret@example.com/a.bin', path, {
+            policy: { allowPrivateHosts: true },
+          }),
+        ).rejects.toThrow(ExtractionError);
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects a hostname resolving to a private address before creating the file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let called = false;
+        const fetchFn: HttpFetchFn = async () => {
+          called = true;
+          return ok('body');
+        };
+        const resolver: DnsResolver = async () => ['192.168.1.50'];
+        const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
+        await expect(fetcher.fetchToFile('https://evil.example.com/a.bin', path)).rejects.toThrow(
+          ExtractionError,
+        );
+        expect(called).toBe(false);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('follows redirects and re-validates each hop for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          if (url === 'https://example.com/a') {
+            return new Response('', {
+              status: 302,
+              headers: { location: 'https://example.com/b' },
+            });
+          }
+          return ok('bytes!', { headers: { 'content-type': 'application/octet-stream' } });
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(fetcher.fetchToFile('https://example.com/a', path)).resolves.toMatchObject({
+          url: 'https://example.com/b',
+          contentType: 'application/octet-stream',
+          bytes: 6,
+        });
+        await expect(readFile(path, 'utf8')).resolves.toBe('bytes!');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects a redirect to a blocked host for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          if (url === 'https://example.com/a') {
+            return new Response('', {
+              status: 302,
+              headers: { location: 'http://127.0.0.1/x' },
+            });
+          }
+          return ok('final');
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(fetcher.fetchToFile('https://example.com/a', path)).rejects.toThrow(
+          ExtractionError,
+        );
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('caps redirects for binary transfers', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const visited: string[] = [];
+        const fetchFn: HttpFetchFn = async (input) => {
+          const url = String(input);
+          visited.push(url);
+          const n = visited.length;
+          return new Response('', {
+            status: 302,
+            headers: { location: `https://example.com/n${n}` },
+          });
+        };
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/n0', path, { policy: { maxRedirects: 2 } }),
+        ).rejects.toThrow(ExtractionError);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('enforces a size limit and cleans up the partial file', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(
+            chunkedStream([new Uint8Array([1, 2, 3, 4, 5]), new Uint8Array([6, 7, 8, 9, 10])]),
+          );
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/a.bin', path, {
+            policy: { maxResponseBytes: 7 },
+          }),
+        ).rejects.toThrow(ExtractionError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('cleans up a partial file on timeout', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(stallingStream(new Uint8Array([1, 2, 3])));
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        await expect(
+          fetcher.fetchToFile('https://example.com/a.bin', path, { policy: { timeoutMs: 20 } }),
+        ).rejects.toThrow(CancelledError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('cleans up a partial file on external abort', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        let firstChunkDelivered: (() => void) | undefined;
+        const firstChunk = new Promise<void>((resolve) => {
+          firstChunkDelivered = resolve;
+        });
+        const fetchFn: HttpFetchFn = async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull(controller) {
+                controller.enqueue(new Uint8Array([1, 2, 3]));
+                firstChunkDelivered?.();
+                // never enqueue again or close: stall the stream
+              },
+            }),
+          );
+        const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+        const controller = new AbortController();
+        const promise = fetcher.fetchToFile('https://example.com/a.bin', path, {
+          signal: controller.signal,
+        });
+        await firstChunk;
+        controller.abort();
+        await expect(promise).rejects.toThrow(CancelledError);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   it('returns the response body and sends an identifying User-Agent', async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];
     const fetchFn: HttpFetchFn = async (input, init) => {
@@ -269,7 +497,9 @@ describe('DefaultHttpFetcher', () => {
       return ok('<rss/>');
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await expect(fetcher.fetchText('https://example.com/feed.xml')).resolves.toBe('<rss/>');
+    await expect(fetcher.fetch('https://example.com/feed.xml')).resolves.toMatchObject({
+      text: '<rss/>',
+    });
     expect(calls[0]!.headers['user-agent']).toBe('owlie-cli');
   });
 
@@ -302,8 +532,68 @@ describe('DefaultHttpFetcher', () => {
       return ok('body');
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await fetcher.fetchText('https://example.com/', { policy: { userAgent: 'test-agent' } });
+    await fetcher.fetch('https://example.com/', { policy: { userAgent: 'test-agent' } });
     expect(calls[0]).toBe('test-agent');
+  });
+
+  it('merges caller-supplied headers with the identifying User-Agent', async () => {
+    const calls: Array<Record<string, string>> = [];
+    const fetchFn: HttpFetchFn = async (_input, init) => {
+      calls.push(Object.fromEntries(new Headers(init?.headers).entries()));
+      return ok('body');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetch('https://example.com/', {
+      headers: { authorization: 'Bearer sk-test', 'x-custom': 'yes' },
+    });
+
+    expect(calls[0]).toMatchObject({ authorization: 'Bearer sk-test', 'x-custom': 'yes' });
+    expect(calls[0]!['user-agent']).toBe('owlie-cli');
+  });
+
+  it('retains control of the identifying User-Agent over caller headers', async () => {
+    const calls: Array<string> = [];
+    const fetchFn: HttpFetchFn = async (_input, init) => {
+      calls.push(new Headers(init?.headers).get('user-agent') ?? '');
+      return ok('body');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetch('https://example.com/', {
+      headers: { 'user-agent': 'caller-agent' },
+    });
+
+    expect(calls[0]).toBe('owlie-cli');
+  });
+
+  it('retains caller headers on same-origin redirects and drops them cross-origin', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const fetchFn: HttpFetchFn = async (input, init) => {
+      const url = String(input);
+      const headers = Object.fromEntries(new Headers(init?.headers).entries());
+      calls.push({ url, headers });
+      if (url === 'https://example.com/a') {
+        return new Response('', { status: 302, headers: { location: 'https://example.com/b' } });
+      }
+      if (url === 'https://example.com/b') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://other.example.com/c' },
+        });
+      }
+      return ok('final');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await fetcher.fetch('https://example.com/a', {
+      headers: { authorization: 'Bearer sk-secret' },
+    });
+
+    expect(calls).toHaveLength(3);
+    expect(calls[0]!.headers.authorization).toBe('Bearer sk-secret');
+    expect(calls[1]!.headers.authorization).toBe('Bearer sk-secret');
+    expect(calls[2]!.headers.authorization).toBeUndefined();
+    for (const call of calls) {
+      expect(call.headers['user-agent']).toBe('owlie-cli');
+    }
   });
 
   it('rejects a blocked host before fetching', async () => {
@@ -313,7 +603,7 @@ describe('DefaultHttpFetcher', () => {
       return ok('body');
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await expect(fetcher.fetchText('http://169.254.169.254/latest/meta-data')).rejects.toThrow(
+    await expect(fetcher.fetch('http://169.254.169.254/latest/meta-data')).rejects.toThrow(
       ExtractionError,
     );
     expect(called).toBe(false);
@@ -327,7 +617,7 @@ describe('DefaultHttpFetcher', () => {
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
-    await expect(fetcher.fetchText('http://[::ffff:127.0.0.1]/metadata')).rejects.toThrow(
+    await expect(fetcher.fetch('http://[::ffff:127.0.0.1]/metadata')).rejects.toThrow(
       ExtractionError,
     );
     expect(called).toBe(false);
@@ -342,7 +632,7 @@ describe('DefaultHttpFetcher', () => {
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     await expect(
-      fetcher.fetchText('https://alice:supersecret@example.com/article', {
+      fetcher.fetch('https://alice:supersecret@example.com/article', {
         policy: { allowPrivateHosts: true },
       }),
     ).rejects.toThrow(ExtractionError);
@@ -358,7 +648,7 @@ describe('DefaultHttpFetcher', () => {
       return ok('final');
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await expect(fetcher.fetchText('https://example.com/a')).resolves.toBe('final');
+    await expect(fetcher.fetch('https://example.com/a')).resolves.toMatchObject({ text: 'final' });
   });
 
   it('rejects a redirect to a blocked host', async () => {
@@ -370,7 +660,7 @@ describe('DefaultHttpFetcher', () => {
       return ok('final');
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await expect(fetcher.fetchText('https://example.com/a')).rejects.toThrow(ExtractionError);
+    await expect(fetcher.fetch('https://example.com/a')).rejects.toThrow(ExtractionError);
   });
 
   it('rejects URL credentials introduced by a redirect before following it', async () => {
@@ -385,7 +675,7 @@ describe('DefaultHttpFetcher', () => {
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
-    await expect(fetcher.fetchText('https://example.com/start')).rejects.toThrow(ExtractionError);
+    await expect(fetcher.fetch('https://example.com/start')).rejects.toThrow(ExtractionError);
     expect(visited).toEqual(['https://example.com/start']);
   });
 
@@ -402,7 +692,7 @@ describe('DefaultHttpFetcher', () => {
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     const error = await fetcher
-      .fetchText('https://example.com/n0?token=query-secret#fragment-secret', {
+      .fetch('https://example.com/n0?token=query-secret#fragment-secret', {
         policy: { maxRedirects: 2 },
       })
       .then(
@@ -428,7 +718,7 @@ describe('DefaultHttpFetcher', () => {
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     const error = await fetcher
-      .fetchText('https://example.com/start?token=query-secret#fragment-secret')
+      .fetch('https://example.com/start?token=query-secret#fragment-secret')
       .then(
         () => undefined,
         (reason: unknown) => reason,
@@ -444,7 +734,7 @@ describe('DefaultHttpFetcher', () => {
   it('maps HTTP errors to ExtractionError', async () => {
     const fetchFn: HttpFetchFn = async () => ok('oops', { status: 500 });
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    await expect(fetcher.fetchText('https://example.com/')).rejects.toThrow(ExtractionError);
+    await expect(fetcher.fetch('https://example.com/')).rejects.toThrow(ExtractionError);
   });
 
   it('keeps origin and path but removes query and fragment from diagnostics', async () => {
@@ -452,7 +742,7 @@ describe('DefaultHttpFetcher', () => {
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     const error = await fetcher
-      .fetchText('https://example.com/private/article?token=query-secret#fragment-secret')
+      .fetch('https://example.com/private/article?token=query-secret#fragment-secret')
       .then(
         () => undefined,
         (reason: unknown) => reason,
@@ -471,7 +761,7 @@ describe('DefaultHttpFetcher', () => {
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     const error = await fetcher
-      .fetchText('https://example.com/private/article?token=query-secret#fragment-secret')
+      .fetch('https://example.com/private/article?token=query-secret#fragment-secret')
       .then(
         () => undefined,
         (reason: unknown) => reason,
@@ -486,7 +776,7 @@ describe('DefaultHttpFetcher', () => {
     const fetchFn: HttpFetchFn = async () => ok('a'.repeat(100));
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(
-      fetcher.fetchText('https://example.com/', { policy: { maxResponseBytes: 10 } }),
+      fetcher.fetch('https://example.com/', { policy: { maxResponseBytes: 10 } }),
     ).rejects.toThrow(ExtractionError);
   });
 
@@ -499,7 +789,7 @@ describe('DefaultHttpFetcher', () => {
       });
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
     await expect(
-      fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
+      fetcher.fetch('https://example.com/', { policy: { timeoutMs: 20 } }),
     ).rejects.toThrow(CancelledError);
   });
 
@@ -516,7 +806,7 @@ describe('DefaultHttpFetcher', () => {
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
 
     await expect(
-      fetcher.fetchText('https://example.com/', { policy: { timeoutMs: 20 } }),
+      fetcher.fetch('https://example.com/', { policy: { timeoutMs: 20 } }),
     ).rejects.toThrow(CancelledError);
     expect(cancelled).toBe(true);
   });
@@ -530,7 +820,7 @@ describe('DefaultHttpFetcher', () => {
       });
     const controller = new AbortController();
     const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
-    const promise = fetcher.fetchText('https://example.com/', { signal: controller.signal });
+    const promise = fetcher.fetch('https://example.com/', { signal: controller.signal });
     controller.abort();
     await expect(promise).rejects.toThrow(CancelledError);
   });
@@ -543,9 +833,7 @@ describe('DefaultHttpFetcher', () => {
     };
     const resolver: DnsResolver = async () => ['192.168.1.50'];
     const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
-    await expect(fetcher.fetchText('https://evil.example.com/feed')).rejects.toThrow(
-      ExtractionError,
-    );
+    await expect(fetcher.fetch('https://evil.example.com/feed')).rejects.toThrow(ExtractionError);
     expect(called).toBe(false);
   });
 
@@ -557,7 +845,9 @@ describe('DefaultHttpFetcher', () => {
       return ['8.8.8.8'];
     };
     const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
-    await expect(fetcher.fetchText('https://example.com/feed')).resolves.toBe('body');
+    await expect(fetcher.fetch('https://example.com/feed')).resolves.toMatchObject({
+      text: 'body',
+    });
     expect(resolved).toEqual(['example.com']);
   });
 
@@ -575,7 +865,7 @@ describe('DefaultHttpFetcher', () => {
     const resolver: DnsResolver = async (hostname) =>
       hostname === 'evil.example.com' ? ['10.0.0.1'] : ['8.8.8.8'];
     const fetcher = new DefaultHttpFetcher(fetchFn, resolver);
-    await expect(fetcher.fetchText('https://example.com/a')).rejects.toThrow(ExtractionError);
+    await expect(fetcher.fetch('https://example.com/a')).rejects.toThrow(ExtractionError);
   });
 
   it('allows private and local destination categories when explicitly opted in', async () => {
@@ -591,9 +881,9 @@ describe('DefaultHttpFetcher', () => {
       'http://[fe80::1]/',
       'http://[::1]/',
     ]) {
-      await expect(fetcher.fetchText(url, { policy: { allowPrivateHosts: true } })).resolves.toBe(
-        'body',
-      );
+      await expect(
+        fetcher.fetch(url, { policy: { allowPrivateHosts: true } }),
+      ).resolves.toMatchObject({ text: 'body' });
     }
   });
 
@@ -616,7 +906,7 @@ describe('DefaultHttpFetcher', () => {
       'http://[2002::1]/',
       'http://[ff02::1]/',
     ]) {
-      await expect(fetcher.fetchText(url, { policy: { allowPrivateHosts: true } })).rejects.toThrow(
+      await expect(fetcher.fetch(url, { policy: { allowPrivateHosts: true } })).rejects.toThrow(
         ExtractionError,
       );
     }

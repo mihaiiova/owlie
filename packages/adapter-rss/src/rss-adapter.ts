@@ -16,6 +16,7 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isFeedContentType,
   type HttpFetcher,
   type HttpFetchPolicy,
 } from '@owlieio/core';
@@ -79,11 +80,12 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
     options: CollectionListOptions,
   ): Promise<CollectionListResult> {
     assertBoundedLimit(options.limit);
-    const xml = await this.fetcher.fetchText(collection.canonicalUrl, {
+    const response = await this.fetcher.fetch(collection.canonicalUrl, {
       signal: options.signal,
       policy: this.effectivePolicy(),
     });
-    const feed = await parseFeed(xml);
+    assertFeedMediaType(response.contentType);
+    const feed = await parseFeed(response.text);
     const items = feed.entries
       .slice(0, options.limit)
       .map((entry) => entryToItem(entry, collection.canonicalUrl));
@@ -103,11 +105,12 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
       throw new ExtractionError(`RSS item has no text and no feed URL to re-fetch (${item.id})`);
     }
 
-    const xml = await this.fetcher.fetchText(feedUrl, {
+    const response = await this.fetcher.fetch(feedUrl, {
       signal: options.signal,
       policy: this.effectivePolicy(),
     });
-    const feed = await parseFeed(xml);
+    assertFeedMediaType(response.contentType);
+    const feed = await parseFeed(response.text);
     const entryId =
       typeof item.metadata.entryId === 'string'
         ? item.metadata.entryId
@@ -127,5 +130,20 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   private effectivePolicy(): HttpFetchPolicy {
     if (this.timeoutMs === undefined) return this.policy ?? {};
     return { ...(this.policy ?? {}), timeoutMs: this.timeoutMs };
+  }
+}
+
+/**
+ * Rejects a declared non-feed media type before XML parsing. A missing or
+ * empty declaration is accepted as a documented compatibility decision: a feed
+ * URL without a declared media type is still parsed, while a declared
+ * incompatible type is rejected.
+ */
+function assertFeedMediaType(contentType: string | null): void {
+  const declared = contentType !== null && contentType.trim() !== '';
+  if (declared && !isFeedContentType(contentType)) {
+    throw new ExtractionError(
+      `refusing to parse a feed with an incompatible content type: ${contentType ?? '(none)'}`,
+    );
   }
 }

@@ -7,7 +7,15 @@
  */
 
 /** The kind of source a locator, collection, item, or document came from. */
-export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss' | 'article';
+export type SourceType = 'youtube' | 'podcast' | 'reddit' | 'rss' | 'article' | 'local';
+
+/** Every {@link SourceType} value, kept as the single runtime source of truth. */
+export const SOURCE_TYPES = ['youtube', 'podcast', 'reddit', 'rss', 'article', 'local'] as const;
+
+/** Whether a runtime value is a valid {@link SourceType}. */
+export function isSourceType(value: unknown): value is SourceType {
+  return typeof value === 'string' && (SOURCE_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * The kind of media a normalized document contains. Not every document is a
@@ -64,9 +72,17 @@ export interface ProcessRequest {
   outputSchema?: Record<string, unknown>;
 }
 
+/**
+ * The single-result output format carried by a {@link ProcessResult}. This is
+ * distinct from the reserved {@link OutputFormat} serializer vocabulary, whose
+ * `jsonl` member is a streaming/serialization format and never a single-result
+ * format.
+ */
+export type ProcessResultFormat = 'text' | 'markdown' | 'json';
+
 /** The result of processing a document. */
 export interface ProcessResult {
   output: string;
-  format: 'text' | 'markdown' | 'json';
+  format: ProcessResultFormat;
   metadata: Record<string, unknown>;
 }

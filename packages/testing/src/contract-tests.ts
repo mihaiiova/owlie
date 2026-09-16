@@ -88,6 +88,31 @@ export function processorContract(name: string, createProcessor: () => ContentPr
   });
 }
 
+/**
+ * Parity contract for functional LLM processors: verifies the shared
+ * provider-neutral `{ provider, model, usage }` result-metadata convention so
+ * every provider produces identical observable output shape.
+ */
+export function processorResultContract(
+  name: string,
+  createProcessor: () => ContentProcessor,
+): void {
+  describe(`${name} (processor result contract)`, () => {
+    it('returns the provider-neutral result-metadata convention', async () => {
+      const result = await createProcessor().process({ document: makeDocument() });
+      expect(typeof result.metadata.provider).toBe('string');
+      expect(typeof result.metadata.model).toBe('string');
+      if (result.metadata.usage !== undefined) {
+        expect(result.metadata.usage).toMatchObject({
+          inputTokens: expect.any(Number),
+          outputTokens: expect.any(Number),
+          totalTokens: expect.any(Number),
+        });
+      }
+    });
+  });
+}
+
 export function transcriberContract(name: string, createTranscriber: () => Transcriber): void {
   describe(`${name} (transcriber contract)`, () => {
     it('produces non-empty text', async () => {

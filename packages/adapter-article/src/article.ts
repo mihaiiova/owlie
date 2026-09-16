@@ -1,12 +1,14 @@
 import { extractFromHtml } from '@extractus/article-extractor';
 import { decodeHTML } from 'entities';
 import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } from '@owlieio/core';
+import type { DeferredResponseItemAdapter, HttpTextResponse } from '@owlieio/core';
 import {
   assertSafeHttpUrl,
   CancelledError,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  isHtmlContentType,
   type ExtractionOptions,
   type HttpFetcher,
   type HttpFetchPolicy,
@@ -113,11 +115,6 @@ const ARTICLE_EXTRACTOR_ALLOWED_TAGS = [
   'wbr',
 ];
 
-function isHtmlContentType(contentType: string | null): boolean {
-  const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
-  return mediaType === 'text/html' || mediaType === 'application/xhtml+xml';
-}
-
 function plainText(html: string): string {
   return decodeHTML(html)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
@@ -143,7 +140,7 @@ export function normalizeDate(value: string): string {
  * Static editorial-page adapter. It accepts only safe HTTP(S) URLs and gives
  * the extractor bounded HTML obtained through Owlie's safe HTTP seam.
  */
-export class ArticleAdapter implements ItemAdapter {
+export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter {
   static readonly id = 'article';
   readonly id = ArticleAdapter.id;
   readonly sourceType = 'article' as const;
@@ -188,45 +185,81 @@ export class ArticleAdapter implements ItemAdapter {
         signal: options.signal,
         policy: this.policy,
       });
-      if (!isHtmlContentType(response.contentType)) {
-        throw new ExtractionError(
-          `article URL returned unsupported content type: ${response.contentType ?? 'missing'}`,
-        );
-      }
-      if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
-
-      const article = await extractFromHtml(response.text, response.url, {
-        allowedTags: ARTICLE_EXTRACTOR_ALLOWED_TAGS,
-      });
-      if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
-      const text = plainText(article?.content ?? '');
-      if (!text) {
-        throw new ExtractionError(`no readable static article content at ${response.url}`);
-      }
-
-      const canonicalUrl = canonicalizeArticleUrl(response.url);
-      const document: NormalizedDocument = {
-        schemaVersion: 1,
-        id: `article:${canonicalUrl}`,
-        sourceType: 'article',
-        canonicalUrl,
-        mediaType: 'text',
-        ...(article?.title ? { title: article.title } : {}),
-        text,
-        ...(article?.published ? { publishedAt: normalizeDate(article.published) } : {}),
-        ...(article?.author ? { author: article.author } : {}),
-        metadata: {},
-      };
+      const document = await this.extractFromResponse(response, options);
       options.progress?.emit({ type: 'completed', target, result: document });
       return document;
     } catch (error) {
-      if (error instanceof CancelledError) {
-        options.progress?.emit({ type: 'cancelled', target });
-      } else {
-        const message = error instanceof Error ? error.message : String(error);
-        options.progress?.emit({ type: 'failed', target, error: message });
-      }
-      throw error;
+      this.emitFailure(target, options, error);
     }
+  }
+
+  /**
+   * Extracts from a response already fetched and safe-validated by core,
+   * avoiding a second request when the fallback dispatch hands one over. It is
+   * an internal fallback seam, not a public path for arbitrary caller HTML.
+   */
+  async extractDeferred(
+    item: ContentItem,
+    response: HttpTextResponse,
+    options: ExtractionOptions = {},
+  ): Promise<NormalizedDocument> {
+    const target = item.id;
+    options.progress?.emit({ type: 'started', target });
+
+    try {
+      if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
+      // Only consume a response whose final URL is safe-validated by core.
+      assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+      const document = await this.extractFromResponse(response, options);
+      options.progress?.emit({ type: 'completed', target, result: document });
+      return document;
+    } catch (error) {
+      this.emitFailure(target, options, error);
+    }
+  }
+
+  private async extractFromResponse(
+    response: HttpTextResponse,
+    options: ExtractionOptions,
+  ): Promise<NormalizedDocument> {
+    if (!isHtmlContentType(response.contentType)) {
+      throw new ExtractionError(
+        `article URL returned unsupported content type: ${response.contentType ?? 'missing'}`,
+      );
+    }
+    if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
+
+    const article = await extractFromHtml(response.text, response.url, {
+      allowedTags: ARTICLE_EXTRACTOR_ALLOWED_TAGS,
+    });
+    if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
+    const text = plainText(article?.content ?? '');
+    if (!text) {
+      throw new ExtractionError(`no readable static article content at ${response.url}`);
+    }
+
+    const canonicalUrl = canonicalizeArticleUrl(response.url);
+    return {
+      schemaVersion: 1,
+      id: `article:${canonicalUrl}`,
+      sourceType: 'article',
+      canonicalUrl,
+      mediaType: 'text',
+      ...(article?.title ? { title: article.title } : {}),
+      text,
+      ...(article?.published ? { publishedAt: normalizeDate(article.published) } : {}),
+      ...(article?.author ? { author: article.author } : {}),
+      metadata: {},
+    };
+  }
+
+  private emitFailure(target: string, options: ExtractionOptions, error: unknown): never {
+    if (error instanceof CancelledError) {
+      options.progress?.emit({ type: 'cancelled', target });
+    } else {
+      const message = error instanceof Error ? error.message : String(error);
+      options.progress?.emit({ type: 'failed', target, error: message });
+    }
+    throw error;
   }
 }

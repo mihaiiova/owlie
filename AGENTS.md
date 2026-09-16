@@ -15,11 +15,13 @@ This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
 episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
-`owlie list`, `owlie process` (DeepSeek or OpenAI; single document or feed
-`--each` batches, selected by `--provider`/`OWLIE_PROVIDER`/the saved active
-provider), `owlie doctor`, `owlie --help`, and `owlie --version`. Search,
-other podcast provider-specific lookup, and audio transcription beyond resolved
-media URLs remain deferred.
+`owlie list`, `owlie resolve` (a validated audio media URL with no download or
+transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
+stdin document, a normalized JSON document, or a feed `--each` batch, selected
+by `--provider`/`OWLIE_PROVIDER`/the saved active provider), `owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. Search and
+other podcast provider-specific lookup remain deferred. Podcast transcription
+runs through one generic local faster-whisper pipeline that chunks long audio
+(five-minute windows, two-second overlap) with monotonic progress.
 
 The current milestone is **v0.1** (see
 [docs/decisions/0005-v0-1-scope.md](docs/decisions/0005-v0-1-scope.md)): a
@@ -34,16 +36,20 @@ differ from older v1 plans.
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
-RSS/Atom feed), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
-process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie
---help`, `owlie --version`. In scope: individual YouTube video transcript
+RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
+process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie setup`, `owlie --help`,
+`owlie --version`. In scope: individual YouTube video transcript
 extraction, direct-media, Apple Podcasts episode, and declarative episode-page
-podcast transcription via local faster-whisper, static article extraction via the universal `extract`
+podcast transcription via local faster-whisper, explicit resolver-selection
+flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
+`resolve`, a single generic local faster-whisper pipeline with chunked long-form
+transcription, static article extraction via the universal `extract`
 dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
 feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), explicit provider selection
 with provider-keyed profiles, live model discovery in `owlie setup`, pipe-first
-stream/output contracts, secure configuration, and the shared core and
+stream/output contracts, local text/stdin input modeled as the `local` source
+type, secure configuration, and the shared core and
 coding-agent harness.
 
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific
@@ -94,6 +100,7 @@ packages/adapter-youtube/    @owlieio/adapter-youtube
 packages/adapter-podcast/    @owlieio/adapter-podcast
 packages/adapter-rss/        @owlieio/adapter-rss
 packages/adapter-reddit/     @owlieio/adapter-reddit
+packages/provider-deepseek/  @owlieio/provider-deepseek
 packages/provider-openai/    @owlieio/provider-openai
 packages/provider-whisper/   @owlieio/provider-whisper
 docs/                        Architecture, contracts, security, decisions

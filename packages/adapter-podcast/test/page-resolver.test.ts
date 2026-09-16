@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
+import { NotHandledError } from '@owlieio/core';
 import { GenericEpisodePageResolver } from '@owlieio/adapter-podcast';
 
 type FetchResponse = { contentType?: string; text: string };
@@ -13,9 +14,6 @@ function pageFetcher(html: string, responses: Record<string, FetchResponse> = {}
         contentType: response?.contentType ?? 'text/html',
         text: response?.text ?? html,
       };
-    },
-    async fetchText(url) {
-      return (await this.fetch(url)).text;
     },
   };
 }
@@ -136,6 +134,24 @@ describe('GenericEpisodePageResolver', () => {
     ).rejects.toThrow('no podcast audio enclosure found');
   });
 
+  it('attaches the already-fetched page to the no-audio deferral', async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<article>No audio here</article>'),
+    });
+
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(NotHandledError);
+      expect((error as NotHandledError).deferredResponse).toMatchObject({
+        url: 'https://publisher.example/episodes/one',
+        contentType: 'text/html',
+        text: '<article>No audio here</article>',
+      });
+      return true;
+    });
+  });
+
   it('declines a page whose content type is not HTML', async () => {
     const fetcher = pageFetcher(''); // unused body
     fetcher.fetch = async (url) => ({ url, contentType: 'application/pdf', text: '' });
@@ -144,6 +160,38 @@ describe('GenericEpisodePageResolver', () => {
     await expect(
       resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
     ).rejects.toThrow('unsupported content type');
+  });
+
+  it('declines a page with no declared content type', async () => {
+    const fetcher = pageFetcher('');
+    fetcher.fetch = async (url) => ({
+      url,
+      contentType: null,
+      text: '<article>No audio here</article>',
+    });
+    const resolver = new GenericEpisodePageResolver({ fetcher });
+
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
+    ).rejects.toThrow('unsupported content type');
+  });
+
+  it('attaches the fetched response when it declines a non-HTML page', async () => {
+    const fetcher = pageFetcher('');
+    fetcher.fetch = async (url) => ({ url, contentType: 'application/pdf', text: '%PDF' });
+    const resolver = new GenericEpisodePageResolver({ fetcher });
+
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(NotHandledError);
+      expect((error as NotHandledError).deferredResponse).toMatchObject({
+        url: 'https://publisher.example/episodes/one',
+        contentType: 'application/pdf',
+        text: '%PDF',
+      });
+      return true;
+    });
   });
 
   it('rejects an unsafe media URL discovered on an otherwise safe page', async () => {
