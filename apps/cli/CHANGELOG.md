@@ -1,5 +1,30 @@
 # @owlieio/owlie
 
+## 0.3.0
+
+### Minor Changes
+
+- 9a9eddf: `owlie process URL --prompt "..."` now extracts a single http(s) URL through the
+  universal YouTube/podcast/article rule before processing it, so articles,
+  YouTube videos, and podcast episodes can be processed directly without a
+  separate `owlie extract` step. Feed URLs still require `--each`.
+
+### Patch Changes
+
+- 9a9eddf: `owlie extract` (and `owlie process URL`) no longer print the podcast-specific
+  "no podcast audio enclosure found" diagnostic when a URL falls back to article
+  extraction; they now print "extracting article text".
+- 5e7001d: `owlie doctor` now reports each provider's effective model id (for example
+  `deepseek-chat`) instead of a bare `set`/`not set`, and resolves the API key and
+  model from `.env`/`.env.local` as well as the process environment and the saved
+  profile — matching `owlie process` precedence. `owlie setup` now notes when a
+  provider API key is already saved (press Enter to keep it). The API key value
+  itself is never printed.
+- e56c12f: Fix `owlie setup` transcription prerequisite detection. Probe `ffmpeg` and
+  `ffprobe` with `-version` (their canonical flag) instead of `--version`,
+  matching `owlie doctor`. ffmpeg 7.x rejects `--version`, so `owlie setup`
+  previously reported ffmpeg/ffprobe as missing even when both were installed.
+
 ## 0.2.0
 
 ### Minor Changes
