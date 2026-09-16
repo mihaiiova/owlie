@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "baseUrl": "https://mihaiiova.github.io/owlie-cli",
+  "baseUrl": "https://mihaiiova.github.io/owlie",
   "article": {
     "path": "article.html",
     "marker": "OWLIE_E2E_CORPUS_MARKER_7f3a9c"

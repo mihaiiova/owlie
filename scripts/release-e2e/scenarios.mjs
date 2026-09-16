@@ -189,7 +189,7 @@ export function buildScenarios(ctx, spawn, spawnTty) {
           if (!parsed.value.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
           if (!parsed.value.adapters?.includes('article'))
             errors.push('doctor missing article adapter');
-          if (!parsed.value.providers?.includes('deepseek'))
+          if (!parsed.value.providers?.some((provider) => provider.id === 'deepseek'))
             errors.push('doctor missing deepseek provider');
         }
         if (!assertNoSecrets(result.stdout, secrets).ok) errors.push('doctor leaked a secret');
@@ -296,7 +296,11 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       run: () =>
         spawnTty({
           args: ['process', inputFile, '--prompt', 'Reply with exactly: OK', '--json', '--quiet'],
-          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
+          env: {
+            OWLIE_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: apiKey,
+            DEEPSEEK_MODEL: 'deepseek-chat',
+          },
           timeoutMs: 120_000,
         }),
       assert: jsonAssert(parseJson, (result) => {
@@ -315,7 +319,11 @@ export function buildScenarios(ctx, spawn, spawnTty) {
         if (extracted.status !== 0) return extracted;
         return spawn({
           args: ['process', '--prompt', 'Reply with exactly: OK', '--json'],
-          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
+          env: {
+            OWLIE_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: apiKey,
+            DEEPSEEK_MODEL: 'deepseek-chat',
+          },
           input: extracted.stdout,
           timeoutMs: 120_000,
         });
@@ -342,7 +350,11 @@ export function buildScenarios(ctx, spawn, spawnTty) {
             'Reply with exactly: OK',
             '--quiet',
           ],
-          env: { DEEPSEEK_API_KEY: apiKey, DEEPSEEK_MODEL: 'deepseek-chat' },
+          env: {
+            OWLIE_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: apiKey,
+            DEEPSEEK_MODEL: 'deepseek-chat',
+          },
           timeoutMs: 120_000,
         }),
       assert: (result) => {
