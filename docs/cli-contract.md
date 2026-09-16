@@ -123,8 +123,12 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 
 ## `owlie doctor`
 
-Reports Node version, OS and architecture, non-secret per-provider API key and
-model presence for each functional provider (DeepSeek, OpenAI), the functional
-adapters (YouTube, podcast, RSS, article), local transcription readiness
-(Python + faster-whisper, ffmpeg, ffprobe, and the configured Whisper model),
-and whether the configuration and cache directories are writable.
+Reports Node version, OS and architecture, and per-provider readiness for each
+functional provider (DeepSeek, OpenAI): the API key presence (`set`/`not set`,
+never the value) and the effective model id (for example `deepseek-chat`), or
+`null` when no model is configured. Key/model resolution matches `owlie process`
+precedence — process environment → `--env-file` → `.env.local` → `.env` → saved
+profile. It also lists the functional adapters (YouTube, podcast, RSS, article),
+local transcription readiness (Python + faster-whisper, ffmpeg, ffprobe, and the
+configured Whisper model), and whether the configuration and cache directories
+are writable.

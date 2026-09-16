@@ -28,6 +28,7 @@ const fakeDeps: CliDeps = {
   doctor: {
     dirWritable: async () => true,
     env: { DEEPSEEK_API_KEY: 'sk-test', DEEPSEEK_MODEL: 'deepseek-chat' },
+    loadFile: () => ({}),
     toolAvailable: async () => true,
   },
 };
@@ -84,7 +85,7 @@ describe('doctor', () => {
     expect(stdout()).toContain('Node');
     expect(stdout()).toContain('Adapters: youtube, podcast, rss, article');
     expect(stdout()).toContain('Providers: deepseek, openai');
-    expect(stdout()).toContain('deepseek: api key set, model set');
+    expect(stdout()).toContain('deepseek: api key set, model deepseek-chat');
     expect(stdout()).toContain('openai: api key not set, model not set');
     expect(stdout()).toContain('Transcription: whisper detected');
     expect(stdout()).not.toContain('Deferred');
@@ -98,8 +99,8 @@ describe('doctor', () => {
     expect(report.node).toContain('v');
     expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article']);
     expect(report.providers).toEqual([
-      { id: 'deepseek', apiKey: 'set', model: 'set' },
-      { id: 'openai', apiKey: 'not set', model: 'not set' },
+      { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat' },
+      { id: 'openai', apiKey: 'not set', model: null },
     ]);
     expect(report.transcription).toEqual({
       whisper: 'detected',
@@ -110,6 +111,45 @@ describe('doctor', () => {
     expect(report.deepSeekApiKey).toBeUndefined();
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
+  });
+
+  it('resolves provider key and model from .env files like process does', async () => {
+    const { io, stdout } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: {},
+        loadFile: (path: string): Record<string, string> =>
+          path === '.env' ? { DEEPSEEK_API_KEY: 'sk-env', DEEPSEEK_MODEL: 'deepseek-chat' } : {},
+        toolAvailable: async () => true,
+      },
+    };
+    const code = await run(['doctor', '--json'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    const report = JSON.parse(stdout());
+    expect(report.providers).toEqual([
+      { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat' },
+      { id: 'openai', apiKey: 'not set', model: null },
+    ]);
+  });
+
+  it('resolves provider config from an explicit --env-file', async () => {
+    const { io, stdout } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: {},
+        loadFile: (path: string): Record<string, string> =>
+          path === 'custom.env'
+            ? { DEEPSEEK_API_KEY: 'sk-file', DEEPSEEK_MODEL: 'deepseek-chat' }
+            : {},
+        toolAvailable: async () => true,
+      },
+    };
+    const code = await run(['doctor', '--json', '--env-file', 'custom.env'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    const report = JSON.parse(stdout());
+    expect(report.providers[0]).toEqual({ id: 'deepseek', apiKey: 'set', model: 'deepseek-chat' });
   });
 
   it('probes ffmpeg/ffprobe with -version and python3 with --version', async () => {

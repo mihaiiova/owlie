@@ -234,6 +234,24 @@ describe('owlie setup', () => {
     expect(writes[0]?.providers?.deepseek?.apiKey).toBe('sk-old');
   });
 
+  it('tells the user when an API key is already saved', async () => {
+    let question = '';
+    const { deps } = makeSetup({
+      select: scriptedSelect(['LLM provider', 'deepseek', 'deepseek-chat']),
+      prompt: async (q) => {
+        question = q;
+        return '';
+      },
+      readConfig: () => ({
+        providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-old' } },
+      }),
+      listModels: async () => ['deepseek-chat'],
+    });
+    const { io } = capture();
+    await run(['setup'], io, deps);
+    expect(question).toContain('already set');
+  });
+
   it('uses the existing profile as menu defaults', async () => {
     const selectCalls: { question: string; options: readonly string[]; default?: string }[] = [];
     const { deps } = makeSetup({
