@@ -81,10 +81,12 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
   (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
   listing (default 10, maximum 500); invalid or oversized limits fail with a
   clear error. Raw entry HTML is never written to stdout.
-- `process` reads exactly one input — a positional file, `--input FILE`, or
-  stdin — and rejects ambiguous multiple inputs (exit code 2). Empty piped
-  stdin is a clear error (exit code 1). `process` never fetches a URL: a URL
-  argument is treated as literal text or rejected, never fetched.
+- `process` reads exactly one input — a positional http(s) URL, a positional
+  file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
+  (exit code 2). A URL is extracted first through the universal
+  YouTube/podcast/article dispatch and then processed; a feed URL in
+  single-input mode is rejected with guidance to use `--each`. Empty piped
+  stdin is a clear error (exit code 1).
 - `process FEED_URL --each` is the collection-processing mode. It resolves the
   feed, then lists, extracts (through the same universal dispatch), and
   processes each bounded linked item sequentially in feed order, streaming one

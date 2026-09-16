@@ -17,7 +17,8 @@ compile, tests pass, and `pnpm check` is green. Functional commands today:
 episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
 `owlie list`, `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
-stdin document, a normalized JSON document, or a feed `--each` batch, selected
+stdin document, a normalized JSON document, a single http(s) URL, or a feed
+`--each` batch, selected
 by `--provider`/`OWLIE_PROVIDER`/the saved active provider), `owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. Search and
 other podcast provider-specific lookup remain deferred. Podcast transcription
 runs through one generic local faster-whisper pipeline that chunks long audio
@@ -36,7 +37,7 @@ differ from older v1 plans.
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
-RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
+RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie doctor`, `owlie setup`, `owlie --help`,
 `owlie --version`. In scope: individual YouTube video transcript
 extraction, direct-media, Apple Podcasts episode, and declarative episode-page

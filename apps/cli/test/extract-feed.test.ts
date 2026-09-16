@@ -436,7 +436,7 @@ describe('extract — direct dispatch', () => {
     );
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('article body\n');
-    expect(stderr()).toContain('no podcast audio enclosure found');
+    expect(stderr()).toContain('extracting article text');
   });
 
   it('fails with a clear error when no adapter recognizes a direct URL', async () => {

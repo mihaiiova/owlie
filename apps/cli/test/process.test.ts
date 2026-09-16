@@ -2,8 +2,17 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { ContentProcessor, NormalizedDocument, ProcessRequest } from '@owlieio/core';
-import { ProcessingError } from '@owlieio/core';
+import type {
+  CollectionAdapter,
+  ContentCollection,
+  ContentItem,
+  ContentProcessor,
+  ExtractionOptions,
+  ItemAdapter,
+  NormalizedDocument,
+  ProcessRequest,
+} from '@owlieio/core';
+import { NotHandledError, ProcessingError } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -37,6 +46,53 @@ function makeFakeProcessor(behavior: { error?: unknown } = {}) {
 
 function deps(partial: CliDeps['process']): CliDeps {
   return { process: partial };
+}
+
+function articleAdapter(): ItemAdapter {
+  return {
+    id: 'article',
+    sourceType: 'article',
+    recognize: (locator) => locator.url.startsWith('https://'),
+    async resolveItem(locator) {
+      return {
+        id: `article:${locator.url}`,
+        sourceType: 'article',
+        canonicalUrl: locator.url,
+        metadata: {},
+      };
+    },
+    async extract(item: ContentItem, options?: ExtractionOptions) {
+      options?.progress?.emit({ type: 'started', target: item.id });
+      return {
+        schemaVersion: 1,
+        id: item.id,
+        sourceType: 'article',
+        canonicalUrl: item.canonicalUrl,
+        mediaType: 'text',
+        text: 'article body',
+        metadata: {},
+      };
+    },
+  };
+}
+
+function noFeedAdapter(): CollectionAdapter {
+  return {
+    id: 'rss',
+    sourceType: 'rss',
+    recognize: () => false,
+    async resolve(locator) {
+      return {
+        id: `rss:${locator.url}`,
+        sourceType: 'rss',
+        canonicalUrl: locator.url,
+        metadata: {},
+      };
+    },
+    async list(collection: ContentCollection) {
+      return { collection, items: [], truncated: false };
+    },
+  };
 }
 
 describe('process command', () => {
@@ -301,5 +357,122 @@ describe('process command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(starts).toEqual(['processing']);
     expect(stopped).toBe(1);
+  });
+
+  it('extracts a URL and processes the extracted document', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const { io, stdout } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'Summarize'],
+      io,
+      deps({ processor, itemAdapters: [articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe('Summarize:article body\n');
+    expect(requests[0]?.document.text).toBe('article body');
+    expect(requests[0]?.document.sourceType).toBe('article');
+  });
+
+  it('extracts a URL that defers to the article adapter', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const podcast: ItemAdapter = {
+      id: 'podcast',
+      sourceType: 'podcast',
+      recognize: (locator) => locator.url.startsWith('https://'),
+      async resolveItem() {
+        throw new NotHandledError('no podcast audio enclosure found');
+      },
+      async extract() {
+        throw new Error('unreachable');
+      },
+    };
+    const { io, stdout, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'Summarize'],
+      io,
+      deps({ processor, itemAdapters: [podcast, articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe('Summarize:article body\n');
+    expect(stderr()).toContain('extracting article text');
+    expect(requests[0]?.document.sourceType).toBe('article');
+  });
+
+  it('fails fast on a missing provider before extracting the URL', async () => {
+    let extracted = false;
+    const adapter: ItemAdapter = {
+      id: 'article',
+      sourceType: 'article',
+      recognize: () => true,
+      async resolveItem() {
+        extracted = true;
+        throw new Error('should not resolve');
+      },
+      async extract() {
+        extracted = true;
+        throw new Error('unreachable');
+      },
+    };
+    const { io, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'x'],
+      io,
+      deps({ itemAdapters: [adapter], feedAdapter: noFeedAdapter(), readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('no provider selected');
+    expect(extracted).toBe(false);
+  });
+
+  it('rejects a feed URL in single-input mode and points to --each', async () => {
+    const { processor } = makeFakeProcessor();
+    const feed: CollectionAdapter = {
+      id: 'rss',
+      sourceType: 'rss',
+      recognize: (locator) => locator.url === 'https://example.com/feed.xml',
+      async resolve(locator) {
+        return {
+          id: `rss:${locator.url}`,
+          sourceType: 'rss',
+          canonicalUrl: locator.url,
+          metadata: {},
+        };
+      },
+      async list(collection: ContentCollection) {
+        return { collection, items: [], truncated: false };
+      },
+    };
+    const { io, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/feed.xml', '--prompt', 'Summarize'],
+      io,
+      deps({ processor, feedAdapter: feed }),
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--each');
+  });
+
+  it('rejects combining a URL with --input', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--input', 'file.txt', '--prompt', 'x'],
+      io,
+      deps({ processor, itemAdapters: [articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--input');
+  });
+
+  it('rejects combining a URL with piped stdin', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'x'],
+      io,
+      deps({ processor, itemAdapters: [articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('stdin');
   });
 });

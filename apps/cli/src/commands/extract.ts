@@ -191,6 +191,9 @@ export async function runExtractCommand(
   }
 }
 
+/** stderr notice when a URL defers from audio resolution to article text. */
+export const ARTICLE_FALLBACK_NOTICE = 'extracting article text';
+
 async function runDirectExtraction(
   url: string,
   io: CliIo,
@@ -216,9 +219,9 @@ async function runDirectExtraction(
       {
         signal: operation.signal,
         progress,
-        onFallback: (error) => {
+        onFallback: () => {
           if (!options.quiet) {
-            io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
+            io.stderr.write(`owlie: ${ARTICLE_FALLBACK_NOTICE}\n`);
           }
         },
       },
