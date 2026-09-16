@@ -111,6 +111,32 @@ describe('doctor', () => {
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
   });
+
+  it('probes ffmpeg/ffprobe with -version and python3 with --version', async () => {
+    const calls: Array<{ tool: string; args?: readonly string[] }> = [];
+    const { io } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: {},
+        toolAvailable: async (tool, args) => {
+          calls.push({ tool, args });
+          return true;
+        },
+      },
+    };
+    const code = await run(['doctor', '--json'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    expect(calls.find((c) => c.tool === 'ffmpeg')?.args).toEqual(['-version']);
+    expect(calls.find((c) => c.tool === 'ffprobe')?.args).toEqual(['-version']);
+    const pythonCalls = calls.filter((c) => c.tool === 'python3');
+    expect(pythonCalls.some((c) => c.args === undefined)).toBe(true);
+    expect(
+      pythonCalls.some(
+        (c) => c.args && c.args[0] === '-c' && c.args[1] === 'import faster_whisper',
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('unknown commands', () => {

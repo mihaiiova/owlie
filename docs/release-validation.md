@@ -42,6 +42,12 @@ editorial pages. The runner validates the expected markers, entry count, and
 linked-article relationship before running, so stale or unexpected corpus
 content fails clearly.
 
+A small generated WAV (`e2e/corpus/audio.wav`) lives in the same corpus and is
+the controlled direct-media fixture for the packaged extractor runtime
+verification (`pnpm verify:extractor-runtime`, see
+[`docs/testing-strategy.md`](testing-strategy.md) and ADR 0025). It is not used
+by the release E2E scenarios.
+
 Changing the corpus (or its markers) requires updating `e2e/corpus/manifest.json`
 in the same change. Any URL replacement must be reviewed and documented.
 

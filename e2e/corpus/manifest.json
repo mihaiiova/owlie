@@ -8,5 +8,9 @@
   "feed": {
     "path": "feed.xml",
     "entryCount": 1
+  },
+  "audio": {
+    "path": "audio.wav",
+    "contentType": "audio/wav"
   }
 }

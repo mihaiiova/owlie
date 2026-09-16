@@ -18,19 +18,20 @@ pnpm install
 
 Run from the repository root:
 
-| Command                | Purpose                                            |
-| ---------------------- | -------------------------------------------------- |
-| `pnpm install`         | Install dependencies (frozen lockfile in CI)       |
-| `pnpm build`           | Build all packages to `dist/`                      |
-| `pnpm typecheck`       | Typecheck every package                            |
-| `pnpm lint`            | ESLint over the repository                         |
-| `pnpm test`            | Run the full Vitest suite                          |
-| `pnpm format`          | Format with Prettier                               |
-| `pnpm format:check`    | Verify formatting                                  |
-| `pnpm check`           | Run every check required before merge              |
-| `pnpm verify:artifact` | Pack, install, and smoke-run the published tarball |
-| `pnpm test:live`       | Run opt-in live tests (`OWLIE_LIVE_TESTS=1`)       |
-| `pnpm cli --help`      | Run the built CLI                                  |
+| Command                         | Purpose                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm install`                  | Install dependencies (frozen lockfile in CI)                                           |
+| `pnpm build`                    | Build all packages to `dist/`                                                          |
+| `pnpm typecheck`                | Typecheck every package                                                                |
+| `pnpm lint`                     | ESLint over the repository                                                             |
+| `pnpm test`                     | Run the full Vitest suite                                                              |
+| `pnpm format`                   | Format with Prettier                                                                   |
+| `pnpm format:check`             | Verify formatting                                                                      |
+| `pnpm check`                    | Run every check required before merge                                                  |
+| `pnpm verify:artifact`          | Pack, install, and smoke-run the published tarball                                     |
+| `pnpm verify:extractor-runtime` | Verify the packed direct-media extractor runtime (shims by default; `--real` is gated) |
+| `pnpm test:live`                | Run opt-in live tests (`OWLIE_LIVE_TESTS=1`)                                           |
+| `pnpm cli --help`               | Run the built CLI                                                                      |
 
 `pnpm check` runs: format check, lint, typecheck, tests, dependency-boundary
 check, build, package export validation, and CLI smoke tests.

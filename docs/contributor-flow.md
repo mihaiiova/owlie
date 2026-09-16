@@ -93,20 +93,21 @@ merge/squash commit subject.
 
 Run from the repository root (Node 20+, pnpm pinned via `packageManager`):
 
-| Command                                                   | Purpose                                                                           |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm install`                                            | Install dependencies (frozen lockfile in CI)                                      |
-| `pnpm check`                                              | Every gate required before merge                                                  |
-| `pnpm build`                                              | Build all packages to `dist/`                                                     |
-| `pnpm typecheck`                                          | Typecheck every package                                                           |
-| `pnpm lint`                                               | ESLint over the repository                                                        |
-| `pnpm test`                                               | Full Vitest suite                                                                 |
-| `pnpm test:coverage`                                      | Test suite with coverage report                                                   |
-| `pnpm format`                                             | Format with Prettier                                                              |
-| `pnpm verify:artifact`                                    | Pack, install, and smoke-run the published tarball                                |
-| `pnpm test:live`                                          | Opt-in live tests (`OWLIE_LIVE_TESTS=1`)                                          |
-| `node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js` | Opt-in live release E2E (credentials + network; see `docs/release-validation.md`) |
-| `pnpm cli --help`                                         | Run the built CLI                                                                 |
+| Command                                                   | Purpose                                                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm install`                                            | Install dependencies (frozen lockfile in CI)                                           |
+| `pnpm check`                                              | Every gate required before merge                                                       |
+| `pnpm build`                                              | Build all packages to `dist/`                                                          |
+| `pnpm typecheck`                                          | Typecheck every package                                                                |
+| `pnpm lint`                                               | ESLint over the repository                                                             |
+| `pnpm test`                                               | Full Vitest suite                                                                      |
+| `pnpm test:coverage`                                      | Test suite with coverage report                                                        |
+| `pnpm format`                                             | Format with Prettier                                                                   |
+| `pnpm verify:artifact`                                    | Pack, install, and smoke-run the published tarball                                     |
+| `pnpm verify:extractor-runtime`                           | Verify the packed direct-media extractor runtime (shims by default; `--real` is gated) |
+| `pnpm test:live`                                          | Opt-in live tests (`OWLIE_LIVE_TESTS=1`)                                               |
+| `node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js` | Opt-in live release E2E (credentials + network; see `docs/release-validation.md`)      |
+| `pnpm cli --help`                                         | Run the built CLI                                                                      |
 
 `pnpm check` runs: format check, lint, typecheck, tests, dependency-boundary
 check, build, package export validation, and CLI smoke tests.

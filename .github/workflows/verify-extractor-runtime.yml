@@ -1,0 +1,30 @@
+name: Verify extractor runtime (container)
+
+# Gated, manual check of the packed direct-media extractor against the real
+# local runtime (Python + faster-whisper + ffmpeg + ffprobe) with a
+# pre-provisioned model and HF_HUB_OFFLINE=1. It proves prerequisite discovery
+# and local-only model loading. It never runs in the default suite or ordinary
+# CI and does not tag or publish.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build controlled runtime image
+        run: docker build -f scripts/extractor-runtime/container/Dockerfile -t owlie-extractor-runtime:local .
+
+      - name: Run real-runtime verification in the container
+        env:
+          # Defaults to the controlled Pages corpus audio; override with any
+          # public direct-media URL.
+          OWLIE_EXTRACTOR_MEDIA_URL: ${{ vars.OWLIE_EXTRACTOR_MEDIA_URL }}
+        run: docker run --rm -e OWLIE_EXTRACTOR_MEDIA_URL owlie-extractor-runtime:local
