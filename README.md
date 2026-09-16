@@ -24,7 +24,7 @@ v0.1 delivers a small, pipeable CLI:
 owlie extract "https://youtube.com/watch?v=..."
 
 # Transcribe podcast audio from a direct media URL, Apple Podcasts URL, or server-rendered episode page
-# (requires local Python/faster-whisper, ffmpeg, ffprobe)
+# (requires local Python/faster-whisper, ffmpeg, ffprobe, and a pre-provisioned Whisper model)
 # A direct-media invocation can bound the full operation and download size.
 owlie extract "https://cdn.example.com/episode.mp3" --timeout-ms 900000 --max-media-bytes 536870912
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
@@ -120,7 +120,10 @@ classify IPv4/IPv6 addresses, reject URL userinfo, and omit URL query and
 fragment data from diagnostics. For direct podcast media, `--timeout-ms` applies
 one deadline across resolution, download, ffprobe, ffmpeg, and local Whisper;
 `--max-media-bytes` caps the download (the existing safe HTTP cap remains the
-default). Both values must be positive integers. Cancellation terminates active
+default). Both values must be positive integers. `ffprobe` validates downloaded
+media before transcoding, independently of weak or absent HTTP content types;
+invalid media is rejected. The configured Whisper model must already be local,
+because extraction never downloads model weights. Cancellation terminates active
 local transcription commands and removes temporary downloads/intermediates.
 
 ## Non-goals

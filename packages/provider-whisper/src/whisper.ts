@@ -223,7 +223,7 @@ function parseChunkResults(raw: unknown): ChunkTranscript[] {
 // writing an ordered array of per-chunk results and streaming `PROGRESS i/total`
 // lines to stdout.
 const PYTHON_TRANSCRIBE =
-  "import json,sys; from faster_whisper import WhisperModel; out,model,language,device,compute=sys.argv[1:6]; audio_paths=sys.argv[6:]; m=WhisperModel(model, device=device, compute_type=compute); results=[]; total=len(audio_paths);\nfor i,audio in enumerate(audio_paths):\n    segments,info=m.transcribe(audio, language=None if language == 'auto' else language); rows=[{'start':s.start,'end':s.end,'text':s.text} for s in segments]; text=' '.join(x['text'].strip() for x in rows).strip(); results.append({'text':text,'language':info.language,'segments':rows}); print('PROGRESS %d/%d' % (i+1,total), flush=True)\njson.dump(results, open(out,'w'))";
+  "import json,sys; from faster_whisper import WhisperModel; out,model,language,device,compute=sys.argv[1:6]; audio_paths=sys.argv[6:];\ntry:\n    m=WhisperModel(model, device=device, compute_type=compute, local_files_only=True)\nexcept Exception as error:\n    raise RuntimeError('OWLIE_MODEL_UNAVAILABLE: '+str(error)) from error\nresults=[]; total=len(audio_paths);\nfor i,audio in enumerate(audio_paths):\n    segments,info=m.transcribe(audio, language=None if language == 'auto' else language); rows=[{'start':s.start,'end':s.end,'text':s.text} for s in segments]; text=' '.join(x['text'].strip() for x in rows).strip(); results.append({'text':text,'language':info.language,'segments':rows}); print('PROGRESS %d/%d' % (i+1,total), flush=True)\njson.dump(results, open(out,'w'))";
 
 /** Local faster-whisper transcriber; all configuration is explicit. */
 export class WhisperLocalTranscriber implements Transcriber {
@@ -256,12 +256,21 @@ export class WhisperLocalTranscriber implements Transcriber {
     const outputPath = join(workDir, 'transcript.json');
     options.progress?.emit({ type: 'started', target: mediaPath });
     try {
-      const probe = await this.run(
-        ffprobe,
-        ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', mediaPath],
-        { signal: options.signal },
-      );
+      let probe: string;
+      try {
+        probe = await this.run(
+          ffprobe,
+          ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', mediaPath],
+          { signal: options.signal },
+        );
+      } catch (cause) {
+        if (cause instanceof CancelledError || options.signal?.aborted) throw cause;
+        throw new TranscriptionError('ffprobe determined media is not readable audio', { cause });
+      }
       const duration = parseDuration(probe);
+      if (duration === undefined) {
+        throw new TranscriptionError('ffprobe determined media is not readable audio');
+      }
 
       await this.run(ffmpeg, ['-y', '-i', mediaPath, '-ar', '16000', '-ac', '1', wavPath], {
         signal: options.signal,
@@ -331,6 +340,16 @@ export class WhisperLocalTranscriber implements Transcriber {
         throw new CancelledError('transcription cancelled', { cause });
       if (cause instanceof TranscriptionError || cause instanceof ConfigurationError) throw cause;
       const message = cause instanceof Error ? cause.message : String(cause);
+      if (
+        /OWLIE_MODEL_UNAVAILABLE|model.*(?:not found|local)|(?:not found|local).*model/i.test(
+          message,
+        )
+      ) {
+        throw new TranscriptionError(
+          `Whisper model "${model}" is unavailable locally; pre-provision it before extraction because Owlie never downloads model weights: ${message}`,
+          { cause },
+        );
+      }
       throw new TranscriptionError(
         `local transcription failed; ensure ${ffprobe}, ${ffmpeg}, and ${python} with faster-whisper are installed (install ffmpeg/ffprobe from your package manager and run "python3 -m pip install faster-whisper"): ${message}`,
         { cause },

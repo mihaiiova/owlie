@@ -83,7 +83,9 @@ Direct-media transcription uses local faster-whisper. `owlie setup` offers a
 Transcription section that checks Python 3 with the `faster_whisper` module,
 ffmpeg, and ffprobe, then persists one of `tiny`, `base`, `small`, `medium`,
 `large-v3`, or `large-v3-turbo` (default `small`). It never installs tools or
-model weights. The saved shape is:
+model weights. The selected model must be pre-provisioned locally: extraction
+uses local-files-only model resolution and fails with guidance rather than
+downloading missing weights. The saved shape is:
 
 ```yaml
 transcription:

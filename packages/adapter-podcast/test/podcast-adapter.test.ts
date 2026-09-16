@@ -2,6 +2,7 @@ import { readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TranscriptionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import {
   ApplePodcastsResolver,
@@ -112,6 +113,23 @@ describe('PodcastAdapter extraction', () => {
       text: `transcript of ${url}`,
       metadata: { fake: true, language: 'en' },
     });
+    await expect(readdir(cacheDir)).resolves.toEqual([]);
+  });
+
+  it('maps unreadable downloaded media to extraction failure and removes the work directory', async () => {
+    const adapter = new PodcastAdapter({
+      fetcher: fakeFetcher([]),
+      transcriber: {
+        id: 'failing-transcriber',
+        async transcribe() {
+          throw new TranscriptionError('ffprobe determined media is not readable audio');
+        },
+      },
+      cacheDir,
+    });
+    const item = await adapter.resolveItem({ url });
+
+    await expect(adapter.extract(item)).rejects.toThrow('podcast extraction failed');
     await expect(readdir(cacheDir)).resolves.toEqual([]);
   });
 
