@@ -7,7 +7,7 @@ Commands:
   extract   Extract content from a YouTube video, an article, or an RSS/Atom feed
   resolve   Resolve a URL to its validated audio media URL (no transcription)
   list      List entries in an RSS/Atom feed
-  process   Process text, a document, or a feed's linked items with an LLM
+  process   Process text, a document, a URL, or a feed's linked items with an LLM
   setup     Configure providers and models interactively
   doctor    Report local environment health
   help      Show this help
@@ -60,16 +60,17 @@ const LIST_HELP =
   'metadata, item metadata, and truncation state with --json.';
 
 const PROCESS_HELP =
-  'owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
+  'owlie process [FILE|URL] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
   'owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]\n\n' +
-  'Process plain text or a normalized document with an LLM (DeepSeek or\n' +
-  'OpenAI). Reads exactly one input: a positional file, --input FILE, or\n' +
-  'stdin. Never fetches a URL in single-input mode. --provider selects the\n' +
-  'provider (or use OWLIE_PROVIDER / the saved active provider); --model\n' +
-  'selects a model within it. With --each and a feed URL, processes each\n' +
-  'bounded linked item sequentially and streams one JSONL record per\n' +
-  'attempted entry (success: item, document, result; failure: item, error).\n' +
-  '--limit bounds the batch (default 10, max 500).';
+  'Process plain text, a normalized document, or a URL with an LLM (DeepSeek\n' +
+  'or OpenAI). Reads exactly one input: a positional http(s) URL (extracted\n' +
+  'first through the universal YouTube/podcast/article rule), a positional\n' +
+  'file, --input FILE, or stdin. --provider selects the provider (or use\n' +
+  'OWLIE_PROVIDER / the saved active provider); --model selects a model\n' +
+  'within it. With --each and a feed URL, processes each bounded linked item\n' +
+  'sequentially and streams one JSONL record per attempted entry (success:\n' +
+  'item, document, result; failure: item, error). --limit bounds the batch\n' +
+  '(default 10, max 500).';
 
 const SETUP_HELP =
   'owlie setup\n\n' +

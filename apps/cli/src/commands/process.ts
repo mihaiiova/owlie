@@ -9,6 +9,7 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import {
+  assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
   OwlieError,
@@ -29,8 +30,9 @@ import {
   resolveProviderSettings,
 } from '../config.js';
 import type { ProviderEnvConfig, UserConfig } from '../config.js';
-import { parseLanguages } from './extract.js';
+import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
 import { assertKnownProvider, defaultItemAdapters, resolveProcessor } from '../registry.js';
 import { Spinner } from '../spinner.js';
@@ -138,6 +140,90 @@ function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): Con
   return resolveConfiguredProcessor(provider, settings);
 }
 
+function resolveItemAdapters(
+  options: CliOptions,
+  deps: ProcessDeps,
+  readConfig: () => UserConfig,
+): readonly ItemAdapter[] {
+  return (
+    deps.itemAdapters ??
+    defaultItemAdapters({
+      languages: parseLanguages(options.language),
+      proxy: readConfig().proxy,
+      cacheDir: cacheDir(),
+      whisperModel: readConfig().transcription?.model,
+    })
+  );
+}
+
+/** Extracts a single URL through the universal dispatch, then processes it. */
+async function runUrlProcessing(
+  url: string,
+  args: string[],
+  io: CliIo,
+  options: CliOptions,
+  deps: ProcessDeps,
+  spinner: SpinnerLike,
+): Promise<number> {
+  const [, extra] = args;
+  if (extra !== undefined) {
+    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    return ExitCode.Usage;
+  }
+  if (options.input !== undefined) {
+    if (!options.quiet) io.stderr.write('owlie: cannot combine a URL with --input\n');
+    return ExitCode.Usage;
+  }
+  if (!io.stdin.isTTY) {
+    if (!options.quiet) io.stderr.write('owlie: cannot combine a URL with piped stdin\n');
+    return ExitCode.Usage;
+  }
+
+  const readConfig = deps.readConfig ?? readUserConfig;
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+
+  if (feedAdapter.recognize({ url })) {
+    if (!options.quiet)
+      io.stderr.write('owlie: processing a feed requires --each (owlie process URL --each)\n');
+    return ExitCode.Usage;
+  }
+
+  assertNoUrlCredentials(url);
+  const progress: ProgressSink = {
+    emit: (event) => {
+      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+    },
+  };
+  const { document } = await extractWithFallback(
+    itemAdapters,
+    { url },
+    {
+      signal: deps.signal,
+      progress,
+      onFallback: () => {
+        if (!options.quiet) io.stderr.write(`owlie: ${ARTICLE_FALLBACK_NOTICE}\n`);
+      },
+    },
+  );
+
+  const processor = resolveProcessorForCommand(options, deps);
+  spinner.start('processing');
+  const result = await processor.process(
+    { document, instruction: options.prompt },
+    { signal: deps.signal },
+  );
+  spinner.stop();
+
+  if (options.json) {
+    io.stdout.write(JSON.stringify(result) + '\n');
+  } else {
+    io.stdout.write(result.output + '\n');
+  }
+  return ExitCode.Success;
+}
+
 export async function runProcessCommand(
   args: string[],
   io: CliIo,
@@ -158,6 +244,11 @@ export async function runProcessCommand(
     }
 
     const stdinPiped = !io.stdin.isTTY;
+    const positional = args[0];
+    if (positional !== undefined && /^https?:\/\//i.test(positional)) {
+      return await runUrlProcessing(positional, args, io, options, deps, spinner);
+    }
+
     const needsStdinRead = stdinPiped && args[0] === undefined && options.input === undefined;
     const stdinContent = needsStdinRead ? await io.stdin.read() : undefined;
 
@@ -218,14 +309,7 @@ async function runFeedProcessing(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters =
-    deps.itemAdapters ??
-    defaultItemAdapters({
-      languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
-      cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
-    });
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
 
   if (!feedAdapter.recognize({ url })) {
