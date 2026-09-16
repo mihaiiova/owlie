@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first content extraction and processing CLI",
   "type": "module",
   "license": "Apache-2.0",
