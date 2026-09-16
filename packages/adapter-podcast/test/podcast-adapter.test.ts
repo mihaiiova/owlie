@@ -133,6 +133,29 @@ describe('PodcastAdapter extraction', () => {
     await expect(readdir(cacheDir)).resolves.toEqual([]);
   });
 
+  it('extracts a valid direct-media URL regardless of a missing or generic download content type', async () => {
+    for (const contentType of [null, 'application/octet-stream']) {
+      const downloads: string[] = [];
+      const fetcher = fakeFetcher(downloads);
+      fetcher.fetchToFile = async (mediaUrl, path) => {
+        downloads.push(mediaUrl);
+        await writeFile(path, Buffer.from([0, 255, 1]));
+        return { url: mediaUrl, contentType, bytes: 3 };
+      };
+      const adapter = new PodcastAdapter({
+        fetcher,
+        transcriber: new FakeTranscriber(),
+        cacheDir,
+      });
+
+      const item = await adapter.resolveItem({ url });
+      const document = await adapter.extract(item);
+
+      expect(downloads).toEqual([url]);
+      expect(document).toMatchObject({ canonicalUrl: url, mediaType: 'transcript' });
+    }
+  });
+
   it('keeps the safe default byte cap when no caller override is supplied', async () => {
     let maxResponseBytes: number | undefined;
     const fetcher = fakeFetcher([]);

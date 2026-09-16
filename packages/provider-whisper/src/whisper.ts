@@ -97,6 +97,11 @@ function requiredMediaPath(input: TranscriptionInput): string {
   return input.mediaPath;
 }
 
+/** A subprocess that failed to launch (e.g. a missing binary) rather than running and failing. */
+function isErrnoError(cause: unknown): boolean {
+  return cause instanceof Error && typeof (cause as { code?: unknown }).code === 'string';
+}
+
 function asSegments(value: unknown): TranscriptionSegment[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.flatMap((segment) => {
@@ -265,6 +270,9 @@ export class WhisperLocalTranscriber implements Transcriber {
         );
       } catch (cause) {
         if (cause instanceof CancelledError || options.signal?.aborted) throw cause;
+        // A launch failure (e.g. ffprobe not installed) is a missing prerequisite,
+        // not unreadable media; let the generic handler surface install guidance.
+        if (isErrnoError(cause)) throw cause;
         throw new TranscriptionError('ffprobe determined media is not readable audio', { cause });
       }
       const duration = parseDuration(probe);
@@ -276,7 +284,7 @@ export class WhisperLocalTranscriber implements Transcriber {
         signal: options.signal,
       });
 
-      const ranges = duration !== undefined ? computeChunkRanges(duration) : [];
+      const ranges = computeChunkRanges(duration);
       let chunkPaths: string[];
       if (ranges.length > 1) {
         chunkPaths = [];
@@ -340,11 +348,7 @@ export class WhisperLocalTranscriber implements Transcriber {
         throw new CancelledError('transcription cancelled', { cause });
       if (cause instanceof TranscriptionError || cause instanceof ConfigurationError) throw cause;
       const message = cause instanceof Error ? cause.message : String(cause);
-      if (
-        /OWLIE_MODEL_UNAVAILABLE|model.*(?:not found|local)|(?:not found|local).*model/i.test(
-          message,
-        )
-      ) {
+      if (/OWLIE_MODEL_UNAVAILABLE/.test(message)) {
         throw new TranscriptionError(
           `Whisper model "${model}" is unavailable locally; pre-provision it before extraction because Owlie never downloads model weights: ${message}`,
           { cause },

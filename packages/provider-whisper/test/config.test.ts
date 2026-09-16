@@ -120,6 +120,21 @@ describe('WhisperLocalTranscriber', () => {
     ).rejects.toThrow('not readable audio');
   });
 
+  it('reports a missing ffprobe binary as a prerequisite failure, not unreadable media', async () => {
+    const transcriber = new WhisperLocalTranscriber({}, async (file) => {
+      if (file === 'ffprobe') {
+        const error = new Error('spawn ffprobe ENOENT') as Error & { code: string };
+        error.code = 'ENOENT';
+        throw error;
+      }
+      return '';
+    });
+
+    await expect(
+      transcriber.transcribe({ mediaPath: '/tmp/audio.mp3', metadata: {} }),
+    ).rejects.toThrow('ensure');
+  });
+
   it('guides operators to pre-provision a missing local model', async () => {
     const transcriber = new WhisperLocalTranscriber({}, async (file) => {
       if (file === 'ffprobe') return JSON.stringify({ format: { duration: '1' } });
