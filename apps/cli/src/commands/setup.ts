@@ -173,7 +173,9 @@ export async function runSetupCommand(
       const existingProfile = existing.providers?.[providerId] ?? {};
 
       // auth (API key; never shown as a default)
-      const apiKeyInput = await prompt('API key');
+      const apiKeyInput = await prompt(
+        existingProfile.apiKey ? 'API key (already set; press Enter to keep)' : 'API key',
+      );
       const apiKey = apiKeyInput.trim() || existingProfile.apiKey;
       if (!apiKey) {
         if (!options.quiet) io.stderr.write('owlie: API key is required\n');

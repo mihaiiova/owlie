@@ -4,7 +4,13 @@ import { access, mkdir } from 'node:fs/promises';
 import type { CliIo } from '../io.js';
 import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
-import { cacheDir, configDir, readUserConfig } from '../config.js';
+import {
+  cacheDir,
+  configDir,
+  loadDotEnv,
+  readUserConfig,
+  resolveProviderSettings,
+} from '../config.js';
 import type { UserConfig } from '../config.js';
 import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
 
@@ -13,6 +19,7 @@ export interface DoctorDeps {
   dirWritable(dir: string): Promise<boolean>;
   env: Record<string, string | undefined>;
   readConfig?: () => UserConfig;
+  loadFile?: (path: string) => Record<string, string>;
   toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
 }
 
@@ -41,7 +48,8 @@ export const defaultDoctorDeps: DoctorDeps = {
 export interface ProviderReport {
   id: string;
   apiKey: 'set' | 'not set';
-  model: 'set' | 'not set';
+  /** Effective model id (never a secret), or null when none is configured. */
+  model: string | null;
 }
 
 export interface TranscriptionReport {
@@ -64,15 +72,15 @@ export interface DoctorReport {
 
 function providerReports(
   env: Record<string, string | undefined>,
-  config: UserConfig,
+  readConfig: () => UserConfig,
+  loadFile: (path: string) => Record<string, string>,
 ): ProviderReport[] {
   return PROVIDER_IDS.map((id) => {
-    const prefix = id.toUpperCase();
-    const profile = config.providers?.[id];
+    const settings = resolveProviderSettings(id, {}, env, loadFile, readConfig);
     return {
       id,
-      apiKey: env[`${prefix}_API_KEY`] || profile?.apiKey ? 'set' : 'not set',
-      model: env[`${prefix}_MODEL`] || profile?.model ? 'set' : 'not set',
+      apiKey: settings.apiKey ? 'set' : 'not set',
+      model: settings.model ?? null,
     };
   });
 }
@@ -88,14 +96,15 @@ async function collectDoctorReport(deps: DoctorDeps): Promise<DoctorReport> {
     toolAvailable('python3', ['-c', 'import faster_whisper']),
   ]);
 
-  const config = deps.readConfig?.() ?? {};
+  const readConfig: () => UserConfig = deps.readConfig ?? (() => ({}));
+  const config = readConfig();
 
   return {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
     adapters: [...ADAPTER_IDS],
-    providers: providerReports(deps.env, config),
+    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
     transcription: {
@@ -116,7 +125,9 @@ function formatDoctorReport(report: DoctorReport): string {
     `  Providers: ${report.providers.map((p) => p.id).join(', ')}`,
   ];
   for (const provider of report.providers) {
-    lines.push(`  ${provider.id}: api key ${provider.apiKey}, model ${provider.model}`);
+    lines.push(
+      `  ${provider.id}: api key ${provider.apiKey}, model ${provider.model ?? 'not set'}`,
+    );
   }
   lines.push(
     `  Transcription: whisper ${report.transcription.whisper}, ffmpeg ${report.transcription.ffmpeg}, ffprobe ${report.transcription.ffprobe}, model ${report.transcription.model}`,
