@@ -8,5 +8,9 @@ and changelog the single published `@owlieio/owlie` package.
 - Run `pnpm version` to consume changesets and bump the version (semver).
 - `@owlieio/owlie` is below `1.0`; consumers should pin exact versions until `1.0`.
 
-Publishing is **not** automated. npm versions are immutable and must never be
-overwritten. A release requires explicit repository-owner approval.
+Publishing is automated via npm Trusted Publishers (OIDC) — see
+[ADR 0027](docs/decisions/0027-trusted-publishing.md). The `publish.yml`
+workflow publishes `@owlieio/owlie` with a short-lived OIDC credential; no npm
+token or 2FA is involved. npm versions are immutable and must never be
+overwritten, so a release still requires dispatching the publish workflow after
+release validation passes.

@@ -46,3 +46,28 @@ describe('pages deployment workflow (static)', () => {
     expect(pages).toContain('path: e2e/corpus');
   });
 });
+
+describe('publish workflow (static)', () => {
+  const publish = read('.github/workflows/publish.yml');
+
+  it('is a manually dispatched workflow with an expected_version input', () => {
+    expect(publish).toContain('workflow_dispatch');
+    expect(publish).toContain('expected_version');
+  });
+
+  it('uses OIDC (id-token: write) for npm trusted publishing', () => {
+    expect(publish).toMatch(/id-token:\s*write/);
+  });
+
+  it('stores no npm token or secret', () => {
+    expect(publish).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN|secrets\.NPM/);
+  });
+
+  it('publishes with public access', () => {
+    expect(publish).toContain('npm publish --access public');
+  });
+
+  it('gates on main and version via the release preflight', () => {
+    expect(publish).toContain('scripts/release-e2e/preflight.mjs');
+  });
+});

@@ -83,16 +83,24 @@ gate is operational before it is used for a real release.
 
 ## Publishing the tested artifact
 
-Do not re-run `pnpm publish` locally. Publish the exact tarball that passed
-validation:
+Publishing is automated via npm Trusted Publishers (OIDC); see
+[ADR 0027](decisions/0027-trusted-publishing.md). After the validation run
+passes, dispatch the publish workflow on `main`:
+
+1. Run **Actions → Publish to npm → Run workflow**, entering the same
+   `expected_version`.
+2. The workflow rebuilds from source, runs the offline artifact smoke test,
+   and publishes with `npm publish --access public` using a short-lived OIDC
+   credential — no npm token or 2FA is involved.
+
+Fallback (manual, only when trusted publishing is unavailable): publish the
+exact tarball that passed validation:
 
 ```bash
 # Download and verify the uploaded tarball against the manifest checksum.
 sha256sum owlieio-owlie-<version>.tgz   # compare to candidate-manifest.json sha256
 npm publish owlieio-owlie-<version>.tgz --access public
 ```
-
-Publishing remains manual and requires explicit repository-owner approval.
 
 ## Retry and failure semantics
 
