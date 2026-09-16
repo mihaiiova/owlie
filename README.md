@@ -196,10 +196,10 @@ v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and
 `@ai-sdk/openai`) behind the provider-neutral `ContentProcessor` contract.
 
-Only `owlie` is published. The `@owlieio/*` packages are internal (private) —
-they organize the code and enforce dependency boundaries, and are bundled into
-the `owlie` package at build time. They are never published to npm, so no npm
-scope needs to be claimed.
+Only `@owlieio/owlie` is published. The other `@owlieio/*` packages are internal
+(private) — they organize the code and enforce dependency boundaries, and are
+bundled into the `@owlieio/owlie` package at build time. They are never
+published to npm; only the `@owlieio` scope is claimed for the published CLI.
 
 ## Development setup
 

@@ -1,4 +1,4 @@
-# owlie
+# @owlieio/owlie
 
 Local-first content extraction and processing, as a command-line tool.
 
