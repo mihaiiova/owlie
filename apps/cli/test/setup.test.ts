@@ -170,6 +170,22 @@ describe('owlie setup', () => {
     expect(writes).toHaveLength(0);
   });
 
+  it('probes ffmpeg and ffprobe with -version (not --version)', async () => {
+    const calls: Array<[string, readonly string[] | undefined]> = [];
+    const { deps } = makeSetup({
+      select: scriptedSelect(['Transcription', 'medium']),
+      toolAvailable: async (tool, args) => {
+        calls.push([tool, args]);
+        return true;
+      },
+      readConfig: () => ({}),
+    });
+    const { io } = capture();
+    await run(['setup'], io, deps);
+    expect(calls.find(([tool]) => tool === 'ffmpeg')?.[1]).toEqual(['-version']);
+    expect(calls.find(([tool]) => tool === 'ffprobe')?.[1]).toEqual(['-version']);
+  });
+
   it('rejects an unknown provider', async () => {
     const { deps } = makeSetup({ select: scriptedSelect(['LLM provider', 'anthropic']) });
     const { io, stderr } = capture();
