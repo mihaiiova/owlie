@@ -150,6 +150,7 @@ describe('WhisperLocalTranscriber chunked transcription', () => {
   it('propagates mid-transcription cancellation as CancelledError', async () => {
     const controller = new AbortController();
     const transcriber = new WhisperLocalTranscriber({}, async (file) => {
+      if (file === 'ffprobe') return JSON.stringify({ format: { duration: '1' } });
       if (file === 'python3') {
         controller.abort();
         throw new CancelledError('transcription cancelled', {});
