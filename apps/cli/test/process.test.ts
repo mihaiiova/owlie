@@ -7,11 +7,12 @@ import type {
   ContentCollection,
   ContentItem,
   ContentProcessor,
+  ExtractionOptions,
   ItemAdapter,
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
-import { ProcessingError } from '@owlieio/core';
+import { NotHandledError, ProcessingError } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -60,7 +61,8 @@ function articleAdapter(): ItemAdapter {
         metadata: {},
       };
     },
-    async extract(item: ContentItem) {
+    async extract(item: ContentItem, options?: ExtractionOptions) {
+      options?.progress?.emit({ type: 'started', target: item.id });
       return {
         schemaVersion: 1,
         id: item.id,
@@ -368,6 +370,31 @@ describe('process command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('Summarize:article body\n');
     expect(requests[0]?.document.text).toBe('article body');
+    expect(requests[0]?.document.sourceType).toBe('article');
+  });
+
+  it('extracts a URL that defers to the article adapter', async () => {
+    const { processor, requests } = makeFakeProcessor();
+    const podcast: ItemAdapter = {
+      id: 'podcast',
+      sourceType: 'podcast',
+      recognize: (locator) => locator.url.startsWith('https://'),
+      async resolveItem() {
+        throw new NotHandledError('no podcast audio enclosure found');
+      },
+      async extract() {
+        throw new Error('unreachable');
+      },
+    };
+    const { io, stdout, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'Summarize'],
+      io,
+      deps({ processor, itemAdapters: [podcast, articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe('Summarize:article body\n');
+    expect(stderr()).toContain('extracting article text');
     expect(requests[0]?.document.sourceType).toBe('article');
   });
 
