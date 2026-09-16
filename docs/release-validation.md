@@ -88,8 +88,8 @@ validation:
 
 ```bash
 # Download and verify the uploaded tarball against the manifest checksum.
-sha256sum owlie-<version>.tgz   # compare to candidate-manifest.json sha256
-npm publish owlie-<version>.tgz
+sha256sum owlieio-owlie-<version>.tgz   # compare to candidate-manifest.json sha256
+npm publish owlieio-owlie-<version>.tgz --access public
 ```
 
 Publishing remains manual and requires explicit repository-owner approval.

@@ -86,7 +86,7 @@ inactive issues and PRs after 60 days and closes them 14 days later.
 
 ## Releasing
 
-Publishing is not automated. Only the `owlie` package is published; the
-`@owlieio/*` packages are internal and never published. A release requires
+Publishing is not automated. Only the `@owlieio/owlie` package is published; the
+other `@owlieio/*` packages are internal and never published. A release requires
 explicit repository-owner approval; npm versions are immutable and must never
 be overwritten.

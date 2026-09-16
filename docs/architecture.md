@@ -19,8 +19,8 @@ apps/cli (owlie, published)
 @owlieio/testing ─▶ @owlieio/core
 ```
 
-Only `owlie` is published. The `@owlieio/*` packages are internal (private) and
-are bundled into `owlie` at build time.
+Only `@owlieio/owlie` is published. The other `@owlieio/*` packages are internal
+(private) and are bundled into `@owlieio/owlie` at build time.
 
 ## Dependency direction
 

@@ -4,6 +4,9 @@
   "description": "Local-first content extraction and processing CLI",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "owlie": "./dist/bin.js"
   },

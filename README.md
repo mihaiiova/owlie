@@ -190,7 +190,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/provider-deepseek` | DeepSeek `ContentProcessor`                                     |
 | `@owlieio/provider-openai`   | OpenAI `ContentProcessor`                                       |
 | `@owlieio/provider-whisper`  | Local faster-whisper `Transcriber`                              |
-| `owlie`                      | The `owlie` command-line interface (published)                  |
+| `@owlieio/owlie`             | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and
