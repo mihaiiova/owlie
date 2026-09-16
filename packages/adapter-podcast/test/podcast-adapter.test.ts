@@ -115,6 +115,47 @@ describe('PodcastAdapter extraction', () => {
     await expect(readdir(cacheDir)).resolves.toEqual([]);
   });
 
+  it('keeps the safe default byte cap when no caller override is supplied', async () => {
+    let maxResponseBytes: number | undefined;
+    const fetcher = fakeFetcher([]);
+    const originalFetchToFile = fetcher.fetchToFile!;
+    fetcher.fetchToFile = async (mediaUrl, path, options) => {
+      maxResponseBytes = options?.policy?.maxResponseBytes;
+      return originalFetchToFile(mediaUrl, path, options);
+    };
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+    });
+
+    const item = await adapter.resolveItem({ url });
+    await adapter.extract(item);
+
+    expect(maxResponseBytes).toBe(512 * 1024 * 1024);
+  });
+
+  it('applies a caller-provided byte cap to the media download', async () => {
+    let maxResponseBytes: number | undefined;
+    const fetcher = fakeFetcher([]);
+    const originalFetchToFile = fetcher.fetchToFile!;
+    fetcher.fetchToFile = async (mediaUrl, path, options) => {
+      maxResponseBytes = options?.policy?.maxResponseBytes;
+      return originalFetchToFile(mediaUrl, path, options);
+    };
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber: new FakeTranscriber(),
+      cacheDir,
+      mediaFetchPolicy: { maxResponseBytes: 42 },
+    });
+
+    const item = await adapter.resolveItem({ url });
+    await adapter.extract(item);
+
+    expect(maxResponseBytes).toBe(42);
+  });
+
   it('passes a cancellation signal through resolveItem to the page resolver', async () => {
     const fetcher = fakeFetcher([]);
     fetcher.fetch = async (pageUrl) => ({

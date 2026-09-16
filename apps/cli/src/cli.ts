@@ -22,6 +22,10 @@ export interface CliOptions {
   provider?: string;
   language?: string;
   limit?: string;
+  /** End-to-end extraction deadline in milliseconds for direct media. */
+  timeoutMs?: string;
+  /** Maximum direct-media download size in bytes. */
+  maxMediaBytes?: string;
   /** Stable name of the selected audio resolver (from a resolver-selection flag). */
   resolver?: string;
 }
@@ -59,6 +63,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--provider',
     '--language',
     '--limit',
+    '--timeout-ms',
+    '--max-media-bytes',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -94,6 +100,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--limit':
         options.limit = value;
+        break;
+      case '--timeout-ms':
+        options.timeoutMs = value;
+        break;
+      case '--max-media-bytes':
+        options.maxMediaBytes = value;
         break;
     }
   };

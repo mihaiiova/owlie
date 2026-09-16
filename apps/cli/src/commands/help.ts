@@ -21,6 +21,8 @@ Options:
   --model MODEL    Select the model within the provider (e.g. deepseek-chat)
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
+  --timeout-ms N   Bound one direct-media extraction operation
+  --max-media-bytes N  Cap a direct-media download in bytes
   --each           Process each linked item of an RSS/Atom feed (process only)
   --env-file PATH  Load an explicit environment file
 
@@ -29,13 +31,17 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N]\n\n' +
+  'owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-media-bytes N]\n\n' +
   'Extract content from a URL. A YouTube video or static article writes its\n' +
   'normalized text to stdout, or a JSON NormalizedDocument with --json. An\n' +
   'RSS/Atom feed URL writes a single JSON envelope of its bounded linked items,\n' +
   'each with its URL, title, and normalized document or structured error.\n' +
   '--limit bounds feed extraction (default 10, max 500). --language sets a\n' +
   'comma-separated language priority list for YouTube transcripts (default en).\n' +
+  '--timeout-ms applies one positive end-to-end deadline to direct-media\n' +
+  'resolution, download, probing, transcoding, and transcription.\n' +
+  '--max-media-bytes caps a direct-media download; omit it to retain the safe\n' +
+  'default.\n' +
   'A resolver-selection flag (--podcast-media, --podcast-page, --podcast-apple)\n' +
   'asserts which podcast resolver finds the audio URL; at most one may be\n' +
   'supplied and it overrides URL recognition without fallback.';

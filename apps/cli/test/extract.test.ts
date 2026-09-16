@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentItem, ItemAdapter, NormalizedDocument } from '@owlieio/core';
-import { CaptionsUnavailableError } from '@owlieio/core';
+import { CancelledError, CaptionsUnavailableError } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -90,6 +90,37 @@ describe('extract command', () => {
     expect(code).toBe(ExitCode.Usage);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('requires a URL');
+  });
+
+  it('applies one extraction deadline through the adapter signal', async () => {
+    const adapter = makeFakeAdapter();
+    adapter.extract = async (item, options) => {
+      await new Promise<void>((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => reject(new CancelledError('extraction cancelled')),
+          { once: true },
+        );
+      });
+      throw new Error(`unreachable: ${item.id}`);
+    };
+    const { io, stdout, stderr } = capture();
+    const code = await run(['extract', URL, '--timeout-ms', '10'], io, deps(adapter));
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('extraction cancelled');
+  });
+
+  it.each([
+    ['--timeout-ms', '0'],
+    ['--max-media-bytes', '-1'],
+    ['--timeout-ms', '9007199254740992'],
+  ])('rejects invalid direct-media limit %s=%s as a usage error', async (flag, value) => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(['extract', URL, flag, value], io, deps(makeFakeAdapter()));
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain(`${flag} must be a positive integer`);
   });
 
   it('rejects extra arguments as a usage error', async () => {
