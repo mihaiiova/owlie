@@ -92,6 +92,29 @@ describe('extract resolver-selection flags', () => {
     expect(stdout()).toBe(`transcript of ${MEDIA_URL}\n`);
   });
 
+  it('passes --max-media-bytes to the direct-media download seam', async () => {
+    let maxResponseBytes: number | undefined;
+    const mediaFetcher: HttpFetcher = {
+      async fetch() {
+        throw new Error('direct media resolver must not fetch');
+      },
+      async fetchToFile(url, path, options) {
+        maxResponseBytes = options?.policy?.maxResponseBytes;
+        await writeFile(path, Buffer.from([0, 1]));
+        return { url, contentType: 'audio/mpeg', bytes: 2 };
+      },
+    };
+    const { io, stdout } = capture();
+    const code = await run(
+      ['extract', MEDIA_URL, '--podcast-media', '--max-media-bytes', '123'],
+      io,
+      { extract: { fetcher: mediaFetcher, transcriber, cacheDir } },
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toBe(`transcript of ${MEDIA_URL}\n`);
+    expect(maxResponseBytes).toBe(123);
+  });
+
   it('rejects an incompatible resolver flag as a usage error (no article fallback)', async () => {
     const { io, stdout, stderr } = capture();
     const code = await run(

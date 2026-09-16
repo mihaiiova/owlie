@@ -36,6 +36,7 @@ export function defaultItemAdapters(
     proxy?: TranscriptProxy;
     cacheDir?: string;
     whisperModel?: string;
+    mediaMaxBytes?: number;
   } = {},
 ): ItemAdapter[] {
   const podcastFetcher = new DefaultHttpFetcher();
@@ -45,6 +46,10 @@ export function defaultItemAdapters(
       fetcher: podcastFetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
       cacheDir: options.cacheDir ?? '.owlie-cache',
+      mediaFetchPolicy:
+        options.mediaMaxBytes === undefined
+          ? undefined
+          : { maxResponseBytes: options.mediaMaxBytes },
       resolvers: createPodcastResolvers(podcastFetcher),
     }),
     new ArticleAdapter(),

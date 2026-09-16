@@ -1,6 +1,7 @@
+import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import type { UserConfig } from 'owlie';
-import { ExitCode, listProviderModels, run } from 'owlie';
+import { defaultToolAvailable, ExitCode, listProviderModels, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 import {
   CancelledError,
@@ -51,6 +52,18 @@ function makeSetup(opts: {
   };
   return { deps, writes };
 }
+
+describe('default setup prerequisite probe', () => {
+  it('treats a nonzero tool exit as unavailable through its spawn seam', async () => {
+    const spawnTool = (() => {
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit('exit', 1));
+      return child;
+    }) as unknown as typeof import('node:child_process').spawn;
+
+    await expect(defaultToolAvailable('ffmpeg', ['--version'], spawnTool)).resolves.toBe(false);
+  });
+});
 
 describe('owlie setup', () => {
   it('navigates section → provider → key → live models → model, then persists a profile', async () => {

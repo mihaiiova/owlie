@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExitCode, run, VERSION } from 'owlie';
+import { ExitCode, parseArgs, run, VERSION } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
 function capture() {
@@ -48,6 +48,20 @@ describe('--help', () => {
     expect(stdout()).not.toContain('search');
     expect(stdout()).not.toContain('config');
     expect(stderr()).toBe('');
+  });
+});
+
+describe('direct-media limit flags', () => {
+  it('parses timeout and byte limits as command options', () => {
+    expect(
+      parseArgs([
+        'extract',
+        'https://cdn.example.com/episode.mp3',
+        '--timeout-ms=5000',
+        '--max-media-bytes',
+        '1024',
+      ]).options,
+    ).toMatchObject({ timeoutMs: '5000', maxMediaBytes: '1024' });
   });
 });
 

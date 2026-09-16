@@ -1,10 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { transcriberContract } from '@owlieio/testing/contract-tests';
+import { CancelledError } from '@owlieio/core';
 import {
   DEFAULT_WHISPER_COMPUTE_TYPE,
   DEFAULT_WHISPER_LANGUAGE,
   DEFAULT_WHISPER_MODEL,
+  runProcess,
   WhisperLocalTranscriber,
 } from '@owlieio/provider-whisper';
 import type { SubprocessRunner } from '@owlieio/provider-whisper';
@@ -35,7 +37,63 @@ describe('whisper defaults', () => {
   });
 });
 
+describe('runProcess', () => {
+  it('terminates an active child when its signal aborts', async () => {
+    const controller = new AbortController();
+    let markReady: (() => void) | undefined;
+    const ready = new Promise<void>((resolve) => {
+      markReady = resolve;
+    });
+    const pending = runProcess(
+      process.execPath,
+      ['-e', "process.stdout.write('ready\\n'); setInterval(() => {}, 1_000)"],
+      {
+        signal: controller.signal,
+        onStdout: (chunk) => {
+          if (chunk.includes('ready')) markReady?.();
+        },
+      },
+    );
+
+    try {
+      await ready;
+      controller.abort();
+      await expect(pending).rejects.toBeInstanceOf(CancelledError);
+    } finally {
+      controller.abort();
+      await pending.catch(() => undefined);
+    }
+  });
+});
+
 describe('WhisperLocalTranscriber', () => {
+  it('passes cancellation to the active subprocess runner', async () => {
+    const controller = new AbortController();
+    const transcriber = new WhisperLocalTranscriber(
+      {},
+      async (_file, _args, options) =>
+        new Promise<string>((_resolve, reject) => {
+          if (options.signal?.aborted) {
+            reject(new CancelledError('subprocess cancelled'));
+            return;
+          }
+          options.signal?.addEventListener(
+            'abort',
+            () => reject(new CancelledError('subprocess cancelled')),
+            { once: true },
+          );
+        }),
+    );
+    const pending = transcriber.transcribe(
+      { mediaPath: '/tmp/audio.mp3', metadata: {} },
+      {
+        signal: controller.signal,
+      },
+    );
+    controller.abort();
+    await expect(pending).rejects.toThrow('transcription cancelled');
+  });
+
   it('runs tools with argument arrays and returns timing metadata', async () => {
     const calls: Array<{ file: string; args: readonly string[] }> = [];
     const transcriber = new WhisperLocalTranscriber({}, async (file, args, options) => {

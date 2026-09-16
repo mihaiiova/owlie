@@ -79,6 +79,40 @@ export interface ExtractBatchEnvelope {
   truncated: boolean;
 }
 
+function parsePositiveInteger(value: string | undefined, flag: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
+    throw new ConfigurationError(`${flag} must be a positive integer`);
+  }
+  return Number(value);
+}
+
+/** Combines process cancellation with the extract command's single operation deadline. */
+function deadlineSignal(
+  parent: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+): {
+  signal: AbortSignal | undefined;
+  cleanup: () => void;
+} {
+  if (timeoutMs === undefined) return { signal: parent, cleanup: () => {} };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onAbort = (): void => controller.abort();
+  timer.unref();
+  if (parent) {
+    if (parent.aborted) controller.abort();
+    else parent.addEventListener('abort', onAbort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parent?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
 function toExtractError(error: unknown): ExtractBatchError {
   return toBatchError(error, 'extraction');
 }
@@ -99,10 +133,29 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
+  let timeoutMs: number | undefined;
+  let maxMediaBytes: number | undefined;
+  try {
+    timeoutMs = parsePositiveInteger(options.timeoutMs, '--timeout-ms');
+    maxMediaBytes = parsePositiveInteger(options.maxMediaBytes, '--max-media-bytes');
+  } catch (error) {
+    if (!options.quiet) io.stderr.write(`owlie: ${(error as Error).message}\n`);
+    return ExitCode.Usage;
+  }
+
   const readConfig = deps.readConfig ?? readUserConfig;
 
   if (options.resolver !== undefined) {
-    return runResolverExtraction(url, io, options, deps, options.resolver, readConfig);
+    return runResolverExtraction(
+      url,
+      io,
+      options,
+      deps,
+      options.resolver,
+      readConfig,
+      timeoutMs,
+      maxMediaBytes,
+    );
   }
 
   const itemAdapters =
@@ -112,6 +165,7 @@ export async function runExtractCommand(
       proxy: readConfig().proxy,
       cacheDir: cacheDir(),
       whisperModel: readConfig().transcription?.model,
+      mediaMaxBytes: maxMediaBytes,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
   const spinner =
@@ -126,7 +180,7 @@ export async function runExtractCommand(
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
-    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps);
+    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps, timeoutMs);
   } catch (error) {
     spinner.stop();
     if (!options.quiet) {
@@ -144,6 +198,7 @@ async function runDirectExtraction(
   spinner: SpinnerLike,
   options: CliOptions,
   deps: ExtractDeps,
+  timeoutMs: number | undefined,
 ): Promise<number> {
   assertNoUrlCredentials(url);
   const progress: ProgressSink = {
@@ -152,19 +207,25 @@ async function runDirectExtraction(
       else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     },
   };
-  const { document } = await extractWithFallback(
-    itemAdapters,
-    { url },
-    {
-      signal: deps.signal,
-      progress,
-      onFallback: (error) => {
-        if (!options.quiet) {
-          io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
-        }
+  const operation = deadlineSignal(deps.signal, timeoutMs);
+  let document: NormalizedDocument;
+  try {
+    ({ document } = await extractWithFallback(
+      itemAdapters,
+      { url },
+      {
+        signal: operation.signal,
+        progress,
+        onFallback: (error) => {
+          if (!options.quiet) {
+            io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
+          }
+        },
       },
-    },
-  );
+    ));
+  } finally {
+    operation.cleanup();
+  }
   spinner.stop();
 
   if (options.json) {
@@ -188,6 +249,8 @@ async function runResolverExtraction(
   deps: ExtractDeps,
   resolverName: string,
   readConfig: () => UserConfig,
+  timeoutMs: number | undefined,
+  maxMediaBytes: number | undefined,
 ): Promise<number> {
   const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
   const transcriber =
@@ -201,12 +264,13 @@ async function runResolverExtraction(
       },
     });
 
+  const operation = deadlineSignal(deps.signal, timeoutMs);
   try {
     assertNoUrlCredentials(url);
     const resolved = await resolvePodcastAudio(url, {
       fetcher,
       resolverName,
-      signal: deps.signal,
+      signal: operation.signal,
     });
     const item: ContentItem = {
       id: `podcast:episode:${resolved.mediaUrl}`,
@@ -214,14 +278,20 @@ async function runResolverExtraction(
       canonicalUrl: resolved.mediaUrl,
       metadata: { platform: 'podcast', ...(resolved.metadata ?? {}) },
     };
-    const adapter = new PodcastAdapter({ fetcher, transcriber, cacheDir: workCacheDir });
+    const adapter = new PodcastAdapter({
+      fetcher,
+      transcriber,
+      cacheDir: workCacheDir,
+      mediaFetchPolicy:
+        maxMediaBytes === undefined ? undefined : { maxResponseBytes: maxMediaBytes },
+    });
     const progress: ProgressSink = {
       emit: (event) => {
         if (event.type === 'started') spinner.start(`extracting ${event.target}`);
         else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
       },
     };
-    const document = await adapter.extract(item, { signal: deps.signal, progress });
+    const document = await adapter.extract(item, { signal: operation.signal, progress });
     spinner.stop();
 
     if (options.json) {
@@ -241,6 +311,8 @@ async function runResolverExtraction(
       io.stderr.write(`owlie: ${message}\n`);
     }
     return exitCodeForError(error);
+  } finally {
+    operation.cleanup();
   }
 }
 

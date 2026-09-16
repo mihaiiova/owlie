@@ -30,7 +30,7 @@ error (code 2) rather than pretending to process content.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N]
+owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]
 owlie list FEED_URL [--limit N] [--json]
 owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]
@@ -54,8 +54,14 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
   `--podcast-apple`) asserts which podcast resolver finds the audio URL; at
   most one may be supplied, it overrides URL recognition, and a URL the selected
   resolver does not recognize is a usage error (exit code 2) rather than a
-  fallback to another resolver or the article adapter. Long media is transcribed
-  in bounded five-minute chunks (two-second overlap) with monotonic progress.
+  fallback to another resolver or the article adapter. `--timeout-ms N` and
+  `--max-media-bytes N` are positive integers for direct podcast-media
+  extraction: the former creates one deadline shared by audio resolution,
+  download, ffprobe, ffmpeg, and local faster-whisper; the latter bounds the
+  binary download, retaining its safe default when omitted. Cancellation or the
+  deadline terminates the active local command and cleans temporary media and
+  transcription artifacts. Long media is transcribed in bounded five-minute
+  chunks (two-second overlap) with monotonic progress.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
   extraction and always writes a single JSON envelope (regardless of `--json`)
   with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.

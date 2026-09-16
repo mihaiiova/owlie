@@ -41,11 +41,26 @@ export const DEFAULT_WHISPER_DEVICE = 'auto';
 export const DEFAULT_CHUNK_SECONDS = 300;
 export const DEFAULT_CHUNK_OVERLAP_SECONDS = 2;
 
-const runProcess: SubprocessRunner = (file, args, options) =>
+export const runProcess: SubprocessRunner = (file, args, options) =>
   new Promise((resolve, reject) => {
-    const child = spawn(file, [...args], { signal: options.signal });
+    const child = spawn(file, [...args]);
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const settle = (callback: () => void): void => {
+      if (settled) return;
+      settled = true;
+      options.signal?.removeEventListener('abort', onAbort);
+      callback();
+    };
+    const onAbort = (): void => {
+      // Do not rely on Node's optional spawn signal support: explicitly stop
+      // the active command so download/transcode/transcription cancellation is
+      // deterministic across every local prerequisite.
+      child.kill('SIGTERM');
+    };
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener('abort', onAbort, { once: true });
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
@@ -55,20 +70,24 @@ const runProcess: SubprocessRunner = (file, args, options) =>
       stderr += chunk.toString();
     });
     child.on('error', (error) => {
-      if (options.signal?.aborted) {
-        reject(new CancelledError('transcription cancelled', { cause: error }));
-      } else {
-        reject(error);
-      }
+      settle(() => {
+        if (options.signal?.aborted) {
+          reject(new CancelledError('transcription cancelled', { cause: error }));
+        } else {
+          reject(error);
+        }
+      });
     });
     child.on('close', (code) => {
-      if (options.signal?.aborted) {
-        reject(new CancelledError('transcription cancelled'));
-      } else if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(new Error(`${file} exited with code ${code}: ${stderr.trim()}`));
-      }
+      settle(() => {
+        if (options.signal?.aborted) {
+          reject(new CancelledError('transcription cancelled'));
+        } else if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(new Error(`${file} exited with code ${code}: ${stderr.trim()}`));
+        }
+      });
     });
   });
 

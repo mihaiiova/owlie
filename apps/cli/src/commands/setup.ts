@@ -97,6 +97,27 @@ export function defaultPrompt(question: string, options?: { default?: string }):
     });
 }
 
+/** Probes an executable and treats any nonzero exit as unavailable. */
+export async function defaultToolAvailable(
+  tool: string,
+  args: readonly string[] = ['--version'],
+  spawnTool: typeof spawn = spawn,
+): Promise<boolean> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawnTool(tool, [...args], { stdio: 'ignore' });
+      child.once('error', reject);
+      child.once('exit', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`${tool} exited with code ${code ?? 'unknown'}`));
+      });
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Interactive numbered menu backed by stdin/stderr (used as the default). */
 export function defaultSelect(
   question: string,
@@ -130,20 +151,7 @@ export async function runSetupCommand(
   const prompt = deps.prompt ?? defaultPrompt;
   const select = deps.select ?? defaultSelect;
   const listModels = deps.listModels ?? listProviderModels;
-  const toolAvailable =
-    deps.toolAvailable ??
-    (async (tool: string, args: readonly string[] = ['--version']) => {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const child = spawn(tool, [...args], { stdio: 'ignore' });
-          child.once('error', reject);
-          child.once('exit', () => resolve());
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    });
+  const toolAvailable = deps.toolAvailable ?? defaultToolAvailable;
 
   const existing = readConfig();
 

@@ -315,6 +315,8 @@ export interface PodcastAdapterOptions {
   fetcher: HttpFetcher;
   transcriber: Transcriber;
   cacheDir: string;
+  /** Bounded-download policy supplied by the invoking application. */
+  mediaFetchPolicy?: HttpFetchPolicy;
   resolvers?: readonly PodcastAudioResolver[];
 }
 
@@ -326,12 +328,14 @@ export class PodcastAdapter implements ItemAdapter {
   private readonly fetcher?: HttpFetcher;
   private readonly transcriber?: Transcriber;
   private readonly cacheDir?: string;
+  private readonly mediaFetchPolicy: HttpFetchPolicy;
   private readonly resolvers: readonly PodcastAudioResolver[];
 
   constructor(options?: PodcastAdapterOptions) {
     this.fetcher = options?.fetcher;
     this.transcriber = options?.transcriber;
     this.cacheDir = options?.cacheDir;
+    this.mediaFetchPolicy = { maxResponseBytes: MEDIA_MAX_BYTES, ...options?.mediaFetchPolicy };
     this.resolvers = options?.resolvers ?? [new DirectMediaResolver()];
   }
 
@@ -374,7 +378,7 @@ export class PodcastAdapter implements ItemAdapter {
     try {
       await this.fetcher.fetchToFile!(item.canonicalUrl, mediaPath, {
         signal: options.signal,
-        policy: { maxResponseBytes: MEDIA_MAX_BYTES },
+        policy: this.mediaFetchPolicy,
       });
       options.progress?.emit({
         type: 'progress',

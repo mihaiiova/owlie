@@ -7,6 +7,7 @@ export {
   WhisperLocalTranscriber,
   computeChunkRanges,
   mergeChunkTranscripts,
+  runProcess,
 } from './whisper.js';
 export type {
   ChunkRange,
