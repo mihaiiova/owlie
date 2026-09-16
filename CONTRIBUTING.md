@@ -86,7 +86,9 @@ inactive issues and PRs after 60 days and closes them 14 days later.
 
 ## Releasing
 
-Publishing is not automated. Only the `@owlieio/owlie` package is published; the
-other `@owlieio/*` packages are internal and never published. A release requires
-explicit repository-owner approval; npm versions are immutable and must never
-be overwritten.
+Publishing is automated via npm Trusted Publishers (OIDC) — see
+[docs/decisions/0027-trusted-publishing.md](docs/decisions/0027-trusted-publishing.md).
+Only the `@owlieio/owlie` package is published; the other `@owlieio/*` packages
+are internal and never published. The `publish.yml` workflow publishes with a
+short-lived OIDC credential after release validation passes; npm versions are
+immutable and must never be overwritten.

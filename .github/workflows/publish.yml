@@ -1,0 +1,55 @@
+name: Publish to npm
+
+# Publishes @owlieio/owlie to the npm registry via npm Trusted Publishers
+# (OIDC). GitHub proves the workflow identity through `id-token: write`; npm
+# exchanges that for a short-lived publish credential — no npm token or 2FA is
+# stored or prompted.
+#
+# Gate: dispatch this only after release-validation.yml has passed for the same
+# version. The workflow rebuilds from source, verifies the packed artifact
+# offline, and then publishes with public access.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Semantic version to publish (must match apps/cli/package.json)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write # required for npm Trusted Publishers (OIDC)
+  contents: read
+
+jobs:
+  publish:
+    name: Publish @owlieio/owlie
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight (main ref + version)
+        env:
+          EXPECTED_VERSION: ${{ github.event.inputs.expected_version }}
+        run: node scripts/release-e2e/preflight.mjs
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify packed artifact (offline smoke)
+        run: pnpm verify:artifact
+
+      - name: Publish to npm
+        working-directory: apps/cli
+        run: npm publish --access public
