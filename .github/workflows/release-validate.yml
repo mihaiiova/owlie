@@ -53,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: owlie-candidate
-          path: ${{ runner.temp }}/owlie-*.tgz
+          path: ${{ runner.temp }}/*.tgz
           if-no-files-found: error
           retention-days: 14
 
@@ -77,7 +77,7 @@ jobs:
           name: owlie-candidate
 
       - name: Verify the exact packaged artifact
-        run: node scripts/verify-artifact.mjs --tarball "$(ls owlie-*.tgz)"
+        run: node scripts/verify-artifact.mjs --tarball "$(ls *.tgz)"
 
   live:
     name: Live E2E (Node 22)
@@ -103,7 +103,7 @@ jobs:
       - name: Run live release E2E
         run: >-
           node scripts/release-e2e.mjs
-          --tarball "$(ls owlie-*.tgz)"
+          --tarball "$(ls *.tgz)"
           --commit "${{ github.sha }}"
           --out release-e2e-report.json
 

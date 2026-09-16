@@ -1,4 +1,4 @@
-# owlie
+# @owlieio/owlie
 
 ## 0.2.0
 
