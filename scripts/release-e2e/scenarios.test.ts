@@ -251,4 +251,42 @@ describe('buildScenarios', () => {
     const others = scenarios.filter((s) => s.name !== 'extract youtube');
     expect(others.every((s) => s.allowProxyFallback === false)).toBe(true);
   });
+
+  it('doctor accepts the object-shaped providers report', () => {
+    const scenarios = buildScenarios(ctx, spawn, spawnTty);
+    const doctor = scenarios.find((s) => s.name === 'doctor');
+    const result = doctor.assert({
+      status: 0,
+      stdout: JSON.stringify({
+        adapters: ['youtube', 'podcast', 'rss', 'article'],
+        providers: [
+          { id: 'deepseek', apiKey: 'set', model: 'not set' },
+          { id: 'openai', apiKey: 'not set', model: 'not set' },
+        ],
+      }),
+      stderr: '',
+    });
+    expect(result).toEqual({ ok: true, errors: [] });
+  });
+
+  it('selects the deepseek provider for process scenarios', async () => {
+    const seen = [];
+    const recordingTty = async (opts) => {
+      seen.push(opts);
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const recordingSpawn = (opts) => {
+      seen.push(opts);
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const scenarios = buildScenarios(ctx, recordingSpawn, recordingTty);
+    await scenarios.find((s) => s.name === 'process file').run();
+    await scenarios.find((s) => s.name === 'extract → process pipeline').run();
+    await scenarios.find((s) => s.name === 'process feed --each').run();
+    const processCalls = seen.filter((call) => call.args?.[0] === 'process');
+    expect(processCalls.length).toBe(3);
+    for (const call of processCalls) {
+      expect(call.env?.OWLIE_PROVIDER).toBe('deepseek');
+    }
+  });
 });

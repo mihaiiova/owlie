@@ -55,7 +55,7 @@ in the same change. Any URL replacement must be reviewed and documented.
 
 1. **GitHub Pages** — enable Pages with **GitHub Actions** as the source
    (Settings → Pages). The first `Deploy release corpus` run publishes the
-   corpus to `https://mihaiiova.github.io/owlie-cli/`.
+   corpus to `https://mihaiiova.github.io/owlie/`.
 2. **Protected environment** — create a GitHub Environment named `release`,
    restrict it to `main`, and require reviewer approval.
 3. **Secrets/variables** — add to the `release` environment:
@@ -123,8 +123,8 @@ The runner can be run locally against the built CLI, with live credentials:
 ```bash
 pnpm build
 OWLIE_E2E_EXPECTED_VERSION=$(node -p "require('./apps/cli/package.json').version") \
-OWLIE_E2E_ARTICLE_URL=https://mihaiiova.github.io/owlie-cli/article.html \
-OWLIE_E2E_RSS_URL=https://mihaiiova.github.io/owlie-cli/feed.xml \
+OWLIE_E2E_ARTICLE_URL=https://mihaiiova.github.io/owlie/article.html \
+OWLIE_E2E_RSS_URL=https://mihaiiova.github.io/owlie/feed.xml \
 OWLIE_E2E_YOUTUBE_URL=https://www.youtube.com/watch?v=jNQXAC9IVRw \
 DEEPSEEK_API_KEY=... \
 node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js --out /tmp/report.json
