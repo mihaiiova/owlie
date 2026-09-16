@@ -44,7 +44,8 @@ try {
     // 1. Pack the published package.
     const packed = run('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
     check(packed.status === 0, 'npm pack succeeds');
-    tarball = join(packDir, `${pkg.name}-${pkg.version}.tgz`);
+    // npm names scoped packages `<scope>-<name>-<version>.tgz` (no `@`, `/` → `-`).
+    tarball = join(packDir, `${pkg.name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`);
     check(existsSync(tarball), `tarball created (${tarball})`);
   }
 

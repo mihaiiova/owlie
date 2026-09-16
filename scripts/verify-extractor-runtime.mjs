@@ -73,7 +73,11 @@ function packAndInstall() {
   const packDir = mkdtempSync(join(tmpdir(), 'owlie-runtime-pack-'));
   const packed = spawn('npm', ['pack', '--pack-destination', packDir, '--silent'], { cwd: cliDir });
   if (packed.status !== 0) fail(`npm pack failed: ${packed.stderr}`);
-  const tarball = join(packDir, `${cliPkg.name}-${cliPkg.version}.tgz`);
+  // npm names scoped packages `<scope>-<name>-<version>.tgz` (no `@`, `/` → `-`).
+  const tarball = join(
+    packDir,
+    `${cliPkg.name.replace(/^@/, '').replace('/', '-')}-${cliPkg.version}.tgz`,
+  );
   if (!existsSync(tarball)) fail(`tarball not created at ${tarball}`);
   const install = installTarball(tarball);
   rmSync(packDir, { recursive: true, force: true });
