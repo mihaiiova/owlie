@@ -398,6 +398,32 @@ describe('process command', () => {
     expect(requests[0]?.document.sourceType).toBe('article');
   });
 
+  it('fails fast on a missing provider before extracting the URL', async () => {
+    let extracted = false;
+    const adapter: ItemAdapter = {
+      id: 'article',
+      sourceType: 'article',
+      recognize: () => true,
+      async resolveItem() {
+        extracted = true;
+        throw new Error('should not resolve');
+      },
+      async extract() {
+        extracted = true;
+        throw new Error('unreachable');
+      },
+    };
+    const { io, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'x'],
+      io,
+      deps({ itemAdapters: [adapter], feedAdapter: noFeedAdapter(), readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('no provider selected');
+    expect(extracted).toBe(false);
+  });
+
   it('rejects a feed URL in single-input mode and points to --each', async () => {
     const { processor } = makeFakeProcessor();
     const feed: CollectionAdapter = {

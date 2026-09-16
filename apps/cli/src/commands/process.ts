@@ -190,6 +190,10 @@ async function runUrlProcessing(
   }
 
   assertNoUrlCredentials(url);
+  // Resolve the processor before any network work so a missing provider, key,
+  // or model fails fast instead of after an expensive extraction.
+  const processor = resolveProcessorForCommand(options, deps);
+
   const progress: ProgressSink = {
     emit: (event) => {
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
@@ -208,7 +212,6 @@ async function runUrlProcessing(
     },
   );
 
-  const processor = resolveProcessorForCommand(options, deps);
   spinner.start('processing');
   const result = await processor.process(
     { document, instruction: options.prompt },

@@ -47,9 +47,11 @@ owlie extract "https://example.com/feed.xml" --limit 20
 # List entries in an RSS/Atom feed (bounded)
 owlie list "https://example.com/feed.xml" --limit 20
 
-# Process plain text or a normalized document with DeepSeek or OpenAI
+# Process plain text, a normalized document, or a URL with DeepSeek or OpenAI
 owlie extract "https://youtube.com/watch?v=..." |
   owlie process --prompt "Summarize this"
+
+owlie process "https://example.com/article" --prompt "Summarize this"
 
 owlie process transcript.txt --prompt "Summarize this" --provider openai
 cat transcript.txt | owlie process --prompt "Summarize this"
@@ -101,7 +103,7 @@ owlie doctor
 owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
 owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
-owlie process FILE --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
+owlie process FILE|URL --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
 owlie setup        # configure providers, models, and API keys
 ```
