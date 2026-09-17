@@ -32,7 +32,12 @@ import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { assertKnownProvider, defaultItemAdapters, resolveModelReference, resolveProcessor } from '../registry.js';
+import {
+  assertKnownProvider,
+  defaultItemAdapters,
+  resolveModelReference,
+  resolveProcessor,
+} from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 
@@ -164,8 +169,9 @@ export function resolveModelSelection(
 function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
   if (deps.processor) return deps.processor;
   const readConfig = deps.readConfig ?? readUserConfig;
-  const { provider, model } = resolveModelSelection(options, (opts) =>
-    deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig),
+  const { provider, model } = resolveModelSelection(
+    options,
+    (opts) => deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig),
   );
   const settings =
     deps.config ??

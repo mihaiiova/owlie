@@ -153,7 +153,10 @@ export function catalogContract(name: string, createCatalog: () => ProviderCatal
 
     it('accepts an explicit credential without returning the api key', async () => {
       const catalog = createCatalog();
-      const models = await catalog.listModels({ apiKey: 'sk-secret', baseUrl: 'https://example.com' });
+      const models = await catalog.listModels({
+        apiKey: 'sk-secret',
+        baseUrl: 'https://example.com',
+      });
       expect(JSON.stringify(models)).not.toContain('sk-secret');
     });
   });

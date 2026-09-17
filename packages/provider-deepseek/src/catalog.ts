@@ -51,8 +51,7 @@ export class DeepSeekCatalog implements ProviderCatalog {
     } catch {
       throw new Error('DeepSeek model discovery returned malformed JSON');
     }
-    const parsed =
-      body !== null && typeof body === 'object' ? (body as { data?: unknown[] }) : {};
+    const parsed = body !== null && typeof body === 'object' ? (body as { data?: unknown[] }) : {};
     const models: ModelInfo[] = [];
     for (const entry of parsed.data ?? []) {
       if (entry === null || typeof entry !== 'object') continue;

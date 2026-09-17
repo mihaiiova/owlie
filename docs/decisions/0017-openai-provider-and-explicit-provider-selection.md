@@ -1,6 +1,6 @@
 # ADR 0017 — OpenAI provider and explicit provider selection
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0026](0026-byok-auth-and-dynamic-model-discovery.md)
 - **Date:** 2026-08-28
 - **Supersedes:** the DeepSeek-only decision in [ADR 0005](0005-v0-1-scope.md);
   amends the flat-config and setup decisions in [ADR 0007](0007-setup-and-user-config.md).

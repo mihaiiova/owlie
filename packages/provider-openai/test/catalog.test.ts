@@ -59,10 +59,7 @@ describe('OpenAICatalog.listModels', () => {
   it('uses an explicit base URL when provided', async () => {
     const calls: string[] = [];
     const catalog = new OpenAICatalog({
-      fetcher: fetcherWith(
-        { text: JSON.stringify({ data: [{ id: 'gpt-4o-mini' }] }) },
-        calls,
-      ),
+      fetcher: fetcherWith({ text: JSON.stringify({ data: [{ id: 'gpt-4o-mini' }] }) }, calls),
     });
     await catalog.listModels({ apiKey: 'sk-test', baseUrl: 'https://example.com/v1' });
     expect(calls).toEqual(['https://example.com/v1/models']);
@@ -98,9 +95,7 @@ describe('OpenAICatalog.listModels', () => {
     const catalog = new OpenAICatalog({
       fetcher: fetcherWith({ text: '<html>', contentType: 'text/html' }, []),
     });
-    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(
-      /non-JSON response/,
-    );
+    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(/non-JSON response/);
   });
 
   it('rejects malformed JSON', async () => {

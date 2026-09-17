@@ -10,6 +10,8 @@ owlie extract  Extract a YouTube video, an article, or a feed's linked items   (
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
 owlie list     List entries in an RSS/Atom feed            (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
+owlie models   List current models for your LLM providers     (v0.1)
+owlie auth     Manage API keys for LLM providers             (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
 owlie doctor   Report local environment health             (functional)
 owlie help     Show help
@@ -33,8 +35,10 @@ error (code 2) rather than pretending to process content.
 owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]
 owlie list FEED_URL [--limit N] [--json]
-owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]
-owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
+owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]
+owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id]
+owlie models [--provider <provider>] [--refresh] [--json]
+owlie auth add <provider> | list | remove <provider>
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
@@ -95,12 +99,26 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
   record is an error, and `--limit N` bounds the batch (default 10, maximum
   500). `--each` rejects `--input`, piped stdin, and non-feed URLs as usage
   errors (exit code 2).
-- `process` selects a provider via `--provider`, then `OWLIE_PROVIDER`, then
-  the saved active provider, and a model within that provider via `--model`
-  (or `DEEPSEEK_MODEL`/`OPENAI_MODEL`). DeepSeek documents `deepseek-chat` as a
-  default; OpenAI has no default model. A missing or unknown provider, missing
-  key, or missing model is a clear configuration error (exit code 1). A model
-  id never implies a provider.
+- `process` selects a provider and model via `--model`. A compound
+  `--model provider/model-id` is self-contained; a plain `--model model-id`
+  resolves the provider from the deprecated `--provider` alias, then
+  `OWLIE_PROVIDER`, then the saved active provider, and the model via `--model`
+  (or `DEEPSEEK_MODEL`/`OPENAI_MODEL`). A `--provider` that disagrees with a
+  compound `--model` provider is a usage error. DeepSeek documents
+  `deepseek-chat` as a default; OpenAI has no default model. A missing or
+  unknown provider, missing key, or missing model is a clear configuration
+  error (exit code 1). Model ids are discovered at runtime from the provider,
+  never validated against an Owlie-side allowlist.
+- `models` lists a provider's current models from its live listing endpoint
+  through the `ProviderCatalog` contract. With `--provider`, it lists one
+  provider (plain model ids); without it, it lists all configured providers
+  (as `provider/model-id`). Results are cached for one hour; `--refresh`
+  re-queries, and a failed fetch falls back to a cached list with a diagnostic
+  or fails clearly when there is no cache.
+- `auth add <provider>` prompts for and stores an API key in the user config;
+  `auth list` reports each provider's effective credential source
+  (`environment` vs `stored`, never the key); `auth remove <provider>` deletes
+  a stored key. Environment variables override stored keys.
 
 ## Conventions
 
@@ -124,7 +142,8 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]
 ## `owlie doctor`
 
 Reports Node version, OS and architecture, non-secret per-provider API key and
-model presence for each functional provider (DeepSeek, OpenAI), the functional
-adapters (YouTube, podcast, RSS, article), local transcription readiness
-(Python + faster-whisper, ffmpeg, ffprobe, and the configured Whisper model),
-and whether the configuration and cache directories are writable.
+model presence and credential source (`environment` vs `stored`) for each
+functional provider (DeepSeek, OpenAI), the functional adapters (YouTube,
+podcast, RSS, article), local transcription readiness (Python +
+faster-whisper, ffmpeg, ffprobe, and the configured Whisper model), and whether
+the configuration and cache directories are writable.

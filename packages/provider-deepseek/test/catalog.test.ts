@@ -43,10 +43,7 @@ describe('DeepSeekCatalog.listModels', () => {
   it('uses an explicit base URL when provided', async () => {
     const calls: string[] = [];
     const catalog = new DeepSeekCatalog({
-      fetcher: fetcherWith(
-        { text: JSON.stringify({ data: [{ id: 'deepseek-chat' }] }) },
-        calls,
-      ),
+      fetcher: fetcherWith({ text: JSON.stringify({ data: [{ id: 'deepseek-chat' }] }) }, calls),
     });
     await catalog.listModels({ apiKey: 'sk-test', baseUrl: 'https://example.com' });
     expect(calls).toEqual(['https://example.com/models']);

@@ -66,6 +66,8 @@ source-specific fields.
 
 - `Transcriber` — `id`, `transcribe(input, options?)` → `TranscriptionResult`.
 - `ContentProcessor` — `id`, `process(request, options?)` → `ProcessResult`.
+- `ProviderCatalog` — `providerId`, `listModels(credentials)` → `ModelInfo[]`
+  (dynamic, SDK-free live model discovery implemented by each LLM provider).
 - `ProgressSink` — `emit(event)`.
 - `OutputSerializer` — `id`, `format: OutputFormat`, `serialize(value, options?)`
   (reserved; not implemented in v0.1).

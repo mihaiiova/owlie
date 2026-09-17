@@ -58,8 +58,13 @@ export async function runModelsCommand(
     } else {
       targets = providers.filter(
         (provider) =>
-          resolveCredentialSource(provider.id, { envFile: options.envFile }, env, loadFile, readConfig) !==
-          'not set',
+          resolveCredentialSource(
+            provider.id,
+            { envFile: options.envFile },
+            env,
+            loadFile,
+            readConfig,
+          ) !== 'not set',
       );
       if (targets.length === 0) {
         if (!options.quiet) {

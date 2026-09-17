@@ -28,16 +28,20 @@ and `OPENAI_API_KEY`/`OPENAI_BASE_URL`/`OPENAI_MODEL`). Local Whisper
 transcription is configured only through the saved user configuration; its
 provider receives explicit configuration and never reads environment variables.
 
-Provider selection: `--provider <provider>` on the command line takes
-precedence over `OWLIE_PROVIDER`, which takes precedence over the saved active
-provider. A provider is never inferred from a model id; an absent or unknown
-provider fails with a clear configuration error.
+Provider selection: `--model provider/model-id` is self-contained and
+authoritative. A plain `--model model-id` resolves the provider from the
+deprecated `--provider` alias, then `OWLIE_PROVIDER`, then the saved active
+provider. A `--provider` that disagrees with a compound `--model` provider is a
+clear configuration error. An absent or unknown provider fails with a clear
+configuration error.
 
-Model selection within the chosen provider: `--model <model>` takes precedence
+Model selection within the chosen provider: `--model model-id` takes precedence
 over that provider's `*_MODEL` variable; both are loaded only by the CLI and
 passed to the provider as explicit configuration. A model-using command without
-a selected model fails with a clear configuration error. DeepSeek documents a
-`deepseek-chat` default; OpenAI has no default model.
+a selected model fails with a clear configuration error. Model ids are
+discovered at runtime from the provider's live listing (`owlie models`), never
+from a hardcoded allowlist. DeepSeek documents a `deepseek-chat` default;
+OpenAI has no default model.
 
 ## Environment files
 
@@ -50,6 +54,9 @@ supported provider variables. Never commit real credentials.
 `owlie setup` writes the selected provider and a provider-keyed profile to a
 JSON file in the platform-appropriate config directory (XDG-aware):
 `~/.config/owlie/config.json` on macOS/Linux, written with `0600` permissions.
+`owlie auth add|list|remove <provider>` manages the same stored API keys outside
+setup: `add` prompts for and stores a key, `list` reports the effective source
+(environment or stored, never the key), and `remove` deletes a stored key.
 
 ```json
 {
@@ -73,9 +80,10 @@ proxy, or `{ "type": "generic", "url" }` for an HTTP/SOCKS proxy. Omitting it
 (or choosing "none" in `owlie setup`) uses a direct connection.
 
 The stored profile values are the lowest-priority explicit source (below `.env`
-and environment variables), so `--model`/`--provider` and the provider-specific
-variables still override them. The API key and proxy credentials are never
-echoed to the terminal; they are only written to the config file.
+and environment variables), so `--model` and the provider-specific variables
+still override them. The API key and proxy credentials are never echoed to the
+terminal; they are only written to the config file. Model lists are cached for
+one hour at `~/.cache/owlie/models.json` (see `owlie models`).
 
 ## Transcription defaults
 

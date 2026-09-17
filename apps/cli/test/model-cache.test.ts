@@ -3,12 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ModelInfo } from '@owlieio/core';
-import {
-  MODEL_CACHE_TTL_MS,
-  isCacheFresh,
-  readModelCache,
-  writeModelCache,
-} from 'owlie';
+import { MODEL_CACHE_TTL_MS, isCacheFresh, readModelCache, writeModelCache } from 'owlie';
 
 const models: ModelInfo[] = [{ provider: 'deepseek', id: 'deepseek-chat' }];
 

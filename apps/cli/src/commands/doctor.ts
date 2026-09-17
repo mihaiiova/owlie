@@ -77,7 +77,13 @@ function providerReports(
       id,
       apiKey: env[`${prefix}_API_KEY`] || profile?.apiKey ? 'set' : 'not set',
       model: env[`${prefix}_MODEL`] || profile?.model ? 'set' : 'not set',
-      authSource: resolveCredentialSource(id, {}, env, () => ({}), () => config),
+      authSource: resolveCredentialSource(
+        id,
+        {},
+        env,
+        () => ({}),
+        () => config,
+      ),
     };
   });
 }

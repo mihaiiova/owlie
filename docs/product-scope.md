@@ -39,8 +39,15 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
   RSS/Atom feed.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
   document with DeepSeek or OpenAI, reading from a positional file, `--input
-FILE`, or stdin. Provider selection is explicit (`--provider`,
-  `OWLIE_PROVIDER`, or the saved active provider).
+FILE`, or stdin. Model selection is `--model provider/model-id` (self-contained),
+  or a plain `--model id` with the deprecated `--provider` alias,
+  `OWLIE_PROVIDER`, or the saved active provider.
+- `owlie models [--provider <provider>] [--refresh] [--json]` — list a
+  provider's (or all configured providers') current models from its live
+  listing, cached for one hour with a forced-refresh flag and cache-on-failure
+  fallback.
+- `owlie auth add|list|remove <provider>` — manage API keys in the user-level
+  credential store without revealing secrets.
 - `owlie process FEED_URL --each [--limit N] --prompt "..."` — process the
   bounded linked items of an RSS/Atom feed sequentially, streaming one JSONL
   record per attempted item.

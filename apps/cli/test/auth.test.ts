@@ -51,7 +51,15 @@ describe('resolveCredentialSource', () => {
   });
 
   it('reports not set when neither has a key', () => {
-    expect(resolveCredentialSource('deepseek', {}, {}, () => ({}), () => ({}))).toBe('not set');
+    expect(
+      resolveCredentialSource(
+        'deepseek',
+        {},
+        {},
+        () => ({}),
+        () => ({}),
+      ),
+    ).toBe('not set');
   });
 
   it('treats env-file credentials as environment', () => {

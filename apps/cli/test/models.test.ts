@@ -17,10 +17,7 @@ function capture() {
   return { io, stdout: () => stdout, stderr: () => stderr };
 }
 
-function makeCatalog(
-  providerId: string,
-  behavior: { models?: ModelInfo[]; error?: unknown } = {},
-) {
+function makeCatalog(providerId: string, behavior: { models?: ModelInfo[]; error?: unknown } = {}) {
   let calls = 0;
   const catalog: ProviderCatalog = {
     providerId,
@@ -103,7 +100,13 @@ describe('models command', () => {
     const code = await run(
       ['models', '--provider', 'anthropic'],
       io,
-      deps({ env: {}, readConfig: () => ({}), loadFile: () => ({}), cachePath: cachePath(), now: () => NOW }),
+      deps({
+        env: {},
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+      }),
     );
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('unknown provider');
@@ -114,7 +117,13 @@ describe('models command', () => {
     const code = await run(
       ['models', '--provider', 'deepseek'],
       io,
-      deps({ env: {}, readConfig: () => ({}), loadFile: () => ({}), cachePath: cachePath(), now: () => NOW }),
+      deps({
+        env: {},
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+      }),
     );
     expect(code).toBe(ExitCode.Error);
     expect(stderr()).toContain('no API key');

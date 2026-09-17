@@ -8,6 +8,8 @@ Commands:
   resolve   Resolve a URL to its validated audio media URL (no transcription)
   list      List entries in an RSS/Atom feed
   process   Process text, a document, or a feed's linked items with an LLM
+  models    List current models for your LLM providers
+  auth      Manage API keys for LLM providers
   setup     Configure providers and models interactively
   doctor    Report local environment health
   help      Show this help
@@ -17,8 +19,8 @@ Options:
   --version, -V    Show version
   --quiet, -q      Suppress diagnostics on stderr
   --json           Emit machine-readable JSON on stdout
-  --provider NAME  Select the LLM provider (e.g. deepseek, openai)
-  --model MODEL    Select the model within the provider (e.g. deepseek-chat)
+  --model MODEL    Select the model (provider/model-id, or model-id)
+  --refresh        Bypass the model cache (models only)
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
   --timeout-ms N   Bound one direct-media extraction operation
@@ -60,16 +62,34 @@ const LIST_HELP =
   'metadata, item metadata, and truncation state with --json.';
 
 const PROCESS_HELP =
-  'owlie process [FILE] --prompt "..." [--provider NAME] [--input FILE] [--input-format text|json] [--model MODEL] [--json]\n' +
-  'owlie process FEED_URL --each [--limit N] --prompt "..." [--provider NAME]\n\n' +
+  'owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +
+  'owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id]\n\n' +
   'Process plain text or a normalized document with an LLM (DeepSeek or\n' +
   'OpenAI). Reads exactly one input: a positional file, --input FILE, or\n' +
-  'stdin. Never fetches a URL in single-input mode. --provider selects the\n' +
-  'provider (or use OWLIE_PROVIDER / the saved active provider); --model\n' +
-  'selects a model within it. With --each and a feed URL, processes each\n' +
+  'stdin. Never fetches a URL in single-input mode. --model selects the model;\n' +
+  'use provider/model-id to select the provider too, or a plain model-id with\n' +
+  'the saved active provider or OWLIE_PROVIDER. Model ids are discovered at\n' +
+  'runtime (see `owlie models`). With --each and a feed URL, processes each\n' +
   'bounded linked item sequentially and streams one JSONL record per\n' +
   'attempted entry (success: item, document, result; failure: item, error).\n' +
   '--limit bounds the batch (default 10, max 500).';
+
+const MODELS_HELP =
+  'owlie models [--provider <provider>] [--refresh] [--json]\n\n' +
+  "List a provider's current models from its live listing endpoint. Without\n" +
+  '--provider, lists models for all configured providers. Results are cached\n' +
+  'for one hour; --refresh re-queries the provider, and a failed fetch falls\n' +
+  'back to a recent cached list with a diagnostic when one is available.\n' +
+  'Model ids are discovered dynamically, never hardcoded.';
+
+const AUTH_HELP =
+  'owlie auth add <provider>\n' +
+  'owlie auth list\n' +
+  'owlie auth remove <provider>\n\n' +
+  'Manage API keys in the local credential store. `add` prompts for a key and\n' +
+  'stores it; `list` shows each provider and whether its effective credential\n' +
+  'comes from the environment or the local store (never the key itself);\n' +
+  '`remove` deletes the stored key. Environment variables override stored keys.';
 
 const SETUP_HELP =
   'owlie setup\n\n' +
@@ -81,9 +101,9 @@ const SETUP_HELP =
 const DOCTOR_HELP =
   'owlie doctor [--json]\n\n' +
   'Report local environment health: Node version, platform, per-provider API\n' +
-  'key and model presence (DeepSeek and OpenAI, never the secret values), the\n' +
-  'functional adapters (YouTube, RSS, article), and the writable config and\n' +
-  'cache directories.';
+  'key and model presence and credential source (DeepSeek and OpenAI, never the\n' +
+  'secret values), the functional adapters (YouTube, RSS, article), and the\n' +
+  'writable config and cache directories.';
 
 export function helpText(): string {
   return HELP;
@@ -94,6 +114,8 @@ export function commandHelp(command: string): string {
   if (command === 'resolve') return RESOLVE_HELP;
   if (command === 'list') return LIST_HELP;
   if (command === 'process') return PROCESS_HELP;
+  if (command === 'models') return MODELS_HELP;
+  if (command === 'auth') return AUTH_HELP;
   if (command === 'setup') return SETUP_HELP;
   if (command === 'doctor') return DOCTOR_HELP;
   return `owlie ${command}\n\nUnknown command; run "owlie --help" for usage.`;

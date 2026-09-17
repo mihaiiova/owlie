@@ -76,11 +76,7 @@ describe('auth command', () => {
 
   it('lists a provider with no credential as not configured', async () => {
     const { io, stdout } = capture();
-    const code = await run(
-      ['auth', 'list'],
-      io,
-      deps({ env: {}, readConfig: () => ({}) }),
-    );
+    const code = await run(['auth', 'list'], io, deps({ env: {}, readConfig: () => ({}) }));
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toContain('deepseek: not configured');
     expect(stdout()).toContain('openai: not configured');

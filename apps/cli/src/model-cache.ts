@@ -58,9 +58,6 @@ export function writeModelCache(data: ModelCacheData, path: string = modelsCache
 }
 
 /** Whether a cached entry is still within the freshness TTL. */
-export function isCacheFresh(
-  entry: CachedModels | undefined,
-  now: number,
-): entry is CachedModels {
+export function isCacheFresh(entry: CachedModels | undefined, now: number): entry is CachedModels {
   return entry !== undefined && now - entry.fetchedAt < MODEL_CACHE_TTL_MS;
 }

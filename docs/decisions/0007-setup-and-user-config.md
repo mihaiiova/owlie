@@ -1,7 +1,6 @@
 # ADR 0007 — `owlie setup` and persistent user configuration
 
-- **Status:** Accepted (flat config, hardcoded model fallback, and model-based
-  provider inference superseded by [ADR 0017](0017-openai-provider-and-explicit-provider-selection.md))
+- **Status:** Superseded by [ADR 0017](0017-openai-provider-and-explicit-provider-selection.md) and [ADR 0026](0026-byok-auth-and-dynamic-model-discovery.md)
 - **Date:** 2026-08-19
 
 ## Context
