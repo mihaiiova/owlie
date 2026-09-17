@@ -15,6 +15,8 @@ export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { runAuthCommand } from './commands/auth.js';
 export type { AuthDeps } from './commands/auth.js';
+export { runModelsCommand } from './commands/models.js';
+export type { ModelsDeps } from './commands/models.js';
 export { extractWithFallback, selectItemAdapter } from './dispatch.js';
 export { parseCollectionLimit } from './limits.js';
 export { parseLanguages } from './commands/extract.js';
