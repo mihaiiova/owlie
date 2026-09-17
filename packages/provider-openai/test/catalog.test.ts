@@ -68,6 +68,25 @@ describe('OpenAICatalog.listModels', () => {
     expect(calls).toEqual(['https://example.com/v1/models']);
   });
 
+  it('sends the api key as a bearer token and never returns it', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const catalog = new OpenAICatalog({
+      fetcher: {
+        async fetch(url, options): Promise<HttpTextResponse> {
+          calls.push({ url, headers: options?.headers ?? {} });
+          return {
+            url,
+            contentType: 'application/json',
+            text: JSON.stringify({ data: [{ id: 'gpt-4o-mini' }] }),
+          };
+        },
+      },
+    });
+    const models = await catalog.listModels({ apiKey: 'sk-test' });
+    expect(calls[0]?.headers.Authorization).toBe('Bearer sk-test');
+    expect(JSON.stringify(models)).not.toContain('sk-test');
+  });
+
   it('returns an empty list when the provider returns none', async () => {
     const catalog = new OpenAICatalog({
       fetcher: fetcherWith({ text: JSON.stringify({ data: [] }) }, []),

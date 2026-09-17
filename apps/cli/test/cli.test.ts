@@ -84,7 +84,7 @@ describe('doctor', () => {
     expect(stdout()).toContain('Node');
     expect(stdout()).toContain('Adapters: youtube, podcast, rss, article');
     expect(stdout()).toContain('Providers: deepseek, openai');
-    expect(stdout()).toContain('deepseek: api key set, model set');
+    expect(stdout()).toContain('deepseek: api key set (environment), model set');
     expect(stdout()).toContain('openai: api key not set, model not set');
     expect(stdout()).toContain('Transcription: whisper detected');
     expect(stdout()).not.toContain('Deferred');
@@ -98,8 +98,8 @@ describe('doctor', () => {
     expect(report.node).toContain('v');
     expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article']);
     expect(report.providers).toEqual([
-      { id: 'deepseek', apiKey: 'set', model: 'set' },
-      { id: 'openai', apiKey: 'not set', model: 'not set' },
+      { id: 'deepseek', apiKey: 'set', model: 'set', authSource: 'environment' },
+      { id: 'openai', apiKey: 'not set', model: 'not set', authSource: 'not set' },
     ]);
     expect(report.transcription).toEqual({
       whisper: 'detected',

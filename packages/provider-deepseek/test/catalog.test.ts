@@ -52,6 +52,25 @@ describe('DeepSeekCatalog.listModels', () => {
     expect(calls).toEqual(['https://example.com/models']);
   });
 
+  it('sends the api key as a bearer token and never returns it', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const catalog = new DeepSeekCatalog({
+      fetcher: {
+        async fetch(url, options): Promise<HttpTextResponse> {
+          calls.push({ url, headers: options?.headers ?? {} });
+          return {
+            url,
+            contentType: 'application/json',
+            text: JSON.stringify({ data: [{ id: 'deepseek-chat' }] }),
+          };
+        },
+      },
+    });
+    const models = await catalog.listModels({ apiKey: 'sk-test' });
+    expect(calls[0]?.headers.Authorization).toBe('Bearer sk-test');
+    expect(JSON.stringify(models)).not.toContain('sk-test');
+  });
+
   it('returns an empty list when the provider returns none', async () => {
     const catalog = new DeepSeekCatalog({
       fetcher: fetcherWith({ text: JSON.stringify({ data: [] }) }, []),

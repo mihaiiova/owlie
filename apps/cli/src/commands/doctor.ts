@@ -6,6 +6,8 @@ import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, configDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
+import { resolveCredentialSource } from '../auth.js';
+import type { CredentialSource } from '../auth.js';
 import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
 
 /** Injectable system probes so tests can run `doctor` without spawning. */
@@ -41,6 +43,8 @@ export const defaultDoctorDeps: DoctorDeps = {
 export interface ProviderReport {
   id: string;
   apiKey: 'set' | 'not set';
+  /** Effective credential source (never the secret itself). */
+  authSource: CredentialSource;
   model: 'set' | 'not set';
 }
 
@@ -73,6 +77,7 @@ function providerReports(
       id,
       apiKey: env[`${prefix}_API_KEY`] || profile?.apiKey ? 'set' : 'not set',
       model: env[`${prefix}_MODEL`] || profile?.model ? 'set' : 'not set',
+      authSource: resolveCredentialSource(id, {}, env, () => ({}), () => config),
     };
   });
 }
@@ -116,7 +121,8 @@ function formatDoctorReport(report: DoctorReport): string {
     `  Providers: ${report.providers.map((p) => p.id).join(', ')}`,
   ];
   for (const provider of report.providers) {
-    lines.push(`  ${provider.id}: api key ${provider.apiKey}, model ${provider.model}`);
+    const auth = provider.apiKey === 'set' ? `set (${provider.authSource})` : 'not set';
+    lines.push(`  ${provider.id}: api key ${auth}, model ${provider.model}`);
   }
   lines.push(
     `  Transcription: whisper ${report.transcription.whisper}, ffmpeg ${report.transcription.ffmpeg}, ffprobe ${report.transcription.ffprobe}, model ${report.transcription.model}`,

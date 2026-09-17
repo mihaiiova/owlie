@@ -28,8 +28,8 @@ export { resolveModelSelection } from './commands/process.js';
 export type { ModelSelection } from './commands/process.js';
 export { runResolveCommand } from './commands/resolve.js';
 export type { ResolveDeps } from './commands/resolve.js';
-export { defaultToolAvailable, listProviderModels } from './commands/setup.js';
-export type { ListModelsOptions, SetupDeps } from './commands/setup.js';
+export { defaultToolAvailable } from './commands/setup.js';
+export type { SetupDeps } from './commands/setup.js';
 export { VERSION } from './version.js';
 export {
   cacheDir,
