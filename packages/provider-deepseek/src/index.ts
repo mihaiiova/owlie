@@ -10,3 +10,4 @@ export type {
   DeepSeekGenerateParams,
   DeepSeekGenerateResult,
 } from './deepseek.js';
+export { DEEPSEEK_BASE_URL, DeepSeekCatalog } from './catalog.js';
