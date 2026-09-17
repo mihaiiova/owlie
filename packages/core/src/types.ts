@@ -86,3 +86,16 @@ export interface ProcessResult {
   format: ProcessResultFormat;
   metadata: Record<string, unknown>;
 }
+
+/**
+ * A single model offered by an LLM provider, normalized from the provider's
+ * live listing. `capabilities` fields are all optional and normalized only
+ * from what the provider actually returns; Owlie never guesses them from model
+ * names.
+ */
+export interface ModelInfo {
+  provider: string;
+  id: string;
+  name?: string;
+  capabilities?: { reasoning?: boolean; vision?: boolean; tools?: boolean };
+}

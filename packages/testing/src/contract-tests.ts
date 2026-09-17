@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { CollectionAdapter, ContentProcessor, ItemAdapter, Transcriber } from '@owlieio/core';
+import type {
+  CollectionAdapter,
+  ContentProcessor,
+  ItemAdapter,
+  ProviderCatalog,
+  Transcriber,
+} from '@owlieio/core';
 import type { ContentLocator } from '@owlieio/core';
 import { makeDocument } from './fixtures.js';
 
@@ -123,6 +129,32 @@ export function transcriberContract(name: string, createTranscriber: () => Trans
       });
       expect(typeof result.text).toBe('string');
       expect(result.text.length).toBeGreaterThan(0);
+    });
+  });
+}
+
+/**
+ * Contract test for live model catalogs: verifies the provider-neutral
+ * {@link ProviderCatalog} shape — a stable `providerId`, a non-empty model list
+ * whose entries carry the catalog's own provider id and non-empty model ids.
+ */
+export function catalogContract(name: string, createCatalog: () => ProviderCatalog): void {
+  describe(`${name} (catalog contract)`, () => {
+    it('returns a non-empty model list with stable provider ids', async () => {
+      const catalog = createCatalog();
+      const models = await catalog.listModels({ apiKey: 'sk-test' });
+      expect(models.length).toBeGreaterThan(0);
+      for (const model of models) {
+        expect(model.provider).toBe(catalog.providerId);
+        expect(typeof model.id).toBe('string');
+        expect(model.id.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('accepts an explicit credential without returning the api key', async () => {
+      const catalog = createCatalog();
+      const models = await catalog.listModels({ apiKey: 'sk-secret', baseUrl: 'https://example.com' });
+      expect(JSON.stringify(models)).not.toContain('sk-secret');
     });
   });
 }

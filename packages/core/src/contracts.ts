@@ -3,6 +3,7 @@ import type {
   ContentCollection,
   ContentItem,
   ContentLocator,
+  ModelInfo,
   NormalizedDocument,
   ProcessRequest,
   ProcessResult,
@@ -152,6 +153,18 @@ export interface ProcessorOptions {
 export interface ContentProcessor {
   readonly id: string;
   process(request: ProcessRequest, options?: ProcessorOptions): Promise<ProcessResult>;
+}
+
+/**
+ * A provider-neutral live model catalog. Implemented by each LLM provider
+ * package; generation remains in {@link ContentProcessor}. It stays SDK-free:
+ * no OpenAI/DeepSeek model names, SDK types, or environment loading. The CLI
+ * resolves the effective credential and passes an explicit
+ * `{ apiKey, baseUrl }` object.
+ */
+export interface ProviderCatalog {
+  readonly providerId: string;
+  listModels(credentials: { apiKey: string; baseUrl?: string }): Promise<ModelInfo[]>;
 }
 
 export interface SerializeOptions {
