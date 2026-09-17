@@ -1,5 +1,5 @@
 import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
-import { DefaultHttpFetcher, isJsonContentType } from '@owlieio/core';
+import { DefaultHttpFetcher, ExtractionError, isJsonContentType } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 
 /** Default base URL for DeepSeek's authenticated `/models` listing. */
@@ -43,13 +43,13 @@ export class DeepSeekCatalog implements ProviderCatalog {
       headers: { Authorization: `Bearer ${credentials.apiKey}` },
     });
     if (!isJsonContentType(response.contentType)) {
-      throw new Error('DeepSeek model discovery returned a non-JSON response');
+      throw new ExtractionError('DeepSeek model discovery returned a non-JSON response');
     }
     let body: unknown;
     try {
       body = JSON.parse(response.text);
     } catch {
-      throw new Error('DeepSeek model discovery returned malformed JSON');
+      throw new ExtractionError('DeepSeek model discovery returned malformed JSON');
     }
     const parsed = body !== null && typeof body === 'object' ? (body as { data?: unknown[] }) : {};
     const models: ModelInfo[] = [];

@@ -1,5 +1,5 @@
 import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
-import { ConfigurationError } from '@owlieio/core';
+import { ConfigurationError, ExtractionError } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -111,7 +111,7 @@ export async function runModelsCommand(
             );
           } else {
             const message = error instanceof Error ? error.message : String(error);
-            throw new Error(`failed to list models for "${provider.id}": ${message}`, {
+            throw new ExtractionError(`failed to list models for "${provider.id}": ${message}`, {
               cause: error,
             });
           }

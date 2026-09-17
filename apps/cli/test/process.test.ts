@@ -282,6 +282,21 @@ describe('process command', () => {
     expect(stderr()).toContain('boom');
   });
 
+  it('points to owlie models when a configured default model fails', async () => {
+    const { processor } = makeFakeProcessor({
+      error: new ProcessingError('model not found: deepseek-chat'),
+    });
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--prompt', 'x'],
+      io,
+      deps({ processor, provider: 'deepseek' }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('model not found');
+    expect(stderr()).toContain('owlie models --provider deepseek');
+  });
+
   it('starts and stops a progress spinner', async () => {
     const starts: string[] = [];
     let stopped = 0;

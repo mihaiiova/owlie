@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher, HttpTextResponse } from '@owlieio/core';
+import { ExtractionError } from '@owlieio/core';
 import { OpenAICatalog } from '@owlieio/provider-openai';
 
 function fetcherWith(
@@ -95,13 +96,18 @@ describe('OpenAICatalog.listModels', () => {
     const catalog = new OpenAICatalog({
       fetcher: fetcherWith({ text: '<html>', contentType: 'text/html' }, []),
     });
-    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(/non-JSON response/);
+    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof ExtractionError && /non-JSON response/.test(error.message),
+    );
   });
 
   it('rejects malformed JSON', async () => {
     const catalog = new OpenAICatalog({
       fetcher: fetcherWith({ text: 'not json' }, []),
     });
-    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(/malformed JSON/);
+    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toSatisfy(
+      (error: unknown) => error instanceof ExtractionError && /malformed JSON/.test(error.message),
+    );
   });
 });

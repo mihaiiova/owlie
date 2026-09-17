@@ -7,6 +7,7 @@ import {
   mapProcessingError,
   normalizeUsage,
   ProcessingError,
+  redactSecrets,
   renderPrompt,
 } from '@owlieio/core';
 
@@ -115,6 +116,24 @@ describe('isAbortError', () => {
   });
 });
 
+describe('redactSecrets', () => {
+  it('replaces exact secret values', () => {
+    expect(redactSecrets('Authorization: Bearer sk-abc', ['sk-abc'])).toBe(
+      'Authorization: Bearer [REDACTED]',
+    );
+  });
+
+  it('redacts bearer tokens even when the exact secret is unknown', () => {
+    expect(redactSecrets('failed with Authorization: Bearer token123', [])).toBe(
+      'failed with Authorization: Bearer [REDACTED]',
+    );
+  });
+
+  it('ignores empty secrets', () => {
+    expect(redactSecrets('hello', ['   '])).toBe('hello');
+  });
+});
+
 describe('mapProcessingError', () => {
   it('maps an aborted signal to a labelled CancelledError', () => {
     const controller = new AbortController();
@@ -152,6 +171,19 @@ describe('mapProcessingError', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ProcessingError);
       expect((error as Error).message).toBe('OpenAI processing failed: oops');
+    }
+  });
+
+  it('redacts supplied secrets from the surfaced message', () => {
+    try {
+      mapProcessingError('OpenAI', new Error('Bearer sk-secret-key rejected'), undefined, [
+        'sk-secret-key',
+      ]);
+      throw new Error('unreachable');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProcessingError);
+      expect((error as Error).message).toBe('OpenAI processing failed: Bearer [REDACTED] rejected');
+      expect((error as Error).message).not.toContain('sk-secret-key');
     }
   });
 });

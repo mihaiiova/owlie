@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher, HttpTextResponse } from '@owlieio/core';
+import { ExtractionError } from '@owlieio/core';
 import { DeepSeekCatalog } from '@owlieio/provider-deepseek';
 
 function fetcherWith(
@@ -79,13 +80,18 @@ describe('DeepSeekCatalog.listModels', () => {
     const catalog = new DeepSeekCatalog({
       fetcher: fetcherWith({ text: '<html>', contentType: 'text/html' }, []),
     });
-    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(/non-JSON response/);
+    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof ExtractionError && /non-JSON response/.test(error.message),
+    );
   });
 
   it('rejects malformed JSON', async () => {
     const catalog = new DeepSeekCatalog({
       fetcher: fetcherWith({ text: 'not json' }, []),
     });
-    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toThrow(/malformed JSON/);
+    await expect(catalog.listModels({ apiKey: 'sk-test' })).rejects.toSatisfy(
+      (error: unknown) => error instanceof ExtractionError && /malformed JSON/.test(error.message),
+    );
   });
 });

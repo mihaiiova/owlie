@@ -12,6 +12,7 @@ import {
   CancelledError,
   ConfigurationError,
   OwlieError,
+  ProcessingError,
   isSourceType,
   listCollection,
 } from '@owlieio/core';
@@ -166,13 +167,33 @@ export function resolveModelSelection(
   return { provider, model: ref?.model };
 }
 
+/** Resolves the active provider through the injected override or config/env. */
+function resolveProviderFallback(deps: ProcessDeps) {
+  const readConfig = deps.readConfig ?? readUserConfig;
+  return (opts: { provider?: string; envFile?: string }) =>
+    deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig);
+}
+
+/**
+ * Builds a pointer to live model discovery for failures that surface the
+ * provider's own rejection of a configured model. Only produced when no
+ * explicit `--model` was passed (so the model came from the saved/active
+ * provider default) and the provider can be re-resolved.
+ */
+function modelsPointer(options: CliOptions, deps: ProcessDeps): string | undefined {
+  try {
+    const { provider } = resolveModelSelection(options, resolveProviderFallback(deps));
+    if (!provider) return undefined;
+    return `run "owlie models --provider ${provider}" to see the models ${provider} currently offers`;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
   if (deps.processor) return deps.processor;
   const readConfig = deps.readConfig ?? readUserConfig;
-  const { provider, model } = resolveModelSelection(
-    options,
-    (opts) => deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig),
-  );
+  const { provider, model } = resolveModelSelection(options, resolveProviderFallback(deps));
   const settings =
     deps.config ??
     resolveProviderSettings(
@@ -234,7 +255,11 @@ export async function runProcessCommand(
   } catch (error) {
     spinner.stop();
     if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
+      let message = error instanceof Error ? error.message : String(error);
+      if (error instanceof ProcessingError && options.model === undefined) {
+        const pointer = modelsPointer(options, deps);
+        if (pointer) message += `\n\n${pointer}`;
+      }
       io.stderr.write(`owlie: ${message}\n`);
     }
     return exitCodeForError(error);

@@ -41,7 +41,9 @@ passed to the provider as explicit configuration. A model-using command without
 a selected model fails with a clear configuration error. Model ids are
 discovered at runtime from the provider's live listing (`owlie models`), never
 from a hardcoded allowlist. DeepSeek documents a `deepseek-chat` default;
-OpenAI has no default model.
+OpenAI has no default model. If a configured default model no longer exists,
+the failure points to `owlie models --provider <provider>` for the current list;
+Owlie never silently substitutes a different model.
 
 ## Environment files
 
