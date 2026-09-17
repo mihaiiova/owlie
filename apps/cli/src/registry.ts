@@ -1,4 +1,4 @@
-import type { ContentProcessor, ItemAdapter } from '@owlieio/core';
+import type { ContentProcessor, ItemAdapter, ProviderCatalog } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -6,8 +6,8 @@ import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
-import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
-import { OpenAIProcessor } from '@owlieio/provider-openai';
+import { DeepSeekProcessor, DeepSeekCatalog, DEEPSEEK_BASE_URL } from '@owlieio/provider-deepseek';
+import { OpenAIProcessor, OpenAICatalog, OPENAI_BASE_URL } from '@owlieio/provider-openai';
 import { createPodcastResolvers } from './resolvers.js';
 
 /**
@@ -67,7 +67,9 @@ interface ProcessorRegistration {
   id: string;
   /** Default base URL for authenticated live model discovery (`GET /models`). */
   baseUrl: string;
-  create(config: ProcessorConfig & { model: string }): ContentProcessor;
+  /** Provider-neutral live model catalog for `owlie models` discovery. */
+  catalog: ProviderCatalog;
+  createProcessor(config: ProcessorConfig & { model: string }): ContentProcessor;
 }
 
 /**
@@ -81,21 +83,23 @@ export interface ProviderInfo {
 }
 
 /**
- * Provider → processor registry. Selection is explicit and provider-first:
- * the CLI resolves a provider id (flag → `OWLIE_PROVIDER` → saved active
- * provider) and then resolves a model within that provider. A model id never
- * implies a provider.
+ * Provider → processor registry. Selection is explicit: the CLI resolves a
+ * model reference (`provider/model-id` compound, or a plain model id with a
+ * separately resolved provider) and then resolves a model within that
+ * provider. A compound model reference implies its provider.
  */
 const PROCESSOR_REGISTRY: readonly ProcessorRegistration[] = [
   {
     id: DeepSeekProcessor.id,
-    baseUrl: 'https://api.deepseek.com',
-    create: (config) => new DeepSeekProcessor(config),
+    baseUrl: DEEPSEEK_BASE_URL,
+    catalog: new DeepSeekCatalog(),
+    createProcessor: (config) => new DeepSeekProcessor(config),
   },
   {
     id: OpenAIProcessor.id,
-    baseUrl: 'https://api.openai.com/v1',
-    create: (config) => new OpenAIProcessor(config),
+    baseUrl: OPENAI_BASE_URL,
+    catalog: new OpenAICatalog(),
+    createProcessor: (config) => new OpenAIProcessor(config),
   },
 ];
 
@@ -139,5 +143,35 @@ export function resolveProcessor(
     );
   }
   const registration = PROCESSOR_REGISTRY.find((entry) => entry.id === provider);
-  return registration!.create({ ...config, model });
+  return registration!.createProcessor({ ...config, model });
+}
+
+/** A parsed `--model` reference: either compound (`provider/model-id`) or plain (`model-id`). */
+export interface ModelReference {
+  provider?: string;
+  model: string;
+}
+
+/**
+ * Parses a `--model` value into a {@link ModelReference}. `provider/model-id`
+ * yields both parts; a value with no slash yields a plain model id with no
+ * implied provider. Pure and total: malformed compound forms (a missing
+ * provider or model part) fall back to a plain reference and are rejected
+ * downstream by the provider-selection logic.
+ */
+export function resolveModelReference(model: string): ModelReference {
+  const value = model.trim();
+  const slash = value.indexOf('/');
+  if (slash > 0) {
+    const provider = value.slice(0, slash).trim();
+    const id = value.slice(slash + 1).trim();
+    if (provider && id) return { provider, model: id };
+  }
+  return { model: value };
+}
+
+/** Resolves a registered provider's live model catalog. */
+export function getProviderCatalog(provider: string): ProviderCatalog {
+  assertKnownProvider(provider);
+  return PROCESSOR_REGISTRY.find((entry) => entry.id === provider)!.catalog;
 }

@@ -41,10 +41,12 @@ export {
   PROVIDER_IDS,
   assertKnownProvider,
   defaultItemAdapters,
+  getProviderCatalog,
   listProviders,
+  resolveModelReference,
   resolveProcessor,
 } from './registry.js';
-export type { ProcessorConfig, ProviderInfo } from './registry.js';
+export type { ModelReference, ProcessorConfig, ProviderInfo } from './registry.js';
 export {
   PODCAST_RESOLVER_REGISTRY,
   createPodcastResolvers,
