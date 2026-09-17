@@ -1,5 +1,13 @@
 # @owlieio/owlie
 
+## 0.3.1
+
+### Patch Changes
+
+- 6c34e78: Fixed Apple Podcasts episode resolution when Apple's `itunes.apple.com/lookup` endpoint serves JSON with a `text/javascript` content type instead of `application/json`. `owlie extract` and `owlie resolve` on Apple Podcasts episode URLs now resolve the episode media URL instead of failing with "unexpected lookup response content type".
+- 6c34e78: Error and usage messages no longer carry an `owlie:` prefix and are now color-coded on a TTY (red for errors, yellow for usage warnings, dim for informational fallback notices); piped/redirected output stays plain. Local-transcription failures now name the specific missing prerequisite (`ffprobe`, `ffmpeg`, `python3`, or `faster-whisper`) instead of embedding a Python traceback, and the "no provider selected" message lists the known providers.
+- 6c34e78: `owlie extract` and `owlie process` now show loading status without the `owlie:` prefix: the article-extraction fallback prints `extracting article text`, and `owlie process` shows a `waiting for llm response` spinner while the LLM responds. Status lines now animate only when stderr is a terminal; redirected or piped output gets clean plain lines instead of carriage-return spinner frames.
+
 ## 0.3.0
 
 ### Minor Changes
