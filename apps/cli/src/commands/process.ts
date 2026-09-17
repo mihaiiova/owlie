@@ -32,7 +32,7 @@ import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { assertKnownProvider, defaultItemAdapters, resolveProcessor } from '../registry.js';
+import { assertKnownProvider, defaultItemAdapters, resolveModelReference, resolveProcessor } from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 
@@ -129,13 +129,56 @@ function resolveConfiguredProcessor(
   });
 }
 
+/** A resolved provider/model selection for processing. */
+export interface ModelSelection {
+  provider: string;
+  model?: string;
+}
+
+/**
+ * Resolves the provider and model from `--model`/`--provider`. A compound
+ * `--model provider/model-id` is self-contained and authoritative; a plain
+ * `--model model-id` resolves the provider through the injected fallback
+ * (`--provider` → `OWLIE_PROVIDER` → saved active provider). A `--provider`
+ * that disagrees with a compound `--model` provider is an error, never a
+ * silent precedence. Pure and injectable for deterministic tests.
+ */
+export function resolveModelSelection(
+  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'>,
+  resolveProviderFn: (options: { provider?: string; envFile?: string }) => string,
+): ModelSelection {
+  const ref = options.model !== undefined ? resolveModelReference(options.model) : undefined;
+  if (ref?.provider) {
+    const flagProvider = options.provider?.trim();
+    if (flagProvider && flagProvider !== ref.provider) {
+      throw new ConfigurationError(
+        `conflicting --provider "${flagProvider}" and --model "${options.model}"`,
+      );
+    }
+    return { provider: ref.provider, model: ref.model };
+  }
+  const provider = resolveProviderFn(options);
+  return { provider, model: ref?.model };
+}
+
 function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
   if (deps.processor) return deps.processor;
   const readConfig = deps.readConfig ?? readUserConfig;
-  const provider = deps.provider ?? resolveProvider(options, process.env, loadDotEnv, readConfig);
+  const { provider, model } = resolveModelSelection(options, (opts) =>
+    deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig),
+  );
   const settings =
-    deps.config ?? resolveProviderSettings(provider, options, process.env, loadDotEnv, readConfig);
-  return resolveConfiguredProcessor(provider, settings);
+    deps.config ??
+    resolveProviderSettings(
+      provider,
+      { model, envFile: options.envFile },
+      process.env,
+      loadDotEnv,
+      readConfig,
+    );
+  const effectiveSettings =
+    deps.config && model !== undefined ? { ...deps.config, model } : settings;
+  return resolveConfiguredProcessor(provider, effectiveSettings);
 }
 
 export async function runProcessCommand(

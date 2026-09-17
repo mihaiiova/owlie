@@ -24,6 +24,8 @@ export type { ExtractDeps } from './commands/extract.js';
 export { parseListLimit } from './commands/list.js';
 export type { ListDeps } from './commands/list.js';
 export type { ProcessDeps } from './commands/process.js';
+export { resolveModelSelection } from './commands/process.js';
+export type { ModelSelection } from './commands/process.js';
 export { runResolveCommand } from './commands/resolve.js';
 export type { ResolveDeps } from './commands/resolve.js';
 export { defaultToolAvailable, listProviderModels } from './commands/setup.js';
