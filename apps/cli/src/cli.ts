@@ -1,6 +1,7 @@
 import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
 import { commandHelp, helpText } from './commands/help.js';
+import { runAuthCommand, type AuthDeps } from './commands/auth.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runListCommand, type ListDeps } from './commands/list.js';
@@ -31,6 +32,7 @@ export interface CliOptions {
 }
 
 export interface CliDeps {
+  auth?: AuthDeps;
   doctor?: DoctorDeps;
   extract?: ExtractDeps;
   list?: ListDeps;
@@ -195,6 +197,10 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'doctor') {
     return runDoctorCommand(io, options, deps.doctor);
+  }
+
+  if (command === 'auth') {
+    return runAuthCommand(parsed.args.slice(1), io, options, deps.auth);
   }
 
   if (command === 'extract') {
