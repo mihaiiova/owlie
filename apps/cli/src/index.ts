@@ -41,6 +41,14 @@ export type { ProviderEnvConfig, ProviderProfile, UserConfig } from './config.js
 export { removeCredential, resolveCredentialSource, setCredential } from './auth.js';
 export type { AuthMethod, CredentialSource } from './auth.js';
 export {
+  MODEL_CACHE_TTL_MS,
+  isCacheFresh,
+  modelsCachePath,
+  readModelCache,
+  writeModelCache,
+} from './model-cache.js';
+export type { CachedModels, ModelCacheData } from './model-cache.js';
+export {
   ADAPTER_IDS,
   PROVIDER_IDS,
   assertKnownProvider,
