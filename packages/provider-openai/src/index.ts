@@ -5,3 +5,4 @@ export type {
   OpenAIGenerateParams,
   OpenAIGenerateResult,
 } from './openai.js';
+export { OPENAI_BASE_URL, OpenAICatalog } from './catalog.js';
