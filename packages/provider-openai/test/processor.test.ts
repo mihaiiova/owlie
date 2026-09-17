@@ -115,4 +115,18 @@ describe('OpenAIProcessor.process', () => {
     const result = await processor.process({ document });
     expect(JSON.stringify(result)).not.toContain('sk-secret');
   });
+
+  it('redacts the api key from SDK error messages', async () => {
+    const { client } = makeClient({
+      error: new Error('Authorization: Bearer sk-secret-key was rejected'),
+    });
+    const processor = new OpenAIProcessor(
+      { apiKey: 'sk-secret-key', model: 'gpt-4o-mini' },
+      { client },
+    );
+    const error = await processor.process({ document }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProcessingError);
+    expect((error as Error).message).not.toContain('sk-secret-key');
+    expect((error as Error).message).toContain('[REDACTED]');
+  });
 });

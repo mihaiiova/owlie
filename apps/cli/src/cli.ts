@@ -1,9 +1,11 @@
 import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
 import { commandHelp, helpText } from './commands/help.js';
+import { runAuthCommand, type AuthDeps } from './commands/auth.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runListCommand, type ListDeps } from './commands/list.js';
+import { runModelsCommand, type ModelsDeps } from './commands/models.js';
 import { runProcessCommand, type ProcessDeps } from './commands/process.js';
 import { runResolveCommand, type ResolveDeps } from './commands/resolve.js';
 import { runSetupCommand, type SetupDeps } from './commands/setup.js';
@@ -14,6 +16,7 @@ export interface CliOptions {
   quiet: boolean;
   json: boolean;
   each: boolean;
+  refresh: boolean;
   envFile?: string;
   input?: string;
   inputFormat?: 'text' | 'json';
@@ -31,9 +34,11 @@ export interface CliOptions {
 }
 
 export interface CliDeps {
+  auth?: AuthDeps;
   doctor?: DoctorDeps;
   extract?: ExtractDeps;
   list?: ListDeps;
+  models?: ModelsDeps;
   process?: ProcessDeps;
   resolve?: ResolveDeps;
   setup?: SetupDeps;
@@ -48,7 +53,7 @@ export interface ParsedArgs {
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
-  const options: CliOptions = { quiet: false, json: false, each: false };
+  const options: CliOptions = { quiet: false, json: false, each: false, refresh: false };
   const args: string[] = [];
   let helpRequested = false;
   let versionRequested = false;
@@ -142,6 +147,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--each':
         options.each = true;
         break;
+      case '--refresh':
+        options.refresh = true;
+        break;
       default: {
         if (KNOWN_VALUE_FLAGS.includes(arg)) {
           const next = argv[i + 1];
@@ -195,6 +203,14 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (command === 'doctor') {
     return runDoctorCommand(io, options, deps.doctor);
+  }
+
+  if (command === 'auth') {
+    return runAuthCommand(parsed.args.slice(1), io, options, deps.auth);
+  }
+
+  if (command === 'models') {
+    return runModelsCommand(io, options, deps.models);
   }
 
   if (command === 'extract') {

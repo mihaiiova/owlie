@@ -74,9 +74,11 @@ imports.
 1. A `NormalizedDocument` is wrapped in a `ProcessRequest` (instruction and
    optional output schema).
 2. A `ContentProcessor` processes it. In v0.1 the functional processors are
-   `@owlieio/provider-deepseek` and `@owlieio/provider-openai`. The provider
-   is selected explicitly (flag → `OWLIE_PROVIDER` → saved active provider),
-   then a model is selected within it.
+   `@owlieio/provider-deepseek` and `@owlieio/provider-openai`. The model is
+   selected with `--model provider/model-id` (self-contained), or a plain
+   `--model id` with the deprecated `--provider` alias → `OWLIE_PROVIDER` →
+   saved active provider. Live model discovery goes through the provider-neutral
+   `ProviderCatalog` contract (`owlie models`).
 3. The `ProcessResult` (`text` | `markdown` | `json`) is written directly to
    stdout (or a file) by the CLI. `OutputSerializer` remains a reserved
    provider-neutral contract with no v0.1 implementation.

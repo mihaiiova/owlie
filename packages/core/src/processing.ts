@@ -68,17 +68,38 @@ export function buildProcessResult(options: {
 }
 
 /**
+ * Redacts secret values and bearer-token shapes from a message so a
+ * provider-SDK failure can be surfaced without leaking credentials or request
+ * metadata. Exact secret values are replaced first; a `Bearer <token>` shape
+ * is redacted defensively even when the exact token is unknown.
+ */
+export function redactSecrets(message: string, secrets: readonly string[]): string {
+  let out = message;
+  for (const secret of secrets) {
+    const value = secret.trim();
+    if (value) out = out.split(value).join('[REDACTED]');
+  }
+  return out.replace(/Bearer\s+[^\s"']+/gi, 'Bearer [REDACTED]');
+}
+
+/**
  * Maps an SDK/abort failure to the shared error convention: an aborted signal
  * or `AbortError` becomes a {@link CancelledError}, and any other failure
  * becomes a {@link ProcessingError} prefixed with the caller-supplied label.
- * Always throws; the return type is `never`.
+ * Any supplied `secrets` (for example the provider API key) are redacted from
+ * the surfaced message. Always throws; the return type is `never`.
  */
-export function mapProcessingError(label: string, error: unknown, signal?: AbortSignal): never {
+export function mapProcessingError(
+  label: string,
+  error: unknown,
+  signal?: AbortSignal,
+  secrets: readonly string[] = [],
+): never {
   if (signal?.aborted || isAbortError(error)) {
     throw new CancelledError(`${label} processing was cancelled`, { cause: error });
   }
-  throw new ProcessingError(
-    `${label} processing failed: ${error instanceof Error ? error.message : String(error)}`,
-    { cause: error },
-  );
+  const raw = error instanceof Error ? error.message : String(error);
+  throw new ProcessingError(`${label} processing failed: ${redactSecrets(raw, secrets)}`, {
+    cause: error,
+  });
 }
