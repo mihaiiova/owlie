@@ -75,4 +75,23 @@ describe('Spinner', () => {
       vi.useRealTimers();
     }
   });
+
+  it('writes plain status lines instead of animating when tty is false', () => {
+    const { writes, write } = collector();
+    const spinner = new Spinner({ write, tty: false });
+    spinner.start('waiting for llm response');
+    spinner.update('done');
+    spinner.stop();
+    expect(writes).toEqual(['waiting for llm response\n', 'done\n']);
+    expect(spinner.active).toBe(false);
+  });
+
+  it('deduplicates repeated status lines when tty is false', () => {
+    const { writes, write } = collector();
+    const spinner = new Spinner({ write, tty: false });
+    spinner.start('waiting');
+    spinner.update('waiting');
+    spinner.update('done');
+    expect(writes).toEqual(['waiting\n', 'done\n']);
+  });
 });

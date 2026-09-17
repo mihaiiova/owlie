@@ -41,7 +41,7 @@ function capture() {
   let stderr = '';
   const io: CliIo = {
     stdout: { write: (chunk: string) => (stdout += chunk) },
-    stderr: { write: (chunk: string) => (stderr += chunk) },
+    stderr: { write: (chunk: string) => (stderr += chunk), isTTY: false },
     stdin: { isTTY: false, read: async () => '' },
   };
   return { io, stdout: () => stdout, stderr: () => stderr };
@@ -437,6 +437,7 @@ describe('extract — direct dispatch', () => {
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('article body\n');
     expect(stderr()).toContain('extracting article text');
+    expect(stderr()).not.toContain('owlie: extracting article text');
   });
 
   it('fails with a clear error when no adapter recognizes a direct URL', async () => {

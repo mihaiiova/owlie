@@ -15,6 +15,7 @@ function capture() {
       write: (chunk: string) => {
         stderr += chunk;
       },
+      isTTY: false,
     },
     stdin: {
       isTTY: false,

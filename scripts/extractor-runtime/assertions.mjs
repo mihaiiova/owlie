@@ -4,8 +4,7 @@
 // separation (via the caller), prerequisite failure guidance, and the
 // never-downloads-model-weights guarantee.
 
-export const PREREQUISITE_GUIDANCE =
-  /ensure ffprobe, ffmpeg, and python3 with faster-whisper are installed/;
+export const PREREQUISITE_GUIDANCE = /(?:ffprobe|ffmpeg|python3|faster-whisper) is not installed/;
 
 export const MODEL_DOWNLOAD_GUIDANCE = /never downloads model weights/;
 

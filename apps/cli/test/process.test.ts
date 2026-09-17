@@ -21,7 +21,7 @@ function capture(stdin: { isTTY: boolean; content?: string } = { isTTY: false, c
   let stderr = '';
   const io: CliIo = {
     stdout: { write: (chunk: string) => (stdout += chunk) },
-    stderr: { write: (chunk: string) => (stderr += chunk) },
+    stderr: { write: (chunk: string) => (stderr += chunk), isTTY: false },
     stdin: { isTTY: stdin.isTTY, read: async () => stdin.content ?? '' },
   };
   return { io, stdout: () => stdout, stderr: () => stderr };
@@ -355,8 +355,30 @@ describe('process command', () => {
       },
     });
     expect(code).toBe(ExitCode.Success);
-    expect(starts).toEqual(['processing']);
+    expect(starts).toEqual(['waiting for llm response']);
     expect(stopped).toBe(1);
+  });
+
+  it('writes a waiting status line before processing piped stdin', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stderr } = capture({ isTTY: false, content: 'hello world' });
+    const code = await run(['process', '--prompt', 'Summarize'], io, deps({ processor }));
+    expect(code).toBe(ExitCode.Success);
+    expect(stderr()).toContain('waiting for llm response');
+    expect(stderr()).not.toContain('owlie:');
+    expect(stderr()).not.toContain('\r');
+  });
+
+  it('suppresses the waiting status line with --quiet', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stderr } = capture({ isTTY: false, content: 'hello world' });
+    const code = await run(
+      ['process', '--quiet', '--prompt', 'Summarize'],
+      io,
+      deps({ processor }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stderr()).toBe('');
   });
 
   it('extracts a URL and processes the extracted document', async () => {
@@ -371,6 +393,20 @@ describe('process command', () => {
     expect(stdout()).toBe('Summarize:article body\n');
     expect(requests[0]?.document.text).toBe('article body');
     expect(requests[0]?.document.sourceType).toBe('article');
+  });
+
+  it('writes a waiting status line before processing a URL with the LLM', async () => {
+    const { processor } = makeFakeProcessor();
+    const { io, stderr } = capture({ isTTY: true });
+    const code = await run(
+      ['process', 'https://example.com/story', '--prompt', 'Summarize'],
+      io,
+      deps({ processor, itemAdapters: [articleAdapter()], feedAdapter: noFeedAdapter() }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stderr()).toContain('waiting for llm response');
+    expect(stderr()).not.toContain('owlie:');
+    expect(stderr()).not.toContain('\r');
   });
 
   it('extracts a URL that defers to the article adapter', async () => {
@@ -395,6 +431,7 @@ describe('process command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('Summarize:article body\n');
     expect(stderr()).toContain('extracting article text');
+    expect(stderr()).not.toContain('owlie: extracting article text');
     expect(requests[0]?.document.sourceType).toBe('article');
   });
 

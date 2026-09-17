@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ConfigurationError } from '@owlieio/core';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
+import { PROVIDER_IDS } from './registry.js';
 
 /** Platform-appropriate configuration directory (XDG-aware). */
 export function configDir(): string {
@@ -178,7 +179,7 @@ export function resolveProvider(
   const active = readUserConfigFn().provider?.trim();
   if (active) return active;
   throw new ConfigurationError(
-    'no provider selected: pass --provider <provider> or set OWLIE_PROVIDER',
+    `no provider selected: pass --provider <provider> or set OWLIE_PROVIDER (known providers: ${PROVIDER_IDS.join(', ')})`,
   );
 }
 

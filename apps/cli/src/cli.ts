@@ -1,5 +1,6 @@
 import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
+import { writeDiagnostic } from './style.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
@@ -173,7 +174,7 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   if (parsed.usageError) {
-    if (!options.quiet) io.stderr.write(`owlie: ${parsed.usageError}\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', parsed.usageError);
     return ExitCode.Usage;
   }
 
@@ -218,7 +219,7 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   if (!options.quiet) {
-    io.stderr.write(`owlie: unknown command "${command}"\n`);
+    writeDiagnostic(io, 'warning', `unknown command "${command}"`);
     io.stderr.write('Run "owlie --help" for usage.\n');
   }
   return ExitCode.Usage;
