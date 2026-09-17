@@ -94,7 +94,7 @@ describe('buildShimScenarios', () => {
       result({
         status: 1,
         stderr:
-          'owlie: podcast extraction failed: ensure ffprobe, ffmpeg, and python3 with faster-whisper are installed',
+          'podcast extraction failed: ffprobe is not installed; install ffmpeg/ffprobe from your package manager',
       }),
     );
     expect(good.ok).toBe(true);
@@ -199,7 +199,7 @@ describe('buildRealScenarios', () => {
       extract.assert(
         result({
           status: 1,
-          stderr: 'ensure ffprobe, ffmpeg, and python3 with faster-whisper are installed',
+          stderr: 'ffprobe is not installed',
         }),
       ).ok,
     ).toBe(false);

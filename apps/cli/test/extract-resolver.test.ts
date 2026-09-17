@@ -16,7 +16,7 @@ function capture() {
   let stderr = '';
   const io: CliIo = {
     stdout: { write: (chunk: string) => (stdout += chunk) },
-    stderr: { write: (chunk: string) => (stderr += chunk) },
+    stderr: { write: (chunk: string) => (stderr += chunk), isTTY: false },
     stdin: { isTTY: false, read: async () => '' },
   };
   return { io, stdout: () => stdout, stderr: () => stderr };

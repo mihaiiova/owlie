@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { run } from './cli.js';
+import { colorize } from './style.js';
 
 async function main(): Promise<void> {
   const controller = new AbortController();
@@ -22,7 +23,10 @@ async function main(): Promise<void> {
       process.argv.slice(2),
       {
         stdout: { write: (chunk) => process.stdout.write(chunk) },
-        stderr: { write: (chunk) => process.stderr.write(chunk) },
+        stderr: {
+          write: (chunk) => process.stderr.write(chunk),
+          isTTY: Boolean(process.stderr.isTTY),
+        },
         stdin: {
           isTTY: Boolean(process.stdin.isTTY),
           read: () =>
@@ -46,7 +50,8 @@ async function main(): Promise<void> {
     );
     process.exitCode = code;
   } catch (error) {
-    process.stderr.write(`owlie: ${error instanceof Error ? error.message : String(error)}\n`);
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${colorize('error', message, Boolean(process.stderr.isTTY))}\n`);
     process.exitCode = 1;
   }
 }

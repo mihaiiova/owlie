@@ -5,6 +5,7 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { resolvePodcastAudio } from '../resolvers.js';
 import type { PodcastResolverRegistration } from '../resolvers.js';
+import { writeDiagnostic } from '../style.js';
 
 /** Injectable seams for `owlie resolve` (tests substitute an offline fetcher). */
 export interface ResolveDeps {
@@ -27,11 +28,11 @@ export async function runResolveCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) io.stderr.write('owlie: resolve requires a URL\n');
+    if (!options.quiet) writeDiagnostic(io, 'warning', 'resolve requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
@@ -59,12 +60,12 @@ export async function runResolveCommand(
     return ExitCode.Success;
   } catch (error) {
     if (error instanceof ConfigurationError) {
-      if (!options.quiet) io.stderr.write(`owlie: ${error.message}\n`);
+      if (!options.quiet) writeDiagnostic(io, 'warning', error.message);
       return ExitCode.Usage;
     }
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }

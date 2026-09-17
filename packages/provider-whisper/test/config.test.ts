@@ -132,7 +132,7 @@ describe('WhisperLocalTranscriber', () => {
 
     await expect(
       transcriber.transcribe({ mediaPath: '/tmp/audio.mp3', metadata: {} }),
-    ).rejects.toThrow('ensure');
+    ).rejects.toThrow('ffprobe is not installed');
   });
 
   it('guides operators to pre-provision a missing local model', async () => {

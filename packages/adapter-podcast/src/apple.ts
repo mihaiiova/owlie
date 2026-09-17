@@ -8,6 +8,7 @@ import {
   ExtractionError,
   isFeedContentType,
   isJsonContentType,
+  mediaTypeOf,
 } from '@owlieio/core';
 import type { PodcastAudioResolver } from './podcast.js';
 
@@ -81,7 +82,7 @@ export class ApplePodcastsResolver implements PodcastAudioResolver {
       signal: options.signal,
       policy: this.policy,
     });
-    if (!isJsonContentType(lookup.contentType))
+    if (!isAppleLookupContentType(lookup.contentType))
       throw new ExtractionError(
         `unexpected lookup response content type ${lookup.contentType ?? 'missing'}`,
       );
@@ -126,6 +127,16 @@ export class ApplePodcastsResolver implements PodcastAudioResolver {
       title: entry?.title,
     };
   }
+}
+
+/**
+ * Whether a declared media type is a JSON Apple lookup response. Apple's
+ * `itunes.apple.com/lookup` endpoint serves JSON with a `text/javascript`
+ * (rather than `application/json`) Content-Type, so the lookup gate accepts
+ * that well-known Apple media type in addition to standard JSON types.
+ */
+function isAppleLookupContentType(contentType: string | null | undefined): boolean {
+  return isJsonContentType(contentType) || mediaTypeOf(contentType) === 'text/javascript';
 }
 
 function parseResults(text: string): Record<string, unknown>[] {
