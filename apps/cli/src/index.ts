@@ -36,6 +36,8 @@ export {
   writeUserConfig,
 } from './config.js';
 export type { ProviderEnvConfig, ProviderProfile, UserConfig } from './config.js';
+export { removeCredential, resolveCredentialSource, setCredential } from './auth.js';
+export type { AuthMethod, CredentialSource } from './auth.js';
 export {
   ADAPTER_IDS,
   PROVIDER_IDS,
