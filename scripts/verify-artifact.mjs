@@ -3,7 +3,7 @@
 // acceptance commands against the installed binary. Requires network access
 // (to install the runtime dependencies). Run with: pnpm verify:artifact
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,6 +70,28 @@ try {
   const bin = join(installDir, 'node_modules', '.bin', 'owlie');
   check(existsSync(bin), 'owlie bin shim is installed');
 
+  // Seed conflicting filesystem configuration. The hosted acceptance case below
+  // must demonstrate that neither the CWD nor HOME influences provider settings.
+  writeFileSync(join(installDir, '.env'), 'DEEPSEEK_API_KEY=sk-cwd\nDEEPSEEK_MODEL=cwd-model\n');
+  const configDir = join(homeDir, '.config', 'owlie');
+  mkdirSync(configDir, { recursive: true });
+  mkdirSync(join(homeDir, '.cache', 'owlie'), { recursive: true });
+  writeFileSync(
+    join(configDir, 'config.json'),
+    JSON.stringify({
+      provider: 'deepseek',
+      providers: { deepseek: { apiKey: 'sk-profile', model: 'profile-model' } },
+    }),
+    'utf8',
+  );
+  writeFileSync(
+    join(homeDir, '.cache', 'owlie', 'models.json'),
+    JSON.stringify({
+      deepseek: { models: [{ provider: 'deepseek', id: 'cached-model' }], fetchedAt: 0 },
+    }),
+    'utf8',
+  );
+
   // 4. Run the offline-safe release acceptance commands.
   const acceptance = [
     { name: '--version', args: ['--version'], status: 0, stdout: /^owlie \d+\.\d+\.\d+/m },
@@ -101,8 +123,10 @@ try {
         XDG_CONFIG_HOME: join(homeDir, '.config'),
         XDG_CACHE_HOME: join(homeDir, '.cache'),
         DEEPSEEK_API_KEY: 'sk-hosted-test',
+        DEEPSEEK_MODEL: 'env-model',
       },
-      stdout: /"configurationSource"\s*:\s*"hosted"/,
+      stdout:
+        /"configurationSource"\s*:\s*"hosted"[\s\S]*"id"\s*:\s*"deepseek"[\s\S]*"apiKey"\s*:\s*"set"[\s\S]*"model"\s*:\s*"env-model"[\s\S]*"authSource"\s*:\s*"environment"/,
     },
   ];
   for (const item of acceptance) {
