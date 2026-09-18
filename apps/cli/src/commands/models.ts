@@ -60,7 +60,7 @@ export async function runModelsCommand(
         (provider) =>
           resolveCredentialSource(
             provider.id,
-            { envFile: options.envFile },
+            { envFile: options.envFile, hosted: options.hosted },
             env,
             loadFile,
             readConfig,
@@ -74,14 +74,14 @@ export async function runModelsCommand(
       }
     }
 
-    const cache = readModelCache(cachePath);
+    const cache = options.hosted ? {} : readModelCache(cachePath);
     const results: ModelInfo[] = [];
     const fallbacks: string[] = [];
 
     for (const provider of targets) {
       const settings = resolveProviderSettings(
         provider.id,
-        { envFile: options.envFile },
+        { envFile: options.envFile, hosted: options.hosted },
         env,
         loadFile,
         readConfig,
@@ -120,7 +120,7 @@ export async function runModelsCommand(
       results.push(...models);
     }
 
-    writeModelCache(cache, cachePath);
+    if (!options.hosted) writeModelCache(cache, cachePath);
 
     for (const diagnostic of fallbacks) {
       if (!options.quiet) io.stderr.write(diagnostic + '\n');
