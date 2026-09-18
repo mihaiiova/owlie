@@ -46,13 +46,13 @@ importers:
         version: 4.0.50(zod@4.4.3)
       '@hallelx/youtube-transcript':
         specifier: ^0.2.0
-        version: 0.2.0(undici@7.29.0)
+        version: 0.2.0(undici@7.29.1)
       ai:
         specifier: ^7.0.90
         version: 7.0.90(zod@4.4.3)
       undici:
-        specifier: ^7.0.0
-        version: 7.29.0
+        specifier: ^7.29.1
+        version: 7.29.1
     devDependencies:
       '@owlieio/adapter-article':
         specifier: workspace:*
@@ -189,7 +189,7 @@ importers:
     dependencies:
       '@hallelx/youtube-transcript':
         specifier: ^0.2.0
-        version: 0.2.0(undici@7.29.0)
+        version: 0.2.0(undici@7.29.1)
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core
@@ -2118,8 +2118,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@7.29.0:
-    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+  undici@7.29.1:
+    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
   universalify@0.1.2:
@@ -2250,7 +2250,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
-      undici: 7.29.0
+      undici: 7.29.1
       zod: 4.4.3
 
   '@ai-sdk/provider-utils@5.0.36(zod@4.4.3)':
@@ -2259,7 +2259,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
-      undici: 7.29.0
+      undici: 7.29.1
       zod: 4.4.3
 
   '@ai-sdk/provider@4.0.10':
@@ -2635,9 +2635,9 @@ snapshots:
     transitivePeerDependencies:
       - canvas
 
-  '@hallelx/youtube-transcript@0.2.0(undici@7.29.0)':
+  '@hallelx/youtube-transcript@0.2.0(undici@7.29.1)':
     optionalDependencies:
-      undici: 7.29.0
+      undici: 7.29.1
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -3952,7 +3952,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@7.29.0: {}
+  undici@7.29.1: {}
 
   universalify@0.1.2: {}
 
