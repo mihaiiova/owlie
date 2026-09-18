@@ -31,7 +31,7 @@
     "@ai-sdk/deepseek": "^3.0.39",
     "@ai-sdk/openai": "^4.0.50",
     "@hallelx/youtube-transcript": "^0.2.0",
-    "undici": "^7.0.0"
+    "undici": "^7.29.1"
   },
   "scripts": {
     "build": "tsup",
