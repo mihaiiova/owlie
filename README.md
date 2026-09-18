@@ -175,8 +175,10 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 | `--refresh`                                              | `models`                                    | Bypass the model cache                                                                                                    |
 | `--language LANG`                                        | `extract`                                   | Comma-separated transcript languages (default `en`)                                                                       |
 | `--limit N`                                              | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                                                            |
-| `--timeout-ms N`                                         | `extract` (direct media)                    | One end-to-end deadline across resolution, download, and transcription                                                    |
-| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes                                                                                            |
+| `--timeout-ms N`                                         | all networked commands                      | One invocation-wide deadline across listing, HTTP, extraction/transcription, feeds, and providers                         |
+| `--max-network-bytes N`                                  | all networked commands                      | Cap total network download bytes through the core fetch seam and direct media                                             |
+| `--max-stdout-bytes N`                                   | all networked commands                      | Cap total stdout bytes before the protocol boundary                                                                       |
+| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes (direct-media override)                                                                    |
 | `--each`                                                 | `process`                                   | Process each linked item of an RSS/Atom feed                                                                              |
 | `--input FILE`                                           | `process`                                   | Read input from a file instead of a positional argument or stdin                                                          |
 | `--input-format text\|json`                              | `process`                                   | Declare the input format (`text` default)                                                                                 |
@@ -190,6 +192,7 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 | 1    | General error   |
 | 2    | Usage error     |
 | 3    | Not implemented |
+| 130  | Cancelled       |
 
 ## Planned sources
 
@@ -265,6 +268,12 @@ media before transcoding, independently of weak or absent HTTP content types;
 invalid media is rejected. The configured Whisper model must already be local,
 because extraction never downloads model weights. Cancellation terminates active
 local transcription commands and removes temporary downloads/intermediates.
+
+Every networked command also accepts an invocation-wide `--timeout-ms` deadline
+plus `--max-network-bytes` and `--max-stdout-bytes` budgets. Cancellation
+(SIGINT/SIGTERM or an expired deadline) exits 130 with a versioned
+`kind: "cancelled"` terminal record in `--json` mode, distinct from ordinary
+errors.
 
 ## Non-goals
 

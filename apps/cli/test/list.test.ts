@@ -210,11 +210,11 @@ describe('list command', () => {
     expect(stderr()).not.toContain('feed-secret');
   });
 
-  it('maps cancellation to exit code 1', async () => {
+  it('maps cancellation to exit code 130', async () => {
     const { adapter } = makeAdapter({ listError: new CancelledError('cancelled') });
     const { io, stdout, stderr } = capture();
     const code = await run(['list', FEED_URL], io, deps(adapter));
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('cancelled');
   });

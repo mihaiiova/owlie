@@ -106,7 +106,7 @@ describe('extract command', () => {
     };
     const { io, stdout, stderr } = capture();
     const code = await run(['extract', URL, '--timeout-ms', '10'], io, deps(adapter));
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('extraction cancelled');
   });

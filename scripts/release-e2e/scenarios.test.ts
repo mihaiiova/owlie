@@ -52,8 +52,18 @@ describe('toFailure', () => {
   it('maps non-zero status to an exit failure', () => {
     expect(toFailure({ status: 1, stderr: 'x' }, ['bad'])).toEqual({
       kind: 'exit',
+      status: 1,
       stderr: 'x',
       message: 'bad',
+    });
+  });
+
+  it('preserves the exit code for cancellation classification', () => {
+    expect(toFailure({ status: 130, stderr: 'cancelled' }, [])).toEqual({
+      kind: 'exit',
+      status: 130,
+      stderr: 'cancelled',
+      message: '',
     });
   });
 });
@@ -237,6 +247,7 @@ describe('buildScenarios', () => {
       'process file',
       'extract → process pipeline',
       'process feed --each',
+      'deadline cancellation',
     ]);
     for (const s of scenarios) {
       expect(typeof s.run).toBe('function');
@@ -250,6 +261,20 @@ describe('buildScenarios', () => {
     expect(youtube?.allowProxyFallback).toBe(true);
     const others = scenarios.filter((s) => s.name !== 'extract youtube');
     expect(others.every((s) => s.allowProxyFallback === false)).toBe(true);
+  });
+
+  it('accepts the deadline-cancellation scenario as exit 130 with a cancelled record', () => {
+    const scenarios = buildScenarios(ctx, spawn, spawnTty);
+    const scenario = scenarios.find((s) => s.name === 'deadline cancellation');
+    expect(
+      scenario.assert({
+        status: 130,
+        stdout: '',
+        stderr: '{"schemaVersion":1,"command":"list","kind":"cancelled","message":"timed out"}\n',
+      }),
+    ).toEqual({ ok: true, errors: [] });
+    expect(scenario.assert({ status: 0, stdout: '', stderr: '' }).ok).toBe(false);
+    expect(scenario.assert({ status: 130, stdout: '', stderr: 'not json\n' }).ok).toBe(false);
   });
 
   it('doctor accepts the object-shaped providers report', () => {

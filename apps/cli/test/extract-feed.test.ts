@@ -320,7 +320,7 @@ describe('extract — feed batch', () => {
     expect(stderr()).toBe('');
   });
 
-  it('stops starting new items after cancellation and exits 1', async () => {
+  it('stops starting new items after cancellation and exits 130', async () => {
     const controller = new AbortController();
     let extractions = 0;
     const article = makeItemAdapter('article', { text: 'body' });
@@ -344,7 +344,7 @@ describe('extract — feed batch', () => {
         signal: controller.signal,
       },
     });
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(extractions).toBe(1);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('cancelled');

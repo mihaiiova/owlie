@@ -351,7 +351,7 @@ describe('unified JSON protocol through run()', () => {
         feedAdapter: feedAdapter(),
       },
     });
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(stdout()).toBe('');
     expect(stderrLines()).toEqual([
       {

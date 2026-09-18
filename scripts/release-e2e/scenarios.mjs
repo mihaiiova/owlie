@@ -34,7 +34,12 @@ export function toFailure(result, assertionErrors = []) {
   if (result.status === 0) {
     return { kind: 'assertion', message: assertionErrors.join('; ') };
   }
-  return { kind: 'exit', stderr: result.stderr, message: assertionErrors.join('; ') };
+  return {
+    kind: 'exit',
+    status: result.status,
+    stderr: result.stderr,
+    message: assertionErrors.join('; '),
+  };
 }
 
 /** Renders bounded, shape-based diagnostics for a failed attempt. */
@@ -387,6 +392,27 @@ export function buildScenarios(ctx, spawn, spawnTty) {
           return { ok: false, errors: ['process output leaked a secret'] };
         }
         return { ok: true, errors: [] };
+      },
+    },
+    {
+      name: 'deadline cancellation',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['list', feedUrl, '--timeout-ms', '1', '--json'],
+          env: {},
+          timeoutMs: 30_000,
+        }),
+      assert: (result) => {
+        const errors = [];
+        if (!assertExitCode(result, 130).ok) errors.push(assertExitCode(result, 130).error);
+        const parsed = parseJsonLines(result.stderr);
+        if (!parsed.ok) {
+          errors.push(parsed.error);
+        } else if (!parsed.records.some((record) => record.kind === 'cancelled')) {
+          errors.push('missing cancelled terminal record');
+        }
+        return { ok: errors.length === 0, errors };
       },
     },
   ];

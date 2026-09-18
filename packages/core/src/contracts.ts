@@ -10,7 +10,7 @@ import type {
   SourceType,
 } from './types.js';
 import type { OutputFormat } from './output.js';
-import type { HttpTextResponse } from './http.js';
+import type { HttpFetchPolicy, HttpTextResponse } from './http.js';
 
 /** A sink for provider-neutral progress events. */
 export interface ProgressSink {
@@ -155,6 +155,12 @@ export interface ContentProcessor {
   process(request: ProcessRequest, options?: ProcessorOptions): Promise<ProcessResult>;
 }
 
+/** Options for a live model-catalog discovery call. */
+export interface ProviderCatalogOptions {
+  signal?: AbortSignal;
+  policy?: HttpFetchPolicy;
+}
+
 /**
  * A provider-neutral live model catalog. Implemented by each LLM provider
  * package; generation remains in {@link ContentProcessor}. It stays SDK-free:
@@ -164,7 +170,10 @@ export interface ContentProcessor {
  */
 export interface ProviderCatalog {
   readonly providerId: string;
-  listModels(credentials: { apiKey: string; baseUrl?: string }): Promise<ModelInfo[]>;
+  listModels(
+    credentials: { apiKey: string; baseUrl?: string },
+    options?: ProviderCatalogOptions,
+  ): Promise<ModelInfo[]>;
 }
 
 export interface SerializeOptions {

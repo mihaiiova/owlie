@@ -1,6 +1,19 @@
 import type { CliIo } from './io.js';
-import { ExitCode } from './io.js';
-import { USAGE_ERROR_CODE, writeErrorRecord, writeUsageError } from './protocol.js';
+import { ExitCode, exitCodeForError } from './io.js';
+import {
+  boundedIo,
+  combineSignals,
+  createDeadline,
+  networkPolicyFromBytes,
+  OutputLimitExceededError,
+  parsePositiveIntegerFlag,
+} from './invocation.js';
+import {
+  USAGE_ERROR_CODE,
+  writeCommandError,
+  writeErrorRecord,
+  writeUsageError,
+} from './protocol.js';
 import { writeDiagnostic } from './style.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runAuthCommand, type AuthDeps } from './commands/auth.js';
@@ -28,10 +41,14 @@ export interface CliOptions {
   provider?: string;
   language?: string;
   limit?: string;
-  /** End-to-end extraction deadline in milliseconds for direct media. */
+  /** Invocation-wide deadline in milliseconds (listing, HTTP, extraction, transcription, feeds, providers). */
   timeoutMs?: string;
   /** Maximum direct-media download size in bytes. */
   maxMediaBytes?: string;
+  /** Command-wide maximum network download bytes. */
+  maxNetworkBytes?: string;
+  /** Command-wide maximum stdout bytes. */
+  maxStdoutBytes?: string;
   /** Stable name of the selected audio resolver (from a resolver-selection flag). */
   resolver?: string;
 }
@@ -79,6 +96,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--limit',
     '--timeout-ms',
     '--max-media-bytes',
+    '--max-network-bytes',
+    '--max-stdout-bytes',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -120,6 +139,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--max-media-bytes':
         options.maxMediaBytes = value;
+        break;
+      case '--max-network-bytes':
+        options.maxNetworkBytes = value;
+        break;
+      case '--max-stdout-bytes':
+        options.maxStdoutBytes = value;
         break;
     }
   };
@@ -188,92 +213,186 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   const options = parsed.options;
   const [command] = parsed.args;
 
-  if (parsed.versionRequested) {
-    io.stdout.write(`owlie ${VERSION}\n`);
-    return ExitCode.Success;
-  }
-
-  if (parsed.usageError) {
-    if (!options.quiet) writeUsageError(io, options, command ?? 'owlie', parsed.usageError);
+  // Validate invocation-wide budgets before producing any output so a bad
+  // value is always a usage error regardless of the selected command.
+  let timeoutMs: number | undefined;
+  let maxNetworkBytes: number | undefined;
+  let maxStdoutBytes: number | undefined;
+  try {
+    timeoutMs = parsePositiveIntegerFlag(options.timeoutMs, '--timeout-ms');
+    maxNetworkBytes = parsePositiveIntegerFlag(options.maxNetworkBytes, '--max-network-bytes');
+    maxStdoutBytes = parsePositiveIntegerFlag(options.maxStdoutBytes, '--max-stdout-bytes');
+  } catch (error) {
+    if (!options.quiet) writeUsageError(io, options, command ?? 'owlie', (error as Error).message);
     return ExitCode.Usage;
   }
 
-  if (parsed.helpRequested) {
-    if (command !== undefined && command !== 'help') {
-      io.stdout.write(commandHelp(command) + '\n');
-    } else {
-      io.stdout.write(helpText() + '\n');
+  const bounded = boundedIo(io, maxStdoutBytes);
+  const networkPolicy = networkPolicyFromBytes(maxNetworkBytes);
+  const deadline = timeoutMs === undefined ? undefined : createDeadline(timeoutMs);
+
+  const compose = (commandSignal: AbortSignal | undefined) => {
+    if (deadline === undefined) return { signal: commandSignal, cleanup: () => {} };
+    return combineSignals(deadline.signal, commandSignal);
+  };
+
+  try {
+    if (parsed.versionRequested) {
+      bounded.stdout.write(`owlie ${VERSION}\n`);
+      return ExitCode.Success;
     }
-    return ExitCode.Success;
-  }
 
-  if (command === undefined || command === 'help') {
-    io.stdout.write(helpText() + '\n');
-    return ExitCode.Success;
-  }
-
-  if (options.hosted) {
-    if (options.envFile !== undefined) {
-      if (!options.quiet)
-        writeUsageError(io, options, command ?? 'owlie', '--env-file cannot be used with --hosted');
+    if (parsed.usageError) {
+      if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', parsed.usageError);
       return ExitCode.Usage;
     }
-    if (command === 'auth' || command === 'setup') {
-      if (!options.quiet)
-        writeUsageError(
-          io,
-          options,
-          command,
-          `command "${command}" is not available in hosted mode`,
+
+    if (parsed.helpRequested) {
+      if (command !== undefined && command !== 'help') {
+        bounded.stdout.write(commandHelp(command) + '\n');
+      } else {
+        bounded.stdout.write(helpText() + '\n');
+      }
+      return ExitCode.Success;
+    }
+
+    if (command === undefined || command === 'help') {
+      bounded.stdout.write(helpText() + '\n');
+      return ExitCode.Success;
+    }
+
+    if (options.hosted) {
+      if (options.envFile !== undefined) {
+        if (!options.quiet)
+          writeUsageError(
+            bounded,
+            options,
+            command ?? 'owlie',
+            '--env-file cannot be used with --hosted',
+          );
+        return ExitCode.Usage;
+      }
+      if (command === 'auth' || command === 'setup') {
+        if (!options.quiet)
+          writeUsageError(
+            bounded,
+            options,
+            command,
+            `command "${command}" is not available in hosted mode`,
+          );
+        return ExitCode.Usage;
+      }
+    }
+
+    if (command === 'doctor') {
+      return runDoctorCommand(bounded, options, deps.doctor);
+    }
+
+    if (command === 'auth') {
+      return runAuthCommand(parsed.args.slice(1), bounded, options, deps.auth);
+    }
+
+    if (command === 'models') {
+      const combined = compose(deps.models?.signal);
+      try {
+        return await runModelsCommand(bounded, options, {
+          ...deps.models,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (command === 'extract') {
+      const combined = compose(deps.extract?.signal);
+      try {
+        return await runExtractCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.extract,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (command === 'list') {
+      const combined = compose(deps.list?.signal);
+      try {
+        return await runListCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.list,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (command === 'process') {
+      const combined = compose(deps.process?.signal);
+      try {
+        return await runProcessCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.process,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (command === 'resolve') {
+      const combined = compose(deps.resolve?.signal);
+      try {
+        return await runResolveCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.resolve,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (command === 'setup') {
+      const combined = compose(deps.setup?.signal);
+      try {
+        return await runSetupCommand(bounded, options, {
+          ...deps.setup,
+          signal: combined.signal,
+          networkPolicy,
+        });
+      } finally {
+        combined.cleanup();
+      }
+    }
+
+    if (!options.quiet) {
+      if (options.json) {
+        writeErrorRecord(
+          bounded,
+          command ?? 'owlie',
+          USAGE_ERROR_CODE,
+          `unknown command "${command ?? ''}"`,
         );
-      return ExitCode.Usage;
+      } else {
+        writeDiagnostic(bounded, 'warning', `unknown command "${command}"`);
+        bounded.stderr.write('Run "owlie --help" for usage.\n');
+      }
     }
-  }
-
-  if (command === 'doctor') {
-    return runDoctorCommand(io, options, deps.doctor);
-  }
-
-  if (command === 'auth') {
-    return runAuthCommand(parsed.args.slice(1), io, options, deps.auth);
-  }
-
-  if (command === 'models') {
-    return runModelsCommand(io, options, deps.models);
-  }
-
-  if (command === 'extract') {
-    return runExtractCommand(parsed.args.slice(1), io, options, deps.extract);
-  }
-
-  if (command === 'list') {
-    return runListCommand(parsed.args.slice(1), io, options, deps.list);
-  }
-
-  if (command === 'process') {
-    return runProcessCommand(parsed.args.slice(1), io, options, deps.process);
-  }
-
-  if (command === 'resolve') {
-    return runResolveCommand(parsed.args.slice(1), io, options, deps.resolve);
-  }
-
-  if (command === 'setup') {
-    return runSetupCommand(io, options, deps.setup);
-  }
-
-  if (!options.quiet) {
-    if (options.json) {
-      writeErrorRecord(
-        io,
-        command ?? 'owlie',
-        USAGE_ERROR_CODE,
-        `unknown command "${command ?? ''}"`,
-      );
-    } else {
-      writeDiagnostic(io, 'warning', `unknown command "${command}"`);
-      io.stderr.write('Run "owlie --help" for usage.\n');
+    return ExitCode.Usage;
+  } catch (error) {
+    // A stdout budget overflow can escape command-local handlers (help/version
+    // and unknown-command paths write directly); surface it as a normal error.
+    if (error instanceof OutputLimitExceededError) {
+      if (!options.quiet) writeCommandError(bounded, options, command ?? 'owlie', error);
+      return exitCodeForError(error);
     }
+    throw error;
+  } finally {
+    deadline?.cleanup();
   }
-  return ExitCode.Usage;
 }

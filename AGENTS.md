@@ -29,7 +29,10 @@ flags and injected process environment only, with no dotenv, saved user
 configuration, or model-cache fallback, and `auth`/`setup` rejected. `--json`
 is a unified, versioned subprocess protocol (`{ schemaVersion, command, result }`
 envelopes on stdout, versioned JSONL progress and terminal error/cancellation
-records on stderr; ADR 0030). Search and
+records on stderr; ADR 0030). Every networked command also accepts an
+invocation-wide `--timeout-ms` deadline plus `--max-network-bytes` and
+`--max-stdout-bytes` budgets; cancellation (SIGINT/SIGTERM or deadline expiry)
+exits 130 with a structured cancellation record (ADR 0031). Search and
 other podcast provider-specific lookup remain deferred. Podcast transcription
 runs through one generic local faster-whisper pipeline that chunks long audio
 (five-minute windows, two-second overlap) with monotonic progress.

@@ -54,6 +54,12 @@ and processing must be built.
   count, and path (no path traversal) if archives are ever supported.
 - **Cancellation and resource limits** — honor `AbortSignal` everywhere and
   bound CPU/memory for local transcription.
+- **Invocation-wide budgets** — one `--timeout-ms` deadline composes with
+  SIGINT/SIGTERM across listing, HTTP, extraction/transcription, feed batches,
+  and provider calls; `--max-network-bytes` bounds total downloads through the
+  core fetch seam and direct media; `--max-stdout-bytes` bounds output before
+  the protocol boundary. Expiry aborts work, cleans temp artifacts, and exits
+  130 with a structured cancellation record.
 
 ## Secrets and privacy
 
