@@ -156,8 +156,8 @@ export interface ModelSelection {
  * silent precedence. Pure and injectable for deterministic tests.
  */
 export function resolveModelSelection(
-  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'>,
-  resolveProviderFn: (options: { provider?: string; envFile?: string }) => string,
+  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'> & { hosted?: boolean },
+  resolveProviderFn: (options: { provider?: string; envFile?: string; hosted?: boolean }) => string,
 ): ModelSelection {
   const ref = options.model !== undefined ? resolveModelReference(options.model) : undefined;
   if (ref?.provider) {
@@ -176,7 +176,7 @@ export function resolveModelSelection(
 /** Resolves the active provider through the injected override or config/env. */
 function resolveProviderFallback(deps: ProcessDeps) {
   const readConfig = deps.readConfig ?? readUserConfig;
-  return (opts: { provider?: string; envFile?: string }) =>
+  return (opts: { provider?: string; envFile?: string; hosted?: boolean }) =>
     deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig);
 }
 
@@ -204,7 +204,7 @@ function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): Con
     deps.config ??
     resolveProviderSettings(
       provider,
-      { model, envFile: options.envFile },
+      { model, envFile: options.envFile, hosted: options.hosted },
       process.env,
       loadDotEnv,
       readConfig,
@@ -223,9 +223,9 @@ function resolveItemAdapters(
     deps.itemAdapters ??
     defaultItemAdapters({
       languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
+      proxy: options.hosted ? undefined : readConfig().proxy,
       cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
+      whisperModel: options.hosted ? undefined : readConfig().transcription?.model,
     })
   );
 }

@@ -45,6 +45,26 @@ OpenAI has no default model. If a configured default model no longer exists,
 the failure points to `owlie models --provider <provider>` for the current list;
 Owlie never silently substitutes a different model.
 
+## Hosted mode
+
+`--hosted` makes a single invocation deterministic for a hosted subprocess: it
+accepts command-line flags and injected process environment only. It disables
+`.env`/`.env.local`, `--env-file` (combining it with `--hosted` is a usage
+error), saved user configuration, and model-cache fallback. `owlie auth` and
+`owlie setup` are rejected (usage error 2) before prompting or writing state.
+
+Hosted precedence is simply:
+
+```text
+command-line flags
+    ↓
+process environment variables
+```
+
+No filesystem configuration is consulted. `owlie doctor --json` reports
+`configurationSource: "hosted"`; non-hosted invocations report `"local"` and
+retain the full precedence documented above.
+
 ## Environment files
 
 `--env-file /path/to/credentials.env` loads an explicit environment file, and

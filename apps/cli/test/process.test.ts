@@ -598,4 +598,14 @@ describe('resolveModelSelection', () => {
       model: 'gpt-7',
     });
   });
+
+  it('forwards the hosted flag to the provider fallback', () => {
+    let received: unknown;
+    const result = resolveModelSelection({ model: 'deepseek-chat', hosted: true }, (opts) => {
+      received = opts;
+      return 'deepseek';
+    });
+    expect(result).toEqual({ provider: 'deepseek', model: 'deepseek-chat' });
+    expect(received).toMatchObject({ hosted: true });
+  });
 });

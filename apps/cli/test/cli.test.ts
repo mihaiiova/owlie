@@ -141,9 +141,36 @@ describe('doctor', () => {
       ffprobe: 'detected',
       model: 'not set',
     });
+    expect(report.configurationSource).toBe('local');
     expect(report.deepSeekApiKey).toBeUndefined();
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
+  });
+
+  it('reports hosted config source without reading files or saved config', async () => {
+    const { io, stdout } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: { DEEPSEEK_API_KEY: 'sk-env', DEEPSEEK_MODEL: 'deepseek-chat' },
+        loadFile: () => {
+          throw new Error('loadFile called');
+        },
+        readConfig: () => {
+          throw new Error('readConfig called');
+        },
+        toolAvailable: async () => true,
+      },
+    };
+    const code = await run(['--hosted', 'doctor', '--json'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    const report = JSON.parse(stdout());
+    expect(report.configurationSource).toBe('hosted');
+    expect(report.providers).toEqual([
+      { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },
+      { id: 'openai', apiKey: 'not set', model: null, authSource: 'not set' },
+    ]);
+    expect(report.transcription.model).toBe('not set');
   });
 
   it('resolves provider key and model from .env files like process does', async () => {
@@ -213,6 +240,71 @@ describe('doctor', () => {
         (c) => c.args && c.args[0] === '-c' && c.args[1] === 'import faster_whisper',
       ),
     ).toBe(true);
+  });
+});
+
+describe('--hosted', () => {
+  it('parses as a global flag before or after the command', () => {
+    expect(parseArgs(['--hosted', 'process']).options.hosted).toBe(true);
+    expect(parseArgs(['process', '--hosted']).options.hosted).toBe(true);
+    expect(parseArgs(['process']).options.hosted).toBe(false);
+  });
+
+  it('documents the flag in --help', async () => {
+    const { io, stdout } = capture();
+    const code = await run(['--help'], io);
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toContain('--hosted');
+  });
+
+  it('rejects auth without prompting or writing state', async () => {
+    let prompted = false;
+    let written: unknown;
+    const { io, stderr } = capture();
+    const code = await run(['--hosted', 'auth', 'add', 'deepseek'], io, {
+      auth: {
+        prompt: async () => {
+          prompted = true;
+          return 'sk-x';
+        },
+        readConfig: () => ({}),
+        writeConfig: (config) => (written = config),
+      },
+    });
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('auth');
+    expect(stderr()).toContain('hosted');
+    expect(prompted).toBe(false);
+    expect(written).toBeUndefined();
+  });
+
+  it('rejects setup without prompting or writing state', async () => {
+    let prompted = false;
+    let written: unknown;
+    const { io, stderr } = capture();
+    const code = await run(['--hosted', 'setup'], io, {
+      setup: {
+        prompt: async () => {
+          prompted = true;
+          return 'sk-x';
+        },
+        readConfig: () => ({}),
+        writeConfig: (config) => (written = config),
+      },
+    });
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('setup');
+    expect(stderr()).toContain('hosted');
+    expect(prompted).toBe(false);
+    expect(written).toBeUndefined();
+  });
+
+  it('rejects --env-file as a usage error', async () => {
+    const { io, stderr } = capture();
+    const code = await run(['--hosted', '--env-file', 'custom.env', 'doctor'], io);
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--env-file');
+    expect(stderr()).toContain('--hosted');
   });
 });
 

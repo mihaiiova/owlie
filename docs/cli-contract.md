@@ -127,10 +127,23 @@ owlie auth add <provider> | list | remove <provider>
 - `--quiet` / `-q` suppress diagnostics on stderr.
 - `--json` emits machine-readable JSON on stdout.
 - `--env-file PATH` loads an explicit environment file (functional).
+- `--hosted` enables deterministic hosted mode (see below).
 - Commands support cancellation signals; libraries never call `process.exit`.
 - Broken pipes (`EPIPE`) terminate quietly (exit 0) rather than dumping a stack
   trace.
 - Secrets are never printed.
+
+## Hosted mode
+
+`--hosted` is a single strict switch available to every command. It makes one
+invocation deterministic for a hosted subprocess: configuration comes from
+command-line flags and injected process environment only. It disables implicit
+`.env`/`.env.local` loading, `--env-file` (rejected as a usage error when
+combined), the saved user configuration, and model-cache fallback
+(`owlie models` always live-fetches and never reads or writes the cache).
+`owlie auth` and `owlie setup` are rejected as a usage error (exit code 2)
+before any prompt or state write. Non-hosted behavior and precedence are
+unchanged.
 
 ## Exit codes
 
@@ -152,4 +165,6 @@ environment → `--env-file` → `.env.local` → `.env` → saved profile. It a
 lists the functional adapters (YouTube, podcast, RSS, article), local
 transcription readiness (Python + faster-whisper, ffmpeg, ffprobe, and the
 configured Whisper model), and whether the configuration and cache directories
-are writable.
+are writable. The JSON report includes `configurationSource`
+(`"hosted" | "local"`); in hosted mode it resolves provider readiness from
+flags and process environment only.

@@ -67,6 +67,8 @@ export interface DoctorReport {
   node: string;
   platform: string;
   arch: string;
+  /** Effective configuration-source policy: hosted (flags + process env) or local (full precedence). */
+  configurationSource: 'hosted' | 'local';
   adapters: string[];
   providers: ProviderReport[];
   configDirectory: { path: string; writable: boolean };
@@ -78,20 +80,25 @@ function providerReports(
   env: Record<string, string | undefined>,
   readConfig: () => UserConfig,
   loadFile: (path: string) => Record<string, string>,
-  envFile?: string,
+  envFile: string | undefined,
+  hosted: boolean,
 ): ProviderReport[] {
   return PROVIDER_IDS.map((id) => {
-    const settings = resolveProviderSettings(id, { envFile }, env, loadFile, readConfig);
+    const settings = resolveProviderSettings(id, { envFile, hosted }, env, loadFile, readConfig);
     return {
       id,
       apiKey: settings.apiKey ? 'set' : 'not set',
       model: settings.model ?? null,
-      authSource: resolveCredentialSource(id, { envFile }, env, loadFile, readConfig),
+      authSource: resolveCredentialSource(id, { envFile, hosted }, env, loadFile, readConfig),
     };
   });
 }
 
-async function collectDoctorReport(deps: DoctorDeps, envFile?: string): Promise<DoctorReport> {
+async function collectDoctorReport(
+  deps: DoctorDeps,
+  envFile?: string,
+  hosted = false,
+): Promise<DoctorReport> {
   const toolAvailable = deps.toolAvailable ?? defaultDoctorDeps.toolAvailable!;
   const [configWritable, cacheWritable, python, ffmpeg, ffprobe, whisper] = await Promise.all([
     deps.dirWritable(configDir()),
@@ -103,14 +110,15 @@ async function collectDoctorReport(deps: DoctorDeps, envFile?: string): Promise<
   ]);
 
   const readConfig: () => UserConfig = deps.readConfig ?? (() => ({}));
-  const config = readConfig();
+  const config = hosted ? {} : readConfig();
 
   return {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
+    configurationSource: hosted ? 'hosted' : 'local',
     adapters: [...ADAPTER_IDS],
-    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv, envFile),
+    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv, envFile, hosted),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
     transcription: {
@@ -127,6 +135,9 @@ function formatDoctorReport(report: DoctorReport): string {
     'owlie doctor',
     `  Node: ${report.node}`,
     `  Platform: ${report.platform} (${report.arch})`,
+    `  Configuration source: ${
+      report.configurationSource === 'hosted' ? 'hosted (flags and process env only)' : 'local'
+    }`,
     `  Adapters: ${report.adapters.join(', ')}`,
     `  Providers: ${report.providers.map((p) => p.id).join(', ')}`,
   ];
@@ -147,7 +158,11 @@ export async function runDoctorCommand(
   options: CliOptions,
   deps?: DoctorDeps,
 ): Promise<number> {
-  const report = await collectDoctorReport(deps ?? defaultDoctorDeps, options.envFile);
+  const report = await collectDoctorReport(
+    deps ?? defaultDoctorDeps,
+    options.envFile,
+    options.hosted,
+  );
   if (options.json) {
     io.stdout.write(JSON.stringify(report, null, 2) + '\n');
   } else {
