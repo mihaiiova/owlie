@@ -23,7 +23,10 @@ by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `--provider` alias, `OWLIE_PROVIDER`, or the saved active provider),
 `owlie models` (dynamic per-provider model discovery with a TTL cache),
 `owlie auth` (BYOK API-key add/list/remove),
-`owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. Search and
+`owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. A global
+`--hosted` flag makes any command deterministic for a hosted subprocess:
+flags and injected process environment only, with no dotenv, saved user
+configuration, or model-cache fallback, and `auth`/`setup` rejected. Search and
 other podcast provider-specific lookup remain deferred. Podcast transcription
 runs through one generic local faster-whisper pipeline that chunks long audio
 (five-minute windows, two-second overlap) with monotonic progress.
@@ -55,7 +58,8 @@ feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), a provider-neutral
 `ProviderCatalog` for dynamic model discovery, BYOK credential management
 (`owlie auth`), the `--model provider/model-id` selection model (the deprecated
-`--provider` flag remains a hidden alias), pipe-first
+`--provider` flag remains a hidden alias), the global `--hosted` deterministic
+mode for hosted subprocess integration, pipe-first
 stream/output contracts, local text/stdin input modeled as the `local` source
 type, secure configuration, and the shared core and
 coding-agent harness.

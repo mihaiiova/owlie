@@ -149,25 +149,35 @@ owlie process transcript.txt --prompt "Summarize this" --env-file ./credentials.
 owlie extract "https://www.youtube.com/watch?v=..." --quiet
 ```
 
+### Hosted mode
+
+```bash
+# Deterministic invocation for a hosted subprocess: flags and injected process
+# environment only (no .env, saved profile, or model-cache fallback).
+owlie --hosted process transcript.txt --prompt "Summarize this"
+owlie --hosted doctor --json   # reports configurationSource: hosted
+```
+
 ## Global options
 
-| Option | Applies to | Description |
-| ------ | ---------- | ----------- |
-| `--help`, `-h` | all | Show help (or help for a command) |
-| `--version`, `-V` | all | Show version |
-| `--quiet`, `-q` | all | Suppress diagnostics on stderr |
-| `--json` | all | Emit machine-readable JSON on stdout |
-| `--env-file PATH` | all | Load an explicit environment file |
-| `--model MODEL` | `process` | Select the model (`provider/model-id`, or `model-id`) |
-| `--refresh` | `models` | Bypass the model cache |
-| `--language LANG` | `extract` | Comma-separated transcript languages (default `en`) |
-| `--limit N` | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500) |
-| `--timeout-ms N` | `extract` (direct media) | One end-to-end deadline across resolution, download, and transcription |
-| `--max-media-bytes N` | `extract` (direct media) | Cap the download size in bytes |
-| `--each` | `process` | Process each linked item of an RSS/Atom feed |
-| `--input FILE` | `process` | Read input from a file instead of a positional argument or stdin |
-| `--input-format text\|json` | `process` | Declare the input format (`text` default) |
-| `--podcast-media` / `--podcast-page` / `--podcast-apple` | `extract`, `resolve` | Authoritative resolver selection (no fallback) |
+| Option                                                   | Applies to                                  | Description                                                                               |
+| -------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--help`, `-h`                                           | all                                         | Show help (or help for a command)                                                         |
+| `--version`, `-V`                                        | all                                         | Show version                                                                              |
+| `--quiet`, `-q`                                          | all                                         | Suppress diagnostics on stderr                                                            |
+| `--json`                                                 | all                                         | Emit machine-readable JSON on stdout                                                      |
+| `--env-file PATH`                                        | all                                         | Load an explicit environment file                                                         |
+| `--hosted`                                               | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache) |
+| `--model MODEL`                                          | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                     |
+| `--refresh`                                              | `models`                                    | Bypass the model cache                                                                    |
+| `--language LANG`                                        | `extract`                                   | Comma-separated transcript languages (default `en`)                                       |
+| `--limit N`                                              | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                            |
+| `--timeout-ms N`                                         | `extract` (direct media)                    | One end-to-end deadline across resolution, download, and transcription                    |
+| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes                                                            |
+| `--each`                                                 | `process`                                   | Process each linked item of an RSS/Atom feed                                              |
+| `--input FILE`                                           | `process`                                   | Read input from a file instead of a positional argument or stdin                          |
+| `--input-format text\|json`                              | `process`                                   | Declare the input format (`text` default)                                                 |
+| `--podcast-media` / `--podcast-page` / `--podcast-apple` | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                            |
 
 ## Exit codes
 
@@ -227,9 +237,11 @@ owlie setup        # configure providers, models, and API keys
 
 `--quiet`/`-q` suppresses diagnostics, `--json` emits machine-readable output,
 and `--env-file PATH` loads an explicit environment file — all available on any
-command. `process` also accepts `--input FILE` and `--input-format text|json`;
-`extract` and `resolve` accept the `--podcast-media`/`--podcast-page`/
-`--podcast-apple` resolver-selection flags.
+command. `--hosted` makes a single invocation deterministic (flags and process
+environment only; it disables dotenv, saved configuration, and model-cache
+fallback, and rejects `auth`/`setup`). `process` also accepts `--input FILE` and
+`--input-format text|json`; `extract` and `resolve` accept the
+`--podcast-media`/`--podcast-page`/`--podcast-apple` resolver-selection flags.
 
 The remaining planned commands (`search`, `config`) are not exposed: they
 report an "unknown command" usage error (exit code 2) rather than pretending

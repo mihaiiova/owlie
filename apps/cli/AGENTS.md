@@ -8,8 +8,10 @@ applies first; this file adds CLI-specific guidance.
 The CLI owns terminal behavior, environment-file loading, and local
 configuration. It bundles `@owlieio/core`, adapters, and providers into one
 self-contained published `owlie` package — it never owns content logic itself.
-When adding an adapter or provider, register it in `src/registry.ts` and add it
-to this package's `devDependencies`.
+It also owns the global `--hosted` deterministic mode (flags and process
+environment only; no dotenv, saved configuration, or model-cache fallback, and
+`auth`/`setup` are rejected). When adding an adapter or provider, register it
+in `src/registry.ts` and add it to this package's `devDependencies`.
 
 ## Hard rules
 
