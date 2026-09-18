@@ -23,11 +23,40 @@ error (code 2) rather than pretending to process content.
 
 ## Streams
 
-- **stdout** carries the requested result only (raw text, a single JSON
-  document with `--json`, or one JSONL record per attempted item with
-  `process --each`).
-- **stderr** carries diagnostics and progress.
+- **stdout** carries the requested result only: raw text, or with `--json` a
+  single versioned envelope `{ schemaVersion, command, result }` (or
+  command-defined JSONL records for streaming commands, each carrying
+  `schemaVersion` and `command`).
+- **stderr** carries diagnostics and progress. In `--json` mode stderr is
+  versioned JSONL: `{ schemaVersion, command, kind: "progress", event }`
+  progress records and terminal `kind: "error"`/`kind: "cancelled"` records.
+  Human diagnostics continue only outside `--json` mode.
 - JSON output is never mixed with progress text.
+
+## JSON subprocess protocol
+
+`--json` is a unified, versioned machine protocol (ADR 0030). Every successful
+single-result command writes `{ schemaVersion, command, result }` to stdout,
+where `schemaVersion` is `1` and `result` holds the command-specific payload.
+Streaming commands (`process --each`) write one JSONL record per item, each
+with `schemaVersion` and `command` plus the command's record fields.
+
+The closed consumer-facing error taxonomy on stderr terminal records is:
+
+| Code                   | Exit | Meaning                                        |
+| ---------------------- | ---- | ---------------------------------------------- |
+| `USAGE_ERROR`          | 2    | Invalid arguments or flags                     |
+| `VALIDATION_ERROR`     | 2    | Invalid input shape (thrown `ValidationError`) |
+| `CONFIGURATION_ERROR`  | 1    | Missing/conflicting configuration              |
+| `EXTRACTION_ERROR`     | 1    | Content extraction failed                      |
+| `CAPTIONS_UNAVAILABLE` | 1    | Requested captions are unavailable             |
+| `TRANSCRIPTION_ERROR`  | 1    | Local transcription failed                     |
+| `PROCESSING_ERROR`     | 1    | LLM processing failed                          |
+| `NOT_IMPLEMENTED`      | 3    | Not implemented                                |
+| `OWLIE_ERROR`          | 1    | General failure (fallback)                     |
+
+Cancellation emits `kind: "cancelled"` instead of `kind: "error"`. All stderr
+records redact secrets, URL userinfo, query strings, and fragments.
 
 ## v0.1 command surface
 
@@ -67,8 +96,9 @@ owlie auth add <provider> | list | remove <provider>
   transcription artifacts. Long media is transcribed in bounded five-minute
   chunks (two-second overlap) with monotonic progress.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
-  extraction and always writes a single JSON envelope (regardless of `--json`)
-  with `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
+  extraction and always writes a single versioned JSON envelope (regardless of
+  `--json`) whose `result` is
+  `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
   It carries on after per-item extraction errors and exits 1 if any item
   failed. `--limit N` bounds the batch (default 10, maximum 500); invalid or
   oversized limits fail with a clear error.
@@ -76,8 +106,8 @@ owlie auth add <provider> | list | remove <provider>
   or transcribing it. It accepts exactly one URL and zero or one
   resolver-selection flag. With no flag, podcast resolvers run in recognition
   order; it never dispatches to article extraction. It writes the media URL
-  plus a newline to stdout, or a stable JSON envelope with `--json`:
-  `{ schemaVersion: 1, resolver, mediaUrl, metadata }`. A flag the URL does not
+  plus a newline to stdout, or a stable versioned JSON envelope with `--json`
+  whose `result` is `{ resolver, mediaUrl, metadata }`. A flag the URL does not
   match is a usage error (exit code 2); resolution failures (no enclosure,
   unsafe media URL, incompatible content type) are general errors (exit code 1).
 - `list` resolves an RSS/Atom feed URL and writes a bounded, line-oriented
@@ -94,8 +124,9 @@ owlie auth add <provider> | list | remove <provider>
 - `process FEED_URL --each` is the collection-processing mode. It resolves the
   feed, then lists, extracts (through the same universal dispatch), and
   processes each bounded linked item sequentially in feed order, streaming one
-  JSONL record per attempted entry to stdout. Success records carry
-  `{ item: { url, title }, document, result }`; failures carry
+  JSONL record per attempted entry to stdout. Every record carries
+  `schemaVersion` and `command: "process"`. Success records add
+  `{ item: { url, title }, document, result }`; failures add
   `{ item: { url, title }, error: { code, message, stage } }` where `stage` is
   `extraction` or `processing`. It retains successful items, exits 1 if any
   record is an error, and `--limit N` bounds the batch (default 10, maximum
@@ -125,7 +156,7 @@ owlie auth add <provider> | list | remove <provider>
 ## Conventions
 
 - `--quiet` / `-q` suppress diagnostics on stderr.
-- `--json` emits machine-readable JSON on stdout.
+- `--json` emits the versioned JSON subprocess protocol on stdout (see above).
 - `--env-file PATH` loads an explicit environment file (functional).
 - `--hosted` enables deterministic hosted mode (see below).
 - Commands support cancellation signals; libraries never call `process.exit`.

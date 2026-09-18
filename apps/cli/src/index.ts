@@ -14,6 +14,21 @@ export {
 export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export { colorize, writeDiagnostic } from './style.js';
 export type { Severity } from './style.js';
+export {
+  USAGE_ERROR_CODE,
+  createCommandSpinner,
+  createProgressSink,
+  redactUrl,
+  redactUrls,
+  writeCancelledRecord,
+  writeCommandError,
+  writeErrorRecord,
+  writeProgressRecord,
+  writeResultEnvelope,
+  writeStreamRecord,
+  writeTerminalRecord,
+  writeUsageError,
+} from './protocol.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { runAuthCommand } from './commands/auth.js';
 export type { AuthDeps } from './commands/auth.js';

@@ -26,7 +26,10 @@ by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. A global
 `--hosted` flag makes any command deterministic for a hosted subprocess:
 flags and injected process environment only, with no dotenv, saved user
-configuration, or model-cache fallback, and `auth`/`setup` rejected. Search and
+configuration, or model-cache fallback, and `auth`/`setup` rejected. `--json`
+is a unified, versioned subprocess protocol (`{ schemaVersion, command, result }`
+envelopes on stdout, versioned JSONL progress and terminal error/cancellation
+records on stderr; ADR 0030). Search and
 other podcast provider-specific lookup remain deferred. Podcast transcription
 runs through one generic local faster-whisper pipeline that chunks long audio
 (five-minute windows, two-second overlap) with monotonic progress.

@@ -68,7 +68,7 @@ describe('extract resolver-selection flags', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', APPLE_URL, '--podcast-apple', '--json'], io, deps());
     expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
+    const doc = JSON.parse(stdout()).result;
     expect(doc.canonicalUrl).toBe(MEDIA_URL);
     expect(doc.mediaType).toBe('transcript');
     expect(doc.metadata).toMatchObject({ title: 'Episode', resolvedFrom: 'apple', fake: true });

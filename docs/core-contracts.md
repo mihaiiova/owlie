@@ -99,6 +99,21 @@ Throw typed errors (`ConfigurationError`, `ExtractionError`,
 carries the code `CAPTIONS_UNAVAILABLE` for cases where extraction succeeds
 but the requested captions/transcript are not available.
 
+## JSON subprocess protocol
+
+`packages/core/src/protocol.ts` defines the provider-neutral types for the
+versioned JSON subprocess protocol (ADR 0030):
+
+- `JSON_PROTOCOL_SCHEMA_VERSION` — the protocol schema version (begins at `1`).
+- `ProtocolRecord` — `{ schemaVersion, command }`, the base identity of every record.
+- `ProtocolResultEnvelope` — `{ schemaVersion, command, result }`, the single-result stdout envelope.
+- `ProtocolProgressRecord` — `{ schemaVersion, command, kind: "progress", event }`.
+- `ProtocolErrorRecord` — `{ schemaVersion, command, kind: "error", code, message }`.
+- `ProtocolCancelledRecord` — `{ schemaVersion, command, kind: "cancelled", message }`.
+
+The CLI owns serialization, redaction, transport, and exit-code translation;
+core owns the neutral vocabulary only.
+
 ## Orchestration
 
 `listCollection`, `resolveItem`, and `extractItem` compose adapters with

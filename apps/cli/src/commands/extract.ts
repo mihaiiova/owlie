@@ -4,7 +4,6 @@ import type {
   HttpFetcher,
   ItemAdapter,
   NormalizedDocument,
-  ProgressSink,
   Transcriber,
 } from '@owlieio/core';
 import {
@@ -28,7 +27,14 @@ import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
 import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
-import { Spinner } from '../spinner.js';
+import {
+  createCommandSpinner,
+  createProgressSink,
+  writeCommandError,
+  writeResultEnvelope,
+  writeTerminalRecord,
+  writeUsageError,
+} from '../protocol.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 
@@ -126,11 +132,11 @@ export async function runExtractCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'extract requires a URL');
+    if (!options.quiet) writeUsageError(io, options, 'extract', 'extract requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'extract', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
@@ -140,7 +146,7 @@ export async function runExtractCommand(
     timeoutMs = parsePositiveInteger(options.timeoutMs, '--timeout-ms');
     maxMediaBytes = parsePositiveInteger(options.maxMediaBytes, '--max-media-bytes');
   } catch (error) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', (error as Error).message);
+    if (!options.quiet) writeUsageError(io, options, 'extract', (error as Error).message);
     return ExitCode.Usage;
   }
 
@@ -171,14 +177,7 @@ export async function runExtractCommand(
       mediaMaxBytes: maxMediaBytes,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     if (feedAdapter.recognize({ url })) {
@@ -187,10 +186,7 @@ export async function runExtractCommand(
     return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps, timeoutMs);
   } catch (error) {
     spinner.stop();
-    if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
-      writeDiagnostic(io, 'error', message);
-    }
+    writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
   }
 }
@@ -208,12 +204,10 @@ async function runDirectExtraction(
   timeoutMs: number | undefined,
 ): Promise<number> {
   assertNoUrlCredentials(url);
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
-      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
-    },
-  };
+  const progress = createProgressSink(io, options, 'extract', (event) => {
+    if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+    else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+  });
   const operation = deadlineSignal(deps.signal, timeoutMs);
   let document: NormalizedDocument;
   try {
@@ -224,7 +218,7 @@ async function runDirectExtraction(
         signal: operation.signal,
         progress,
         onFallback: () => {
-          if (!options.quiet) {
+          if (!options.quiet && !options.json) {
             writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
           }
         },
@@ -236,7 +230,7 @@ async function runDirectExtraction(
   spinner.stop();
 
   if (options.json) {
-    io.stdout.write(JSON.stringify(document) + '\n');
+    writeResultEnvelope(io, 'extract', document);
   } else {
     io.stdout.write(document.text + '\n');
   }
@@ -263,14 +257,7 @@ async function runResolverExtraction(
   const transcriber =
     deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
   const workCacheDir = deps.cacheDir ?? cacheDir();
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   const operation = deadlineSignal(deps.signal, timeoutMs);
   try {
@@ -293,17 +280,15 @@ async function runResolverExtraction(
       mediaFetchPolicy:
         maxMediaBytes === undefined ? undefined : { maxResponseBytes: maxMediaBytes },
     });
-    const progress: ProgressSink = {
-      emit: (event) => {
-        if (event.type === 'started') spinner.start(`extracting ${event.target}`);
-        else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
-      },
-    };
+    const progress = createProgressSink(io, options, 'extract', (event) => {
+      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+    });
     const document = await adapter.extract(item, { signal: operation.signal, progress });
     spinner.stop();
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(document) + '\n');
+      writeResultEnvelope(io, 'extract', document);
     } else {
       io.stdout.write(document.text + '\n');
     }
@@ -311,13 +296,13 @@ async function runResolverExtraction(
   } catch (error) {
     spinner.stop();
     if (error instanceof ConfigurationError) {
-      if (!options.quiet) writeDiagnostic(io, 'warning', error.message);
-      return ExitCode.Usage;
+      if (!options.quiet) {
+        if (options.json) writeTerminalRecord(io, 'extract', error);
+        else writeDiagnostic(io, 'warning', error.message);
+      }
+      return exitCodeForError(error);
     }
-    if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
-      writeDiagnostic(io, 'error', message);
-    }
+    writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
   } finally {
     operation.cleanup();
@@ -339,11 +324,9 @@ async function runFeedExtraction(
 
   const items: ExtractBatchItem[] = [];
   let failed = false;
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
-    },
-  };
+  const progress = createProgressSink(io, options, 'extract', (event) => {
+    if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
+  });
 
   for (const entry of result.items) {
     if (deps.signal?.aborted) throw new CancelledError('extraction cancelled');
@@ -370,6 +353,6 @@ async function runFeedExtraction(
     truncated: result.truncated,
   };
   spinner.stop();
-  io.stdout.write(JSON.stringify(envelope) + '\n');
+  writeResultEnvelope(io, 'extract', envelope);
   return failed ? ExitCode.Error : ExitCode.Success;
 }

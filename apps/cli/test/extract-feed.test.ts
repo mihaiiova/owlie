@@ -153,7 +153,7 @@ describe('extract — feed batch', () => {
 
     expect(code).toBe(ExitCode.Success);
     expect(stderr()).not.toContain('{');
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope).toMatchObject({
       collection: {
         id: 'rss:feed:https://example.com/feed.xml',
@@ -191,7 +191,7 @@ describe('extract — feed batch', () => {
       itemDeps([youtube.adapter, article.adapter], feed.adapter),
     );
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items.map((item: { url: string }) => item.url)).toEqual([
       ARTICLE_URL,
       YT_URL,
@@ -208,7 +208,7 @@ describe('extract — feed batch', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', FEED_URL], io, itemDeps([article.adapter], feed.adapter));
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items[0]).not.toHaveProperty('title');
     expect(envelope.items[0]).toHaveProperty('document');
   });
@@ -241,7 +241,7 @@ describe('extract — feed batch', () => {
     expect(code).toBe(ExitCode.Error);
     // stdout carries only the envelope; the error message never leaks to stderr
     expect(stderr()).not.toContain('no readable content');
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items).toHaveLength(2);
     expect(envelope.items[0]).toMatchObject({
       url: ARTICLE_URL,
@@ -265,7 +265,7 @@ describe('extract — feed batch', () => {
     );
     expect(defaultCode).toBe(ExitCode.Success);
     expect(feed.calls.limit).toBe(10);
-    expect(JSON.parse(first.stdout()).truncated).toBe(true);
+    expect(JSON.parse(first.stdout()).result.truncated).toBe(true);
 
     const second = capture();
     const code = await run(
@@ -275,7 +275,7 @@ describe('extract — feed batch', () => {
     );
     expect(code).toBe(ExitCode.Success);
     expect(feed.calls.limit).toBe(2);
-    const envelope = JSON.parse(second.stdout());
+    const envelope = JSON.parse(second.stdout()).result;
     expect(envelope.items).toHaveLength(2);
     expect(envelope.truncated).toBe(true);
   });
@@ -316,7 +316,7 @@ describe('extract — feed batch', () => {
       itemDeps([article.adapter], feed.adapter),
     );
     expect(code).toBe(ExitCode.Success);
-    expect(JSON.parse(stdout()).items).toHaveLength(1);
+    expect(JSON.parse(stdout()).result.items).toHaveLength(1);
     expect(stderr()).toBe('');
   });
 
@@ -366,7 +366,7 @@ describe('extract — feed batch', () => {
       },
     });
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.collection).toMatchObject({
       id: 'rss:feed:https://example.com/feed.xml',
       sourceType: 'rss',
@@ -412,7 +412,7 @@ describe('extract — direct dispatch', () => {
       itemDeps([article.adapter], feed.adapter),
     );
     expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
+    const doc = JSON.parse(stdout()).result;
     expect(doc.text).toBe('article body');
     expect(doc.sourceType).toBe('article');
   });

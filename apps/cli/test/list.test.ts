@@ -121,7 +121,7 @@ describe('list command', () => {
     const { io, stdout } = capture();
     const code = await run(['list', FEED_URL, '--json'], io, deps(adapter));
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.collection).toMatchObject({
       id: 'rss:feed:https://example.com/feed.xml',
       sourceType: 'rss',
@@ -155,7 +155,7 @@ describe('list command', () => {
     const code = await run(['list', FEED_URL, '--limit', '1', '--json'], io, deps(adapter));
     expect(code).toBe(ExitCode.Success);
     expect(calls.limit).toBe(1);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items).toHaveLength(1);
     expect(envelope.truncated).toBe(itemCount > 1);
   });
@@ -266,7 +266,7 @@ describe('list command', () => {
       list: { adapter: new RssAdapter({ fetcher }) },
     });
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.collection).toMatchObject({
       id: 'rss:feed:https://example.com/feed.xml',
       sourceType: 'rss',

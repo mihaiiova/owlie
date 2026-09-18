@@ -97,7 +97,7 @@ describe('extract | process pipeline', () => {
     expect(extractCode).toBe(ExitCode.Success);
     const docJson = extractRun.stdout();
     const emitted = JSON.parse(docJson);
-    expect(emitted.id).toBe('youtube:video:test');
+    expect(emitted.result.id).toBe('youtube:video:test');
 
     const { processor, requests } = makeFakeProcessor();
     const processRun = makeIo(docJson);
@@ -111,7 +111,7 @@ describe('extract | process pipeline', () => {
     expect(requests[0]?.document.mediaType).toBe('transcript');
     expect(requests[0]?.document.metadata).toMatchObject({ videoId: 'test', isGenerated: false });
 
-    const result = JSON.parse(processRun.stdout());
+    const result = JSON.parse(processRun.stdout()).result;
     expect(result.format).toBe('text');
     expect(result.metadata.model).toBe('deepseek-chat');
   });

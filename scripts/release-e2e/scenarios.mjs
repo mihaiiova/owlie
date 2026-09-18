@@ -9,6 +9,7 @@ import {
   assertExitCode,
   assertMatch,
   assertNoSecrets,
+  assertProtocolEnvelope,
   parseJson,
   parseJsonLines,
 } from './assertions.mjs';
@@ -119,7 +120,9 @@ function jsonAssert(parse, extraChecks) {
     if (!exit.ok) return exit;
     const parsed = parse(result.stdout);
     if (!parsed.ok) return { ok: false, errors: [parsed.error] };
-    const checks = extraChecks(parsed.value);
+    const envelope = assertProtocolEnvelope(parsed.value);
+    if (!envelope.ok) return { ok: false, errors: [envelope.error] };
+    const checks = extraChecks(envelope.value);
     if (checks.ok) return { ok: true, errors: [] };
     return { ok: false, errors: [checks.error] };
   };
@@ -184,13 +187,19 @@ export function buildScenarios(ctx, spawn, spawnTty) {
         const parsed = parseJson(result.stdout);
         if (!parsed.ok) errors.push(parsed.error);
         else {
-          if (!parsed.value.adapters?.includes('youtube'))
-            errors.push('doctor missing youtube adapter');
-          if (!parsed.value.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
-          if (!parsed.value.adapters?.includes('article'))
-            errors.push('doctor missing article adapter');
-          if (!parsed.value.providers?.some((provider) => provider.id === 'deepseek'))
-            errors.push('doctor missing deepseek provider');
+          const envelope = assertProtocolEnvelope(parsed.value);
+          if (!envelope.ok) {
+            errors.push(envelope.error);
+          } else {
+            const report = envelope.value;
+            if (!report.adapters?.includes('youtube'))
+              errors.push('doctor missing youtube adapter');
+            if (!report.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
+            if (!report.adapters?.includes('article'))
+              errors.push('doctor missing article adapter');
+            if (!report.providers?.some((provider) => provider.id === 'deepseek'))
+              errors.push('doctor missing deepseek provider');
+          }
         }
         if (!assertNoSecrets(result.stdout, secrets).ok) errors.push('doctor leaked a secret');
         return { ok: errors.length === 0, errors };

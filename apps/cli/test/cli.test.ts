@@ -128,7 +128,7 @@ describe('doctor', () => {
     const { io, stdout, stderr } = capture();
     const code = await run(['doctor', '--json'], io, fakeDeps);
     expect(code).toBe(ExitCode.Success);
-    const report = JSON.parse(stdout());
+    const report = JSON.parse(stdout()).result;
     expect(report.node).toContain('v');
     expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article']);
     expect(report.providers).toEqual([
@@ -164,7 +164,7 @@ describe('doctor', () => {
     };
     const code = await run(['--hosted', 'doctor', '--json'], io, deps);
     expect(code).toBe(ExitCode.Success);
-    const report = JSON.parse(stdout());
+    const report = JSON.parse(stdout()).result;
     expect(report.configurationSource).toBe('hosted');
     expect(report.providers).toEqual([
       { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },
@@ -186,7 +186,7 @@ describe('doctor', () => {
     };
     const code = await run(['doctor', '--json'], io, deps);
     expect(code).toBe(ExitCode.Success);
-    const report = JSON.parse(stdout());
+    const report = JSON.parse(stdout()).result;
     expect(report.providers).toEqual([
       { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },
       { id: 'openai', apiKey: 'not set', model: null, authSource: 'not set' },
@@ -208,7 +208,7 @@ describe('doctor', () => {
     };
     const code = await run(['doctor', '--json', '--env-file', 'custom.env'], io, deps);
     expect(code).toBe(ExitCode.Success);
-    const report = JSON.parse(stdout());
+    const report = JSON.parse(stdout()).result;
     expect(report.providers[0]).toEqual({
       id: 'deepseek',
       apiKey: 'set',

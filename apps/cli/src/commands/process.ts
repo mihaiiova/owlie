@@ -6,7 +6,6 @@ import type {
   ItemAdapter,
   NormalizedDocument,
   ProcessRequest,
-  ProgressSink,
 } from '@owlieio/core';
 import {
   assertNoUrlCredentials,
@@ -36,12 +35,19 @@ import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
 import {
+  createCommandSpinner,
+  createProgressSink,
+  writeResultEnvelope,
+  writeStreamRecord,
+  writeTerminalRecord,
+  writeUsageError,
+} from '../protocol.js';
+import {
   assertKnownProvider,
   defaultItemAdapters,
   resolveModelReference,
   resolveProcessor,
 } from '../registry.js';
-import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 
@@ -94,7 +100,7 @@ function parseDocument(json: string): NormalizedDocument {
   } catch (error) {
     throw new OwlieError('input is not valid JSON (--input-format json)', { cause: error });
   }
-  const doc = (parsed ?? {}) as Partial<NormalizedDocument>;
+  const doc = unwrapProtocolEnvelope(parsed);
   if (typeof doc.text !== 'string' || doc.text.trim() === '') {
     throw new OwlieError('JSON input is missing a non-empty "text" field');
   }
@@ -113,6 +119,26 @@ function parseDocument(json: string): NormalizedDocument {
     author: doc.author,
     metadata: doc.metadata ?? {},
   };
+}
+
+/**
+ * Accepts either a raw `NormalizedDocument` or a versioned protocol envelope
+ * (`{ schemaVersion, command, result }`) whose `result` is a document. This
+ * keeps `owlie extract --json | owlie process --input-format json` working
+ * through the unified envelope.
+ */
+function unwrapProtocolEnvelope(value: unknown): Partial<NormalizedDocument> {
+  if (value !== null && typeof value === 'object') {
+    const candidate = value as { schemaVersion?: unknown; command?: unknown; result?: unknown };
+    if (
+      typeof candidate.schemaVersion === 'number' &&
+      typeof candidate.command === 'string' &&
+      'result' in candidate
+    ) {
+      return (candidate.result ?? {}) as Partial<NormalizedDocument>;
+    }
+  }
+  return (value ?? {}) as Partial<NormalizedDocument>;
 }
 
 async function readDocument(
@@ -241,15 +267,17 @@ async function runUrlProcessing(
 ): Promise<number> {
   const [, extra] = args;
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'process', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
   if (options.input !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with --input');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', 'cannot combine a URL with --input');
     return ExitCode.Usage;
   }
   if (!io.stdin.isTTY) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with piped stdin');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', 'cannot combine a URL with piped stdin');
     return ExitCode.Usage;
   }
 
@@ -272,12 +300,10 @@ async function runUrlProcessing(
   // or model fails fast instead of after an expensive extraction.
   const processor = resolveProcessorForCommand(options, deps);
 
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
-      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
-    },
-  };
+  const progress = createProgressSink(io, options, 'process', (event) => {
+    if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+    else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+  });
   const { document } = await extractWithFallback(
     itemAdapters,
     { url },
@@ -285,7 +311,7 @@ async function runUrlProcessing(
       signal: deps.signal,
       progress,
       onFallback: () => {
-        if (!options.quiet) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
+        if (!options.quiet && !options.json) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
       },
     },
   );
@@ -298,7 +324,7 @@ async function runUrlProcessing(
   spinner.stop();
 
   if (options.json) {
-    io.stdout.write(JSON.stringify(result) + '\n');
+    writeResultEnvelope(io, 'process', result);
   } else {
     io.stdout.write(result.output + '\n');
   }
@@ -311,14 +337,7 @@ export async function runProcessCommand(
   options: CliOptions,
   deps: ProcessDeps = {},
 ): Promise<number> {
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     if (options.each) {
@@ -350,7 +369,7 @@ export async function runProcessCommand(
     spinner.stop();
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(result) + '\n');
+      writeResultEnvelope(io, 'process', result);
     } else {
       io.stdout.write(result.output + '\n');
     }
@@ -363,7 +382,8 @@ export async function runProcessCommand(
         const pointer = modelsPointer(options, deps);
         if (pointer) message += `\n\n${pointer}`;
       }
-      writeDiagnostic(io, 'error', message);
+      if (options.json) writeTerminalRecord(io, 'process', error, message);
+      else writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }
@@ -378,20 +398,21 @@ async function runFeedProcessing(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', '--each requires a feed URL');
+    if (!options.quiet) writeUsageError(io, options, 'process', '--each requires a feed URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'process', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
   if (options.input !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', '--each cannot be combined with --input');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', '--each cannot be combined with --input');
     return ExitCode.Usage;
   }
   if (!io.stdin.isTTY) {
     if (!options.quiet)
-      writeDiagnostic(io, 'warning', '--each cannot be combined with piped stdin');
+      writeUsageError(io, options, 'process', '--each cannot be combined with piped stdin');
     return ExitCode.Usage;
   }
 
@@ -401,7 +422,12 @@ async function runFeedProcessing(
 
   if (!feedAdapter.recognize({ url })) {
     if (!options.quiet)
-      writeDiagnostic(io, 'warning', `--each requires an RSS/Atom feed URL, received "${url}"`);
+      writeUsageError(
+        io,
+        options,
+        'process',
+        `--each requires an RSS/Atom feed URL, received "${url}"`,
+      );
     return ExitCode.Usage;
   }
 
@@ -412,11 +438,9 @@ async function runFeedProcessing(
   const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
 
   let failed = false;
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
-    },
-  };
+  const progress = createProgressSink(io, options, 'process', (event) => {
+    if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
+  });
 
   for (const entry of result.items) {
     if (deps.signal?.aborted) throw new CancelledError('processing cancelled');
@@ -435,20 +459,16 @@ async function runFeedProcessing(
           { document, instruction: options.prompt },
           { signal: deps.signal },
         );
-        io.stdout.write(JSON.stringify({ item: ref, document, result: procResult }) + '\n');
+        writeStreamRecord(io, 'process', { item: ref, document, result: procResult });
       } catch (error) {
         if (error instanceof CancelledError || deps.signal?.aborted) throw error;
         failed = true;
-        io.stdout.write(
-          JSON.stringify({ item: ref, error: toBatchError(error, 'processing') }) + '\n',
-        );
+        writeStreamRecord(io, 'process', { item: ref, error: toBatchError(error, 'processing') });
       }
     } catch (error) {
       if (error instanceof CancelledError || deps.signal?.aborted) throw error;
       failed = true;
-      io.stdout.write(
-        JSON.stringify({ item: ref, error: toBatchError(error, 'extraction') }) + '\n',
-      );
+      writeStreamRecord(io, 'process', { item: ref, error: toBatchError(error, 'extraction') });
     }
   }
 

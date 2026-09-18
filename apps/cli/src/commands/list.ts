@@ -10,9 +10,13 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
-import { Spinner } from '../spinner.js';
+import {
+  createCommandSpinner,
+  writeCommandError,
+  writeResultEnvelope,
+  writeUsageError,
+} from '../protocol.js';
 import type { SpinnerLike } from '../spinner.js';
-import { writeDiagnostic } from '../style.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
 export interface ListDeps {
@@ -114,23 +118,16 @@ export async function runListCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'list requires a URL');
+    if (!options.quiet) writeUsageError(io, options, 'list', 'list requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'list', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
   const adapter = deps.adapter ?? new RssAdapter();
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     const limit = parseListLimit(options.limit);
@@ -140,17 +137,14 @@ export async function runListCommand(
     spinner.stop();
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(envelope) + '\n');
+      writeResultEnvelope(io, 'list', envelope);
     } else {
       io.stdout.write(formatListSummary(envelope));
     }
     return ExitCode.Success;
   } catch (error) {
     spinner.stop();
-    if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
-      writeDiagnostic(io, 'error', message);
-    }
+    writeCommandError(io, options, 'list', error);
     return exitCodeForError(error);
   }
 }

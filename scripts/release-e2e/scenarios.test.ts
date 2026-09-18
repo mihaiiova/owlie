@@ -258,11 +258,15 @@ describe('buildScenarios', () => {
     const result = doctor.assert({
       status: 0,
       stdout: JSON.stringify({
-        adapters: ['youtube', 'podcast', 'rss', 'article'],
-        providers: [
-          { id: 'deepseek', apiKey: 'set', model: 'not set' },
-          { id: 'openai', apiKey: 'not set', model: 'not set' },
-        ],
+        schemaVersion: 1,
+        command: 'doctor',
+        result: {
+          adapters: ['youtube', 'podcast', 'rss', 'article'],
+          providers: [
+            { id: 'deepseek', apiKey: 'set', model: 'not set' },
+            { id: 'openai', apiKey: 'not set', model: 'not set' },
+          ],
+        },
       }),
       stderr: '',
     });

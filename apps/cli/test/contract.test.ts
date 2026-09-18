@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CaptionsUnavailableError,
+  ConfigurationError,
   ExtractionError,
   NotImplementedError,
   OwlieError,
@@ -96,6 +97,7 @@ describe('parseListLimit', () => {
 describe('exitCodeForError', () => {
   it('maps typed errors to exit codes', () => {
     expect(exitCodeForError(new ValidationError('x'))).toBe(ExitCode.Usage);
+    expect(exitCodeForError(new ConfigurationError('x'))).toBe(ExitCode.Error);
     expect(exitCodeForError(new NotImplementedError('x'))).toBe(ExitCode.NotImplemented);
     expect(exitCodeForError(new ExtractionError('x'))).toBe(ExitCode.Error);
     expect(exitCodeForError(new CaptionsUnavailableError('x'))).toBe(ExitCode.Error);

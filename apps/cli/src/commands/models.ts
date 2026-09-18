@@ -3,6 +3,12 @@ import { ConfigurationError, ExtractionError } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import {
+  USAGE_ERROR_CODE,
+  writeErrorRecord,
+  writeResultEnvelope,
+  writeTerminalRecord,
+} from '../protocol.js';
 import { loadDotEnv, readUserConfig, resolveProviderSettings } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { resolveCredentialSource } from '../auth.js';
@@ -50,7 +56,8 @@ export async function runModelsCommand(
       } catch (error) {
         if (!options.quiet) {
           const message = error instanceof Error ? error.message : String(error);
-          io.stderr.write(`owlie: ${message}\n`);
+          if (options.json) writeErrorRecord(io, 'models', USAGE_ERROR_CODE, message);
+          else io.stderr.write(`owlie: ${message}\n`);
         }
         return ExitCode.Usage;
       }
@@ -68,7 +75,9 @@ export async function runModelsCommand(
       );
       if (targets.length === 0) {
         if (!options.quiet) {
-          io.stderr.write('owlie: no configured providers (run "owlie auth add <provider>")\n');
+          const message = 'no configured providers (run "owlie auth add <provider>")';
+          if (options.json) writeErrorRecord(io, 'models', 'CONFIGURATION_ERROR', message);
+          else io.stderr.write(`owlie: ${message}\n`);
         }
         return ExitCode.Error;
       }
@@ -123,11 +132,11 @@ export async function runModelsCommand(
     if (!options.hosted) writeModelCache(cache, cachePath);
 
     for (const diagnostic of fallbacks) {
-      if (!options.quiet) io.stderr.write(diagnostic + '\n');
+      if (!options.quiet && !options.json) io.stderr.write(diagnostic + '\n');
     }
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(results) + '\n');
+      writeResultEnvelope(io, 'models', results);
     } else if (options.provider) {
       io.stdout.write(results.map((model) => model.id).join('\n') + '\n');
     } else {
@@ -137,7 +146,8 @@ export async function runModelsCommand(
   } catch (error) {
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      if (options.json) writeTerminalRecord(io, 'models', error, message);
+      else io.stderr.write(`owlie: ${message}\n`);
     }
     return exitCodeForError(error);
   }
