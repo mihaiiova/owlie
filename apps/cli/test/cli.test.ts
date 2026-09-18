@@ -216,6 +216,79 @@ describe('doctor', () => {
   });
 });
 
+describe('--hosted', () => {
+  it('parses as a global flag before or after the command', () => {
+    expect(parseArgs(['--hosted', 'process']).options.hosted).toBe(true);
+    expect(parseArgs(['process', '--hosted']).options.hosted).toBe(true);
+    expect(parseArgs(['process']).options.hosted).toBe(false);
+  });
+
+  it('documents the flag in --help', async () => {
+    const { io, stdout } = capture();
+    const code = await run(['--help'], io);
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toContain('--hosted');
+  });
+
+  it('rejects auth without prompting or writing state', async () => {
+    let prompted = false;
+    let written: unknown;
+    const { io, stderr } = capture();
+    const code = await run(
+      ['--hosted', 'auth', 'add', 'deepseek'],
+      io,
+      {
+        auth: {
+          prompt: async () => {
+            prompted = true;
+            return 'sk-x';
+          },
+          readConfig: () => ({}),
+          writeConfig: (config) => (written = config),
+        },
+      },
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('auth');
+    expect(stderr()).toContain('hosted');
+    expect(prompted).toBe(false);
+    expect(written).toBeUndefined();
+  });
+
+  it('rejects setup without prompting or writing state', async () => {
+    let prompted = false;
+    let written: unknown;
+    const { io, stderr } = capture();
+    const code = await run(
+      ['--hosted', 'setup'],
+      io,
+      {
+        setup: {
+          prompt: async () => {
+            prompted = true;
+            return 'sk-x';
+          },
+          readConfig: () => ({}),
+          writeConfig: (config) => (written = config),
+        },
+      },
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('setup');
+    expect(stderr()).toContain('hosted');
+    expect(prompted).toBe(false);
+    expect(written).toBeUndefined();
+  });
+
+  it('rejects --env-file as a usage error', async () => {
+    const { io, stderr } = capture();
+    const code = await run(['--hosted', '--env-file', 'custom.env', 'doctor'], io);
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--env-file');
+    expect(stderr()).toContain('--hosted');
+  });
+});
+
 describe('unknown commands', () => {
   it('returns a usage error', async () => {
     const { io, stderr } = capture();

@@ -27,6 +27,7 @@ Options:
   --max-media-bytes N  Cap a direct-media download in bytes
   --each           Process each linked item of an RSS/Atom feed (process only)
   --env-file PATH  Load an explicit environment file
+  --hosted         Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)
 
 Exit codes:
   0 success, 1 error, 2 usage error, 3 not implemented

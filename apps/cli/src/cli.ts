@@ -18,6 +18,7 @@ export interface CliOptions {
   json: boolean;
   each: boolean;
   refresh: boolean;
+  hosted: boolean;
   envFile?: string;
   input?: string;
   inputFormat?: 'text' | 'json';
@@ -54,7 +55,13 @@ export interface ParsedArgs {
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
-  const options: CliOptions = { quiet: false, json: false, each: false, refresh: false };
+  const options: CliOptions = {
+    quiet: false,
+    json: false,
+    each: false,
+    refresh: false,
+    hosted: false,
+  };
   const args: string[] = [];
   let helpRequested = false;
   let versionRequested = false;
@@ -151,6 +158,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--refresh':
         options.refresh = true;
         break;
+      case '--hosted':
+        options.hosted = true;
+        break;
       default: {
         if (KNOWN_VALUE_FLAGS.includes(arg)) {
           const next = argv[i + 1];
@@ -200,6 +210,21 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   if (command === undefined || command === 'help') {
     io.stdout.write(helpText() + '\n');
     return ExitCode.Success;
+  }
+
+  if (options.hosted) {
+    if (options.envFile !== undefined) {
+      if (!options.quiet) {
+        writeDiagnostic(io, 'warning', '--env-file cannot be used with --hosted');
+      }
+      return ExitCode.Usage;
+    }
+    if (command === 'auth' || command === 'setup') {
+      if (!options.quiet) {
+        writeDiagnostic(io, 'warning', `command "${command}" is not available in hosted mode`);
+      }
+      return ExitCode.Usage;
+    }
   }
 
   if (command === 'doctor') {
