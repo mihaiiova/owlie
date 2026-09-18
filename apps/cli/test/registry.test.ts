@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigurationError } from '@owlieio/core';
-import { assertKnownProvider, defaultItemAdapters, listProviders, resolveProcessor } from 'owlie';
+import {
+  assertKnownProvider,
+  defaultItemAdapters,
+  getProviderCatalog,
+  listProviders,
+  resolveModelReference,
+  resolveProcessor,
+} from 'owlie';
 
 describe('defaultItemAdapters', () => {
   it('claims Apple Podcasts episode URLs with the podcast adapter', () => {
@@ -86,5 +93,41 @@ describe('assertKnownProvider', () => {
 
   it('rejects unknown providers', () => {
     expect(() => assertKnownProvider('anthropic')).toThrow(ConfigurationError);
+  });
+});
+
+describe('resolveModelReference', () => {
+  it('splits a compound provider/model reference', () => {
+    expect(resolveModelReference('deepseek/deepseek-chat')).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+    });
+    expect(resolveModelReference('openai/gpt-4o-mini')).toEqual({
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+    });
+  });
+
+  it('treats a plain id as model-only', () => {
+    expect(resolveModelReference('deepseek-chat')).toEqual({ model: 'deepseek-chat' });
+    expect(resolveModelReference('gpt-4o-mini')).toEqual({ model: 'gpt-4o-mini' });
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(resolveModelReference('  deepseek/deepseek-chat  ')).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+    });
+  });
+});
+
+describe('getProviderCatalog', () => {
+  it('returns the catalog for a registered provider', () => {
+    expect(getProviderCatalog('deepseek').providerId).toBe('deepseek');
+    expect(getProviderCatalog('openai').providerId).toBe('openai');
+  });
+
+  it('rejects unknown providers', () => {
+    expect(() => getProviderCatalog('anthropic')).toThrow(ConfigurationError);
   });
 });

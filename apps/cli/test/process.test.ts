@@ -12,8 +12,8 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
-import { NotHandledError, ProcessingError } from '@owlieio/core';
-import { ExitCode, run } from 'owlie';
+import { ConfigurationError, NotHandledError, ProcessingError } from '@owlieio/core';
+import { ExitCode, resolveModelSelection, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
 function capture(stdin: { isTTY: boolean; content?: string } = { isTTY: false, content: '' }) {
@@ -338,6 +338,21 @@ describe('process command', () => {
     expect(stderr()).toContain('boom');
   });
 
+  it('points to owlie models when a configured default model fails', async () => {
+    const { processor } = makeFakeProcessor({
+      error: new ProcessingError('model not found: deepseek-chat'),
+    });
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--prompt', 'x'],
+      io,
+      deps({ processor, provider: 'deepseek' }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('model not found');
+    expect(stderr()).toContain('owlie models --provider deepseek');
+  });
+
   it('starts and stops a progress spinner', async () => {
     const starts: string[] = [];
     let stopped = 0;
@@ -357,6 +372,29 @@ describe('process command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(starts).toEqual(['waiting for llm response']);
     expect(stopped).toBe(1);
+  });
+
+  it('resolves the provider from a compound --model reference', async () => {
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--model', 'deepseek/deepseek-chat', '--prompt', 'x'],
+      io,
+      deps({ config: {}, readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('DEEPSEEK_API_KEY');
+    expect(stderr()).not.toContain('no provider selected');
+  });
+
+  it('errors on a conflicting --provider and compound --model', async () => {
+    const { io, stderr } = capture({ isTTY: false, content: 'hello' });
+    const code = await run(
+      ['process', '--model', 'deepseek/deepseek-chat', '--provider', 'openai', '--prompt', 'x'],
+      io,
+      deps({ config: {}, readConfig: () => ({}) }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('conflicting');
   });
 
   it('writes a waiting status line before processing piped stdin', async () => {
@@ -511,5 +549,53 @@ describe('process command', () => {
     );
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('stdin');
+  });
+});
+
+describe('resolveModelSelection', () => {
+  it('resolves a compound --model provider/id without consulting the fallback', () => {
+    let called = false;
+    const result = resolveModelSelection({ model: 'openai/gpt-4o-mini' }, () => {
+      called = true;
+      return 'deepseek';
+    });
+    expect(result).toEqual({ provider: 'openai', model: 'gpt-4o-mini' });
+    expect(called).toBe(false);
+  });
+
+  it('resolves a plain --model id through the provider fallback', () => {
+    expect(resolveModelSelection({ model: 'deepseek-chat' }, () => 'deepseek')).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+    });
+  });
+
+  it('errors when --provider conflicts with a compound --model provider', () => {
+    expect(() =>
+      resolveModelSelection(
+        { model: 'deepseek/deepseek-chat', provider: 'openai' },
+        () => 'deepseek',
+      ),
+    ).toThrow(ConfigurationError);
+  });
+
+  it('allows a matching --provider and compound --model', () => {
+    expect(
+      resolveModelSelection(
+        { model: 'deepseek/deepseek-chat', provider: 'deepseek' },
+        () => 'openai',
+      ),
+    ).toEqual({ provider: 'deepseek', model: 'deepseek-chat' });
+  });
+
+  it('passes through an unknown model id as-is', () => {
+    expect(resolveModelSelection({ model: 'openai/gpt-7' }, () => 'deepseek')).toEqual({
+      provider: 'openai',
+      model: 'gpt-7',
+    });
+    expect(resolveModelSelection({ model: 'gpt-7' }, () => 'deepseek')).toEqual({
+      provider: 'deepseek',
+      model: 'gpt-7',
+    });
   });
 });

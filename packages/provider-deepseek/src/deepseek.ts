@@ -108,7 +108,7 @@ export class DeepSeekProcessor implements ContentProcessor {
         outputSchema: request.outputSchema,
       });
     } catch (error) {
-      mapProcessingError('DeepSeek', error, options.signal);
+      mapProcessingError('DeepSeek', error, options.signal, [this.config.apiKey]);
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   CancelledError,
   ConfigurationError,
   OwlieError,
+  ProcessingError,
   isSourceType,
   listCollection,
 } from '@owlieio/core';
@@ -34,7 +35,12 @@ import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
 import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
-import { assertKnownProvider, defaultItemAdapters, resolveProcessor } from '../registry.js';
+import {
+  assertKnownProvider,
+  defaultItemAdapters,
+  resolveModelReference,
+  resolveProcessor,
+} from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
@@ -135,13 +141,77 @@ function resolveConfiguredProcessor(
   });
 }
 
+/** A resolved provider/model selection for processing. */
+export interface ModelSelection {
+  provider: string;
+  model?: string;
+}
+
+/**
+ * Resolves the provider and model from `--model`/`--provider`. A compound
+ * `--model provider/model-id` is self-contained and authoritative; a plain
+ * `--model model-id` resolves the provider through the injected fallback
+ * (`--provider` → `OWLIE_PROVIDER` → saved active provider). A `--provider`
+ * that disagrees with a compound `--model` provider is an error, never a
+ * silent precedence. Pure and injectable for deterministic tests.
+ */
+export function resolveModelSelection(
+  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'>,
+  resolveProviderFn: (options: { provider?: string; envFile?: string }) => string,
+): ModelSelection {
+  const ref = options.model !== undefined ? resolveModelReference(options.model) : undefined;
+  if (ref?.provider) {
+    const flagProvider = options.provider?.trim();
+    if (flagProvider && flagProvider !== ref.provider) {
+      throw new ConfigurationError(
+        `conflicting --provider "${flagProvider}" and --model "${options.model}"`,
+      );
+    }
+    return { provider: ref.provider, model: ref.model };
+  }
+  const provider = resolveProviderFn(options);
+  return { provider, model: ref?.model };
+}
+
+/** Resolves the active provider through the injected override or config/env. */
+function resolveProviderFallback(deps: ProcessDeps) {
+  const readConfig = deps.readConfig ?? readUserConfig;
+  return (opts: { provider?: string; envFile?: string }) =>
+    deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig);
+}
+
+/**
+ * Builds a pointer to live model discovery for failures that surface the
+ * provider's own rejection of a configured model. Only produced when no
+ * explicit `--model` was passed (so the model came from the saved/active
+ * provider default) and the provider can be re-resolved.
+ */
+function modelsPointer(options: CliOptions, deps: ProcessDeps): string | undefined {
+  try {
+    const { provider } = resolveModelSelection(options, resolveProviderFallback(deps));
+    if (!provider) return undefined;
+    return `run "owlie models --provider ${provider}" to see the models ${provider} currently offers`;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): ContentProcessor {
   if (deps.processor) return deps.processor;
   const readConfig = deps.readConfig ?? readUserConfig;
-  const provider = deps.provider ?? resolveProvider(options, process.env, loadDotEnv, readConfig);
+  const { provider, model } = resolveModelSelection(options, resolveProviderFallback(deps));
   const settings =
-    deps.config ?? resolveProviderSettings(provider, options, process.env, loadDotEnv, readConfig);
-  return resolveConfiguredProcessor(provider, settings);
+    deps.config ??
+    resolveProviderSettings(
+      provider,
+      { model, envFile: options.envFile },
+      process.env,
+      loadDotEnv,
+      readConfig,
+    );
+  const effectiveSettings =
+    deps.config && model !== undefined ? { ...deps.config, model } : settings;
+  return resolveConfiguredProcessor(provider, effectiveSettings);
 }
 
 function resolveItemAdapters(
@@ -288,7 +358,11 @@ export async function runProcessCommand(
   } catch (error) {
     spinner.stop();
     if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
+      let message = error instanceof Error ? error.message : String(error);
+      if (error instanceof ProcessingError && options.model === undefined) {
+        const pointer = modelsPointer(options, deps);
+        if (pointer) message += `\n\n${pointer}`;
+      }
       writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);

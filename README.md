@@ -53,8 +53,16 @@ owlie extract "https://youtube.com/watch?v=..." |
 
 owlie process "https://example.com/article" --prompt "Summarize this"
 
-owlie process transcript.txt --prompt "Summarize this" --provider openai
+# --model provider/model-id is self-contained; a plain --model id uses the saved provider
+owlie process transcript.txt --prompt "Summarize this" --model openai/gpt-4o-mini
 cat transcript.txt | owlie process --prompt "Summarize this"
+
+# List a provider's current models (dynamic; no hardcoded list)
+owlie models --provider deepseek --refresh
+
+# Manage API keys outside setup
+owlie auth add deepseek
+owlie auth list
 
 # Process each linked item of a feed, streaming one JSONL record per item
 owlie process "https://example.com/feed.xml" --each --prompt "Summarize this"
@@ -103,8 +111,10 @@ owlie doctor
 owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
 owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
-owlie process FILE|URL --prompt "..."   # DeepSeek (DEEPSEEK_API_KEY) or OpenAI (OPENAI_API_KEY)
+owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
+owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)
+owlie auth add|list|remove PROVIDER  # manage API keys in the local store
 owlie setup        # configure providers, models, and API keys
 ```
 

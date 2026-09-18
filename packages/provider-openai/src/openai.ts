@@ -109,7 +109,7 @@ export class OpenAIProcessor implements ContentProcessor {
         outputSchema: request.outputSchema,
       });
     } catch (error) {
-      mapProcessingError('OpenAI', error, options.signal);
+      mapProcessingError('OpenAI', error, options.signal, [this.config.apiKey]);
     }
   }
 }

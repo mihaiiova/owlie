@@ -12,6 +12,8 @@ import {
   resolveProviderSettings,
 } from '../config.js';
 import type { UserConfig } from '../config.js';
+import { resolveCredentialSource } from '../auth.js';
+import type { CredentialSource } from '../auth.js';
 import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
 
 /** Injectable system probes so tests can run `doctor` without spawning. */
@@ -48,6 +50,8 @@ export const defaultDoctorDeps: DoctorDeps = {
 export interface ProviderReport {
   id: string;
   apiKey: 'set' | 'not set';
+  /** Effective credential source (never the secret itself). */
+  authSource: CredentialSource;
   /** Effective model id (never a secret), or null when none is configured. */
   model: string | null;
 }
@@ -82,6 +86,7 @@ function providerReports(
       id,
       apiKey: settings.apiKey ? 'set' : 'not set',
       model: settings.model ?? null,
+      authSource: resolveCredentialSource(id, { envFile }, env, loadFile, readConfig),
     };
   });
 }
@@ -126,9 +131,8 @@ function formatDoctorReport(report: DoctorReport): string {
     `  Providers: ${report.providers.map((p) => p.id).join(', ')}`,
   ];
   for (const provider of report.providers) {
-    lines.push(
-      `  ${provider.id}: api key ${provider.apiKey}, model ${provider.model ?? 'not set'}`,
-    );
+    const auth = provider.apiKey === 'set' ? `set (${provider.authSource})` : 'not set';
+    lines.push(`  ${provider.id}: api key ${auth}, model ${provider.model ?? 'not set'}`);
   }
   lines.push(
     `  Transcription: whisper ${report.transcription.whisper}, ffmpeg ${report.transcription.ffmpeg}, ffprobe ${report.transcription.ffprobe}, model ${report.transcription.model}`,

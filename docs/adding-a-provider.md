@@ -18,14 +18,17 @@ Providers implement `ContentProcessor` (LLM) or `Transcriber` (transcription).
 8. Register the provider once it is functional so it is bundled into `owlie`
    and reported by `owlie doctor`. Scaffolds whose `process`/`transcribe` still
    throw `NotImplementedError` must stay out of the registry. For a functional
-   LLM provider, register it provider-first in `apps/cli/src/registry.ts` with
-   its `id`, default model-discovery `baseUrl`, and a `create` factory; it is
-   then reported automatically by `PROVIDER_IDS`/`listProviders`. A new package
-   must be added in all of these places:
+   LLM provider, register it in `apps/cli/src/registry.ts` with a
+   `{ id, baseUrl, catalog, createProcessor }` entry — `catalog` is a
+   `ProviderCatalog` implementation that lists live models, and
+   `createProcessor` is the processor factory — so it is then reported
+   automatically by `PROVIDER_IDS`/`listProviders` and usable by `owlie models`
+   and `owlie process --model provider/id`. A new package must be added in all
+   of these places:
 
-   1. `apps/cli/src/registry.ts` — import the class and add a
-      `{ id, baseUrl, create }` registration (its id flows into
-      `PROVIDER_IDS`).
+   1. `apps/cli/src/registry.ts` — import the class and catalog and add a
+      `{ id, baseUrl, catalog, createProcessor }` registration (its id flows
+      into `PROVIDER_IDS`).
    2. `apps/cli/package.json` — add it to `devDependencies`.
    3. `scripts/check-dependencies.mjs` — add it to `PACKAGES` and `ALLOWED`.
    4. `tsconfig.base.json` — add a `paths` entry.

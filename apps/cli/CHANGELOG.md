@@ -1,5 +1,19 @@
 # @owlieio/owlie
 
+## 0.4.0
+
+### Minor Changes
+
+- BYOK credential management (`owlie auth add|list|remove <provider>`), dynamic
+  model discovery (`owlie models [--provider <provider>] [--refresh]`) via a
+  provider-neutral `ProviderCatalog` contract, and the canonical
+  `--model provider/model-id` selection flag for `owlie process` (the
+  `--provider` flag remains a hidden alias). Model ids are discovered at
+  runtime from each provider (no hardcoded allowlist) and cached for one hour
+  with a cache-on-failure fallback. `owlie setup` and `owlie doctor` now share
+  the catalog and report the effective credential source without echoing
+  secrets.
+
 ## 0.3.1
 
 ### Patch Changes

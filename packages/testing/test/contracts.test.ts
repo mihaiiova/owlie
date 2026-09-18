@@ -3,9 +3,11 @@ import {
   FakeContentProcessor,
   FakeItemAdapter,
   FakeProgressSink,
+  FakeProviderCatalog,
   FakeTranscriber,
 } from '@owlieio/testing';
 import {
+  catalogContract,
   collectionAdapterContract,
   itemAdapterContract,
   processorContract,
@@ -24,6 +26,8 @@ itemAdapterContract('FakeItemAdapter', () => new FakeItemAdapter(), {
 processorContract('FakeContentProcessor', () => new FakeContentProcessor());
 
 transcriberContract('FakeTranscriber', () => new FakeTranscriber());
+
+catalogContract('FakeProviderCatalog', () => new FakeProviderCatalog());
 
 describe('FakeProgressSink', () => {
   it('records emitted events in order', () => {
