@@ -55,13 +55,14 @@ export function removeCredential(config: UserConfig, provider: string): UserConf
  */
 export function resolveCredentialSource(
   provider: string,
-  options: { envFile?: string } = {},
+  options: { envFile?: string; hosted?: boolean } = {},
   env: Record<string, string | undefined> = process.env,
   loadFile: (path: string) => Record<string, string> = loadDotEnv,
   readConfig: () => UserConfig = readUserConfig,
 ): CredentialSource {
   const key = `${provider.toUpperCase()}_API_KEY`;
   if (env[key]?.trim()) return 'environment';
+  if (options.hosted) return 'not set';
 
   const merged: Record<string, string> = {};
   Object.assign(merged, loadFile('.env'));

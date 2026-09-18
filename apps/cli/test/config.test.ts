@@ -58,6 +58,37 @@ describe('resolveProvider', () => {
   it('throws when no provider is selected', () => {
     expect(() => resolveProvider({}, {}, noFile, noUserConfig)).toThrow(ConfigurationError);
   });
+
+  it('uses process env only in hosted mode, ignoring env files and saved config', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OWLIE_PROVIDER: 'deepseek' },
+      '.env.local': { OWLIE_PROVIDER: 'openai' },
+    };
+    const loadFile = (path: string) => files[path] ?? {};
+    expect(
+      resolveProvider({ hosted: true }, { OWLIE_PROVIDER: 'openai' }, loadFile, () => ({
+        provider: 'deepseek',
+      })),
+    ).toBe('openai');
+    expect(() =>
+      resolveProvider({ hosted: true }, {}, loadFile, () => ({ provider: 'deepseek' })),
+    ).toThrow(ConfigurationError);
+  });
+
+  it('does not read env files or saved config in hosted mode', () => {
+    expect(
+      resolveProvider(
+        { hosted: true },
+        { OWLIE_PROVIDER: 'openai' },
+        () => {
+          throw new Error('loadFile called');
+        },
+        () => {
+          throw new Error('readUserConfig called');
+        },
+      ),
+    ).toBe('openai');
+  });
 });
 
 describe('resolveProviderSettings', () => {
@@ -157,6 +188,43 @@ describe('resolveProviderSettings', () => {
     }));
     expect(config.apiKey).toBe('sk-deepseek');
     expect(config.model).toBe('deepseek-chat');
+  });
+
+  it('uses process env and --model only in hosted mode, ignoring files and profile', () => {
+    const files: Record<string, Record<string, string>> = {
+      '.env': { OPENAI_API_KEY: 'sk-file', OPENAI_MODEL: 'gpt-file', OPENAI_BASE_URL: 'https://file' },
+    };
+    const config = resolveProviderSettings(
+      'openai',
+      { hosted: true, model: 'gpt-4o' },
+      { OPENAI_API_KEY: 'sk-env', OPENAI_MODEL: 'gpt-env' },
+      (path) => files[path] ?? {},
+      () => ({
+        providers: {
+          openai: { model: 'gpt-stored', apiKey: 'sk-stored', baseUrl: 'https://stored' },
+        },
+      }),
+    );
+    expect(config.apiKey).toBe('sk-env');
+    expect(config.model).toBe('gpt-4o');
+    expect(config.baseUrl).toBeUndefined();
+  });
+
+  it('does not read env files or saved config in hosted mode', () => {
+    const config = resolveProviderSettings(
+      'openai',
+      { hosted: true },
+      { OPENAI_API_KEY: 'sk-env' },
+      () => {
+        throw new Error('loadFile called');
+      },
+      () => {
+        throw new Error('readUserConfig called');
+      },
+    );
+    expect(config.apiKey).toBe('sk-env');
+    expect(config.model).toBeUndefined();
+    expect(config.baseUrl).toBeUndefined();
   });
 });
 
