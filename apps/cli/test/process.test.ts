@@ -230,7 +230,7 @@ describe('process command', () => {
     const { io, stdout } = capture({ isTTY: false, content: 'hello' });
     const code = await run(['process', '--prompt', 'Summarize', '--json'], io, deps({ processor }));
     expect(code).toBe(ExitCode.Success);
-    const result = JSON.parse(stdout());
+    const result = JSON.parse(stdout()).result;
     expect(result.output).toBe('Summarize:hello');
     expect(result.format).toBe('text');
     expect(result.metadata.model).toBe('deepseek-chat');

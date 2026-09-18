@@ -70,7 +70,7 @@ describe('extract command', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', URL, '--json'], io, deps(makeFakeAdapter()));
     expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
+    const doc = JSON.parse(stdout()).result;
     expect(doc.text).toBe('hello transcript');
     expect(doc.mediaType).toBe('transcript');
     expect(doc.id).toBe('youtube:video:test');

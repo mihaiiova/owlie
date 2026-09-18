@@ -4,6 +4,7 @@ import { access, mkdir } from 'node:fs/promises';
 import type { CliIo } from '../io.js';
 import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import { writeResultEnvelope } from '../protocol.js';
 import {
   cacheDir,
   configDir,
@@ -164,7 +165,7 @@ export async function runDoctorCommand(
     options.hosted,
   );
   if (options.json) {
-    io.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    writeResultEnvelope(io, 'doctor', report);
   } else {
     io.stdout.write(formatDoctorReport(report));
   }

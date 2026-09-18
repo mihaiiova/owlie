@@ -107,7 +107,7 @@ describe('auth command', () => {
       deps({ env: {}, readConfig: () => ({ providers: { deepseek: { apiKey: 'sk-x' } } }) }),
     );
     expect(code).toBe(ExitCode.Success);
-    expect(JSON.parse(stdout())).toEqual([
+    expect(JSON.parse(stdout()).result).toEqual([
       { provider: 'deepseek', source: 'stored' },
       { provider: 'openai', source: 'not set' },
     ]);

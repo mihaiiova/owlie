@@ -1,5 +1,6 @@
 import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
+import { USAGE_ERROR_CODE, writeErrorRecord, writeUsageError } from './protocol.js';
 import { writeDiagnostic } from './style.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runAuthCommand, type AuthDeps } from './commands/auth.js';
@@ -185,6 +186,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promise<number> {
   const parsed = parseArgs(argv);
   const options = parsed.options;
+  const [command] = parsed.args;
 
   if (parsed.versionRequested) {
     io.stdout.write(`owlie ${VERSION}\n`);
@@ -192,11 +194,9 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   if (parsed.usageError) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', parsed.usageError);
+    if (!options.quiet) writeUsageError(io, options, command ?? 'owlie', parsed.usageError);
     return ExitCode.Usage;
   }
-
-  const [command] = parsed.args;
 
   if (parsed.helpRequested) {
     if (command !== undefined && command !== 'help') {
@@ -214,15 +214,18 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   if (options.hosted) {
     if (options.envFile !== undefined) {
-      if (!options.quiet) {
-        writeDiagnostic(io, 'warning', '--env-file cannot be used with --hosted');
-      }
+      if (!options.quiet)
+        writeUsageError(io, options, command ?? 'owlie', '--env-file cannot be used with --hosted');
       return ExitCode.Usage;
     }
     if (command === 'auth' || command === 'setup') {
-      if (!options.quiet) {
-        writeDiagnostic(io, 'warning', `command "${command}" is not available in hosted mode`);
-      }
+      if (!options.quiet)
+        writeUsageError(
+          io,
+          options,
+          command,
+          `command "${command}" is not available in hosted mode`,
+        );
       return ExitCode.Usage;
     }
   }
@@ -260,8 +263,17 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   if (!options.quiet) {
-    writeDiagnostic(io, 'warning', `unknown command "${command}"`);
-    io.stderr.write('Run "owlie --help" for usage.\n');
+    if (options.json) {
+      writeErrorRecord(
+        io,
+        command ?? 'owlie',
+        USAGE_ERROR_CODE,
+        `unknown command "${command ?? ''}"`,
+      );
+    } else {
+      writeDiagnostic(io, 'warning', `unknown command "${command}"`);
+      io.stderr.write('Run "owlie --help" for usage.\n');
+    }
   }
   return ExitCode.Usage;
 }

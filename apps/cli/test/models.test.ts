@@ -245,7 +245,7 @@ describe('models command', () => {
       }),
     );
     expect(code).toBe(ExitCode.Success);
-    expect(JSON.parse(stdout())).toEqual([{ provider: 'deepseek', id: 'deepseek-chat' }]);
+    expect(JSON.parse(stdout()).result).toEqual([{ provider: 'deepseek', id: 'deepseek-chat' }]);
   });
 
   it('always live-fetches in hosted mode, ignoring a fresh cache', async () => {
