@@ -1,5 +1,5 @@
-import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
-import { ConfigurationError, ExtractionError } from '@owlieio/core';
+import type { HttpFetchPolicy, ModelInfo, ProviderCatalog } from '@owlieio/core';
+import { CancelledError, ConfigurationError, ExtractionError } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -25,6 +25,9 @@ export interface ModelsDeps {
   loadFile?: (path: string) => Record<string, string>;
   cachePath?: string;
   now?: () => number;
+  signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (deadline + max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /**
@@ -107,12 +110,13 @@ export async function runModelsCommand(
         models = cached.models;
       } else {
         try {
-          models = await catalog.listModels({
-            apiKey: settings.apiKey,
-            baseUrl: settings.baseUrl ?? provider.baseUrl,
-          });
+          models = await catalog.listModels(
+            { apiKey: settings.apiKey, baseUrl: settings.baseUrl ?? provider.baseUrl },
+            { signal: deps.signal, policy: deps.networkPolicy },
+          );
           cache[provider.id] = { models, fetchedAt: now() };
         } catch (error) {
+          if (error instanceof CancelledError || deps.signal?.aborted) throw error;
           if (cached) {
             models = cached.models;
             fallbacks.push(

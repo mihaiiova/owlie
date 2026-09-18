@@ -43,30 +43,33 @@ with `schemaVersion` and `command` plus the command's record fields.
 
 The closed consumer-facing error taxonomy on stderr terminal records is:
 
-| Code                   | Exit | Meaning                                        |
-| ---------------------- | ---- | ---------------------------------------------- |
-| `USAGE_ERROR`          | 2    | Invalid arguments or flags                     |
-| `VALIDATION_ERROR`     | 2    | Invalid input shape (thrown `ValidationError`) |
-| `CONFIGURATION_ERROR`  | 1    | Missing/conflicting configuration              |
-| `EXTRACTION_ERROR`     | 1    | Content extraction failed                      |
-| `CAPTIONS_UNAVAILABLE` | 1    | Requested captions are unavailable             |
-| `TRANSCRIPTION_ERROR`  | 1    | Local transcription failed                     |
-| `PROCESSING_ERROR`     | 1    | LLM processing failed                          |
-| `NOT_IMPLEMENTED`      | 3    | Not implemented                                |
-| `OWLIE_ERROR`          | 1    | General failure (fallback)                     |
+| Code                    | Exit | Meaning                                        |
+| ----------------------- | ---- | ---------------------------------------------- |
+| `USAGE_ERROR`           | 2    | Invalid arguments or flags                     |
+| `VALIDATION_ERROR`      | 2    | Invalid input shape (thrown `ValidationError`) |
+| `CONFIGURATION_ERROR`   | 1    | Missing/conflicting configuration              |
+| `EXTRACTION_ERROR`      | 1    | Content extraction failed                      |
+| `CAPTIONS_UNAVAILABLE`  | 1    | Requested captions are unavailable             |
+| `TRANSCRIPTION_ERROR`   | 1    | Local transcription failed                     |
+| `PROCESSING_ERROR`      | 1    | LLM processing failed                          |
+| `NOT_IMPLEMENTED`       | 3    | Not implemented                                |
+| `OWLIE_ERROR`           | 1    | General failure (fallback)                     |
+| `OUTPUT_LIMIT_EXCEEDED` | 1    | Command wrote more stdout than its byte budget |
 
-Cancellation emits `kind: "cancelled"` instead of `kind: "error"`. All stderr
-records redact secrets, URL userinfo, query strings, and fragments.
+Cancellation emits `kind: "cancelled"` instead of `kind: "error"` and exits
+**130** (SIGINT/SIGTERM or an expired invocation deadline). All stderr records
+redact secrets, URL userinfo, query strings, and fragments.
 
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-media-bytes N]
-owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]
-owlie list FEED_URL [--limit N] [--json]
-owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]
-owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id]
-owlie models [--provider <provider>] [--refresh] [--json]
+owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie list FEED_URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie auth add <provider> | list | remove <provider>
 ```
 
@@ -87,12 +90,12 @@ owlie auth add <provider> | list | remove <provider>
   `--podcast-apple`) asserts which podcast resolver finds the audio URL; at
   most one may be supplied, it overrides URL recognition, and a URL the selected
   resolver does not recognize is a usage error (exit code 2) rather than a
-  fallback to another resolver or the article adapter. `--timeout-ms N` and
-  `--max-media-bytes N` are positive integers for direct podcast-media
-  extraction: the former creates one deadline shared by audio resolution,
-  download, ffprobe, ffmpeg, and local faster-whisper; the latter bounds the
-  binary download, retaining its safe default when omitted. Cancellation or the
-  deadline terminates the active local command and cleans temporary media and
+  fallback to another resolver or the article adapter. The invocation-wide
+  `--timeout-ms N`, `--max-network-bytes N`, and `--max-stdout-bytes N` budgets
+  are positive integers and apply as described below. `--max-media-bytes N`
+  remains a direct-podcast-media override that bounds the binary download while
+  retaining its safe default when omitted. Cancellation or the deadline
+  terminates the active local command and cleans temporary media and
   transcription artifacts. Long media is transcribed in bounded five-minute
   chunks (two-second overlap) with monotonic progress.
 - `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
@@ -164,6 +167,30 @@ owlie auth add <provider> | list | remove <provider>
   trace.
 - Secrets are never printed.
 
+## Invocation-wide job controls
+
+Every networked command (`extract`, `resolve`, `list`, `process`, `models`,
+`setup`) accepts three invocation-wide budgets plus the existing bounded
+collection limits:
+
+- `--timeout-ms N` is one positive-integer deadline for the complete
+  invocation. It composes with the injected SIGINT/SIGTERM signal and bounds
+  listing, safe HTTP requests, extraction/transcription, feed batches, and
+  provider calls. Feed batches share the single deadline; no later item or
+  provider request starts after it expires. Expiry aborts participating work,
+  cleans temporary artifacts, and exits 130 with a `kind: "cancelled"` record.
+- `--max-network-bytes N` caps total network download bytes through the core
+  `HttpFetchPolicy`/`DefaultHttpFetcher` seams (feeds, articles, episode
+  pages, Apple lookups) and the direct-media streaming path. `--max-media-bytes`
+  remains a direct-media-specific override.
+- `--max-stdout-bytes N` caps total stdout bytes before a response crosses the
+  app-facing protocol boundary. Exceeding it is an `OUTPUT_LIMIT_EXCEEDED`
+  error (exit 1), not a cancellation.
+
+All three flags are positive integers and reject invalid values as usage errors
+(exit 2). CPU and memory remain container-runtime controls; the CLI does not
+attempt portable enforcement.
+
 ## Hosted mode
 
 `--hosted` is a single strict switch available to every command. It makes one
@@ -184,6 +211,11 @@ unchanged.
 | 1    | General error   |
 | 2    | Usage error     |
 | 3    | Not implemented |
+| 130  | Cancelled       |
+
+Cancellation (`CancelledError`, SIGINT/SIGTERM, or an expired invocation
+`--timeout-ms` deadline) is a distinct, non-retryable outcome with a versioned
+`kind: "cancelled"` terminal record in `--json` mode.
 
 ## `owlie doctor`
 

@@ -47,6 +47,16 @@ describe('classifyFailure', () => {
     expect(classifyFailure({ kind: 'assertion', message: 'missing marker' })).toBe('deterministic');
   });
 
+  it('classifies the CLI cancellation exit 130 as its own non-retryable class', () => {
+    expect(classifyFailure({ kind: 'exit', status: 130, stderr: '', message: '' })).toBe(
+      'cancelled',
+    );
+    // Cancellation wins over any transient marker in stderr.
+    expect(
+      classifyFailure({ kind: 'exit', status: 130, stderr: 'connection reset', message: '' }),
+    ).toBe('cancelled');
+  });
+
   it('classifies a YouTube access block as its own retryable class', () => {
     expect(
       classifyFailure({
@@ -114,6 +124,12 @@ describe('shouldRetry', () => {
         proxyConfigured: true,
         allowProxyFallback: false,
       }),
+    ).toEqual({ retry: false, useProxy: false });
+  });
+
+  it('never retries a cancellation', () => {
+    expect(
+      shouldRetry({ attempt: 1, classification: 'cancelled', proxyConfigured: false }),
     ).toEqual({ retry: false, useProxy: false });
   });
 

@@ -1,4 +1,4 @@
-import type { HttpFetcher } from '@owlieio/core';
+import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher, assertNoUrlCredentials } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -18,6 +18,8 @@ export interface ResolveDeps {
   fetcher?: HttpFetcher;
   registry?: readonly PodcastResolverRegistration[];
   signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /**
@@ -50,6 +52,7 @@ export async function runResolveCommand(
       registry: deps.registry,
       resolverName: options.resolver,
       signal: deps.signal,
+      policy: deps.networkPolicy,
     });
     if (options.json) {
       writeResultEnvelope(io, 'resolve', {

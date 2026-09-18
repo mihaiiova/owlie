@@ -3,6 +3,7 @@ import type {
   CollectionListResult,
   ContentCollection,
   ContentItem,
+  HttpFetchPolicy,
 } from '@owlieio/core';
 import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
@@ -23,6 +24,8 @@ export interface ListDeps {
   adapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /** A safe, HTML-free summary of one listed item. */
@@ -126,7 +129,7 @@ export async function runListCommand(
     return ExitCode.Usage;
   }
 
-  const adapter = deps.adapter ?? new RssAdapter();
+  const adapter = deps.adapter ?? new RssAdapter({ policy: deps.networkPolicy });
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {

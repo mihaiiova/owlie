@@ -53,7 +53,7 @@ export function isYoutubeAccessBlock(text) {
 /**
  * Classifies why a scenario attempt failed.
  *
- * @returns {'transient' | 'youtube-access-block' | 'deterministic'}
+ * @returns {'transient' | 'youtube-access-block' | 'cancelled' | 'deterministic'}
  */
 export function classifyFailure(failure) {
   if (failure.kind === 'timeout') return 'transient';
@@ -63,6 +63,9 @@ export function classifyFailure(failure) {
   }
 
   if (failure.kind === 'exit') {
+    // Exit 130 is the CLI's own structured cancellation outcome; it must never
+    // be retried as a transient failure.
+    if (failure.status === 130) return 'cancelled';
     const text = `${failure.stderr ?? ''} ${failure.message ?? ''}`;
     if (isYoutubeAccessBlock(text)) return 'youtube-access-block';
     if (DETERMINISTIC_PATTERNS.some((re) => re.test(text))) return 'deterministic';

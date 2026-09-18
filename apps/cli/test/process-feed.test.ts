@@ -439,7 +439,7 @@ describe('process --each (feed collection mode)', () => {
     expect(requests.map((r) => r.document.canonicalUrl)).toEqual([YT_URL, ARTICLE_URL]);
   });
 
-  it('stops starting new items after cancellation and exits 1', async () => {
+  it('stops starting new items after cancellation and exits 130', async () => {
     const controller = new AbortController();
     let extractions = 0;
     const article = makeItemAdapter('article', { text: 'body' });
@@ -465,7 +465,7 @@ describe('process --each (feed collection mode)', () => {
         signal: controller.signal,
       },
     });
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(extractions).toBe(1);
     expect(stderr()).toContain('cancelled');
   });

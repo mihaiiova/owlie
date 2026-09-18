@@ -2,6 +2,7 @@ import type {
   CollectionAdapter,
   ContentItem,
   HttpFetcher,
+  HttpFetchPolicy,
   ItemAdapter,
   NormalizedDocument,
   Transcriber,
@@ -37,6 +38,7 @@ import {
 } from '../protocol.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
+import { parsePositiveIntegerFlag } from '../invocation.js';
 
 export interface ExtractDeps {
   /** Ordered item adapters for direct-URL dispatch (specialized first). */
@@ -52,6 +54,8 @@ export interface ExtractDeps {
   transcriber?: Transcriber;
   /** Cache directory used by explicit resolver-selection flag extraction. */
   cacheDir?: string;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -86,40 +90,6 @@ export interface ExtractBatchEnvelope {
   truncated: boolean;
 }
 
-function parsePositiveInteger(value: string | undefined, flag: string): number | undefined {
-  if (value === undefined) return undefined;
-  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
-    throw new ConfigurationError(`${flag} must be a positive integer`);
-  }
-  return Number(value);
-}
-
-/** Combines process cancellation with the extract command's single operation deadline. */
-function deadlineSignal(
-  parent: AbortSignal | undefined,
-  timeoutMs: number | undefined,
-): {
-  signal: AbortSignal | undefined;
-  cleanup: () => void;
-} {
-  if (timeoutMs === undefined) return { signal: parent, cleanup: () => {} };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = (): void => controller.abort();
-  timer.unref();
-  if (parent) {
-    if (parent.aborted) controller.abort();
-    else parent.addEventListener('abort', onAbort, { once: true });
-  }
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      clearTimeout(timer);
-      parent?.removeEventListener('abort', onAbort);
-    },
-  };
-}
-
 function toExtractError(error: unknown): ExtractBatchError {
   return toBatchError(error, 'extraction');
 }
@@ -140,11 +110,9 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
-  let timeoutMs: number | undefined;
   let maxMediaBytes: number | undefined;
   try {
-    timeoutMs = parsePositiveInteger(options.timeoutMs, '--timeout-ms');
-    maxMediaBytes = parsePositiveInteger(options.maxMediaBytes, '--max-media-bytes');
+    maxMediaBytes = parsePositiveIntegerFlag(options.maxMediaBytes, '--max-media-bytes');
   } catch (error) {
     if (!options.quiet) writeUsageError(io, options, 'extract', (error as Error).message);
     return ExitCode.Usage;
@@ -162,7 +130,6 @@ export async function runExtractCommand(
       deps,
       options.resolver,
       readConfig,
-      timeoutMs,
       maxMediaBytes,
     );
   }
@@ -175,15 +142,16 @@ export async function runExtractCommand(
       cacheDir: cacheDir(),
       whisperModel: readConfig().transcription?.model,
       mediaMaxBytes: maxMediaBytes,
+      networkPolicy: deps.networkPolicy,
     });
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
-    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps, timeoutMs);
+    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps);
   } catch (error) {
     spinner.stop();
     writeCommandError(io, options, 'extract', error);
@@ -201,32 +169,25 @@ async function runDirectExtraction(
   spinner: SpinnerLike,
   options: CliOptions,
   deps: ExtractDeps,
-  timeoutMs: number | undefined,
 ): Promise<number> {
   assertNoUrlCredentials(url);
   const progress = createProgressSink(io, options, 'extract', (event) => {
     if (event.type === 'started') spinner.start(`extracting ${event.target}`);
     else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
   });
-  const operation = deadlineSignal(deps.signal, timeoutMs);
-  let document: NormalizedDocument;
-  try {
-    ({ document } = await extractWithFallback(
-      itemAdapters,
-      { url },
-      {
-        signal: operation.signal,
-        progress,
-        onFallback: () => {
-          if (!options.quiet && !options.json) {
-            writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
-          }
-        },
+  const { document } = await extractWithFallback(
+    itemAdapters,
+    { url },
+    {
+      signal: deps.signal,
+      progress,
+      onFallback: () => {
+        if (!options.quiet && !options.json) {
+          writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
+        }
       },
-    ));
-  } finally {
-    operation.cleanup();
-  }
+    },
+  );
   spinner.stop();
 
   if (options.json) {
@@ -250,7 +211,6 @@ async function runResolverExtraction(
   deps: ExtractDeps,
   resolverName: string,
   readConfig: () => UserConfig,
-  timeoutMs: number | undefined,
   maxMediaBytes: number | undefined,
 ): Promise<number> {
   const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
@@ -259,13 +219,13 @@ async function runResolverExtraction(
   const workCacheDir = deps.cacheDir ?? cacheDir();
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
-  const operation = deadlineSignal(deps.signal, timeoutMs);
   try {
     assertNoUrlCredentials(url);
     const resolved = await resolvePodcastAudio(url, {
       fetcher,
       resolverName,
-      signal: operation.signal,
+      signal: deps.signal,
+      policy: deps.networkPolicy,
     });
     const item: ContentItem = {
       id: `podcast:episode:${resolved.mediaUrl}`,
@@ -277,14 +237,16 @@ async function runResolverExtraction(
       fetcher,
       transcriber,
       cacheDir: workCacheDir,
-      mediaFetchPolicy:
-        maxMediaBytes === undefined ? undefined : { maxResponseBytes: maxMediaBytes },
+      mediaFetchPolicy: {
+        ...(deps.networkPolicy ?? {}),
+        ...(maxMediaBytes === undefined ? {} : { maxResponseBytes: maxMediaBytes }),
+      },
     });
     const progress = createProgressSink(io, options, 'extract', (event) => {
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
       else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     });
-    const document = await adapter.extract(item, { signal: operation.signal, progress });
+    const document = await adapter.extract(item, { signal: deps.signal, progress });
     spinner.stop();
 
     if (options.json) {
@@ -304,8 +266,6 @@ async function runResolverExtraction(
     }
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
-  } finally {
-    operation.cleanup();
   }
 }
 

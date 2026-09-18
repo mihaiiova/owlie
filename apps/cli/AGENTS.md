@@ -37,8 +37,9 @@ in `src/registry.ts` and add it to this package's `devDependencies`.
 
 ## Exit codes
 
-`0` success, `1` error, `2` usage error, `3` not implemented. Translate thrown
-typed errors with `exitCodeForError` in `src/io.ts`.
+`0` success, `1` error, `2` usage error, `3` not implemented, `130` cancelled
+(SIGINT/SIGTERM or an expired invocation deadline). Translate thrown typed
+errors with `exitCodeForError` in `src/io.ts`; `CancelledError` maps to 130.
 
 ## Testing
 

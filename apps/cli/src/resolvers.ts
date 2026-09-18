@@ -1,4 +1,4 @@
-import type { HttpFetcher } from '@owlieio/core';
+import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
 import { ConfigurationError, ValidationError } from '@owlieio/core';
 import type { PodcastAudioResolver } from '@owlieio/adapter-podcast';
 import {
@@ -10,6 +10,8 @@ import {
 /** Options passed to each resolver factory. */
 export interface ResolverFactoryOptions {
   fetcher: HttpFetcher;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  policy?: HttpFetchPolicy;
 }
 
 /**
@@ -39,12 +41,12 @@ export const PODCAST_RESOLVER_REGISTRY: readonly PodcastResolverRegistration[] =
   {
     name: 'podcast-apple',
     flag: '--podcast-apple',
-    create: ({ fetcher }) => new ApplePodcastsResolver({ fetcher }),
+    create: ({ fetcher, policy }) => new ApplePodcastsResolver({ fetcher, policy }),
   },
   {
     name: 'podcast-page',
     flag: '--podcast-page',
-    create: ({ fetcher }) => new GenericEpisodePageResolver({ fetcher }),
+    create: ({ fetcher, policy }) => new GenericEpisodePageResolver({ fetcher, policy }),
   },
 ];
 
@@ -59,8 +61,11 @@ export function resolverFlagForName(name: string): string | undefined {
 }
 
 /** Builds the ordered resolver instances used by automatic dispatch. */
-export function createPodcastResolvers(fetcher: HttpFetcher): readonly PodcastAudioResolver[] {
-  return PODCAST_RESOLVER_REGISTRY.map((entry) => entry.create({ fetcher }));
+export function createPodcastResolvers(
+  fetcher: HttpFetcher,
+  policy?: HttpFetchPolicy,
+): readonly PodcastAudioResolver[] {
+  return PODCAST_RESOLVER_REGISTRY.map((entry) => entry.create({ fetcher, policy }));
 }
 
 /** A validated media URL plus its source metadata, resolved without download or transcription. */
@@ -77,6 +82,8 @@ export interface ResolvePodcastAudioOptions {
   /** When set, only this resolver runs (authoritative selection). */
   resolverName?: string;
   signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  policy?: HttpFetchPolicy;
 }
 
 /**
@@ -106,7 +113,7 @@ export async function resolvePodcastAudio(
   }
 
   for (const entry of entries) {
-    const resolver = entry.create({ fetcher });
+    const resolver = entry.create({ fetcher, policy: options.policy });
     if (!resolver.recognize({ url })) continue;
     const resolved = await resolver.resolve({ url }, { signal: options.signal });
     return { resolver: entry.name, mediaUrl: resolved.mediaUrl, metadata: resolved.metadata };

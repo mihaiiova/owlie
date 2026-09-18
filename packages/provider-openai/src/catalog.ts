@@ -1,6 +1,6 @@
 import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
 import { DefaultHttpFetcher, ExtractionError, isJsonContentType } from '@owlieio/core';
-import type { HttpFetcher } from '@owlieio/core';
+import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
 
 /** Default base URL for OpenAI's authenticated `/models` listing. */
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1';
@@ -37,10 +37,15 @@ export class OpenAICatalog implements ProviderCatalog {
     this.fetcher = options.fetcher ?? new DefaultHttpFetcher();
   }
 
-  async listModels(credentials: { apiKey: string; baseUrl?: string }): Promise<ModelInfo[]> {
+  async listModels(
+    credentials: { apiKey: string; baseUrl?: string },
+    options: { signal?: AbortSignal; policy?: HttpFetchPolicy } = {},
+  ): Promise<ModelInfo[]> {
     const baseUrl = credentials.baseUrl ?? OPENAI_BASE_URL;
     const response = await this.fetcher.fetch(`${baseUrl}/models`, {
       headers: { Authorization: `Bearer ${credentials.apiKey}` },
+      signal: options.signal,
+      policy: options.policy,
     });
     if (!isJsonContentType(response.contentType)) {
       throw new ExtractionError('OpenAI model discovery returned a non-JSON response');

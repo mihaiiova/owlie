@@ -3,6 +3,7 @@ import { basename } from 'node:path';
 import type {
   CollectionAdapter,
   ContentProcessor,
+  HttpFetchPolicy,
   ItemAdapter,
   NormalizedDocument,
   ProcessRequest,
@@ -68,6 +69,8 @@ export interface ProcessDeps {
   feedAdapter?: CollectionAdapter;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 async function readInputFile(path: string): Promise<string> {
@@ -252,6 +255,7 @@ function resolveItemAdapters(
       proxy: options.hosted ? undefined : readConfig().proxy,
       cacheDir: cacheDir(),
       whisperModel: options.hosted ? undefined : readConfig().transcription?.model,
+      networkPolicy: deps.networkPolicy,
     })
   );
 }
@@ -283,7 +287,7 @@ async function runUrlProcessing(
 
   const readConfig = deps.readConfig ?? readUserConfig;
   const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
 
   if (feedAdapter.recognize({ url })) {
     if (!options.quiet)
@@ -418,7 +422,7 @@ async function runFeedProcessing(
 
   const readConfig = deps.readConfig ?? readUserConfig;
   const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
 
   if (!feedAdapter.recognize({ url })) {
     if (!options.quiet)
