@@ -141,9 +141,36 @@ describe('doctor', () => {
       ffprobe: 'detected',
       model: 'not set',
     });
+    expect(report.configurationSource).toBe('local');
     expect(report.deepSeekApiKey).toBeUndefined();
     expect(report.modelConfigured).toBeUndefined();
     expect(stderr()).toBe('');
+  });
+
+  it('reports hosted config source without reading files or saved config', async () => {
+    const { io, stdout } = capture();
+    const deps: CliDeps = {
+      doctor: {
+        dirWritable: async () => true,
+        env: { DEEPSEEK_API_KEY: 'sk-env', DEEPSEEK_MODEL: 'deepseek-chat' },
+        loadFile: () => {
+          throw new Error('loadFile called');
+        },
+        readConfig: () => {
+          throw new Error('readConfig called');
+        },
+        toolAvailable: async () => true,
+      },
+    };
+    const code = await run(['--hosted', 'doctor', '--json'], io, deps);
+    expect(code).toBe(ExitCode.Success);
+    const report = JSON.parse(stdout());
+    expect(report.configurationSource).toBe('hosted');
+    expect(report.providers).toEqual([
+      { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },
+      { id: 'openai', apiKey: 'not set', model: null, authSource: 'not set' },
+    ]);
+    expect(report.transcription.model).toBe('not set');
   });
 
   it('resolves provider key and model from .env files like process does', async () => {
