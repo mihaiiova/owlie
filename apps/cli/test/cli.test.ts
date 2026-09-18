@@ -261,20 +261,16 @@ describe('--hosted', () => {
     let prompted = false;
     let written: unknown;
     const { io, stderr } = capture();
-    const code = await run(
-      ['--hosted', 'auth', 'add', 'deepseek'],
-      io,
-      {
-        auth: {
-          prompt: async () => {
-            prompted = true;
-            return 'sk-x';
-          },
-          readConfig: () => ({}),
-          writeConfig: (config) => (written = config),
+    const code = await run(['--hosted', 'auth', 'add', 'deepseek'], io, {
+      auth: {
+        prompt: async () => {
+          prompted = true;
+          return 'sk-x';
         },
+        readConfig: () => ({}),
+        writeConfig: (config) => (written = config),
       },
-    );
+    });
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('auth');
     expect(stderr()).toContain('hosted');
@@ -286,20 +282,16 @@ describe('--hosted', () => {
     let prompted = false;
     let written: unknown;
     const { io, stderr } = capture();
-    const code = await run(
-      ['--hosted', 'setup'],
-      io,
-      {
-        setup: {
-          prompt: async () => {
-            prompted = true;
-            return 'sk-x';
-          },
-          readConfig: () => ({}),
-          writeConfig: (config) => (written = config),
+    const code = await run(['--hosted', 'setup'], io, {
+      setup: {
+        prompt: async () => {
+          prompted = true;
+          return 'sk-x';
         },
+        readConfig: () => ({}),
+        writeConfig: (config) => (written = config),
       },
-    );
+    });
     expect(code).toBe(ExitCode.Usage);
     expect(stderr()).toContain('setup');
     expect(stderr()).toContain('hosted');

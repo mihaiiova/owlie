@@ -192,7 +192,11 @@ describe('resolveProviderSettings', () => {
 
   it('uses process env and --model only in hosted mode, ignoring files and profile', () => {
     const files: Record<string, Record<string, string>> = {
-      '.env': { OPENAI_API_KEY: 'sk-file', OPENAI_MODEL: 'gpt-file', OPENAI_BASE_URL: 'https://file' },
+      '.env': {
+        OPENAI_API_KEY: 'sk-file',
+        OPENAI_MODEL: 'gpt-file',
+        OPENAI_BASE_URL: 'https://file',
+      },
     };
     const config = resolveProviderSettings(
       'openai',

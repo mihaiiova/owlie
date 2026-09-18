@@ -84,13 +84,7 @@ function providerReports(
   hosted: boolean,
 ): ProviderReport[] {
   return PROVIDER_IDS.map((id) => {
-    const settings = resolveProviderSettings(
-      id,
-      { envFile, hosted },
-      env,
-      loadFile,
-      readConfig,
-    );
+    const settings = resolveProviderSettings(id, { envFile, hosted }, env, loadFile, readConfig);
     return {
       id,
       apiKey: settings.apiKey ? 'set' : 'not set',
@@ -124,13 +118,7 @@ async function collectDoctorReport(
     arch: process.arch,
     configurationSource: hosted ? 'hosted' : 'local',
     adapters: [...ADAPTER_IDS],
-    providers: providerReports(
-      deps.env,
-      readConfig,
-      deps.loadFile ?? loadDotEnv,
-      envFile,
-      hosted,
-    ),
+    providers: providerReports(deps.env, readConfig, deps.loadFile ?? loadDotEnv, envFile, hosted),
     configDirectory: { path: configDir(), writable: configWritable },
     cacheDirectory: { path: cacheDir(), writable: cacheWritable },
     transcription: {

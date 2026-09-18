@@ -157,11 +157,7 @@ export interface ModelSelection {
  */
 export function resolveModelSelection(
   options: Pick<CliOptions, 'model' | 'provider' | 'envFile'> & { hosted?: boolean },
-  resolveProviderFn: (options: {
-    provider?: string;
-    envFile?: string;
-    hosted?: boolean;
-  }) => string,
+  resolveProviderFn: (options: { provider?: string; envFile?: string; hosted?: boolean }) => string,
 ): ModelSelection {
   const ref = options.model !== undefined ? resolveModelReference(options.model) : undefined;
   if (ref?.provider) {

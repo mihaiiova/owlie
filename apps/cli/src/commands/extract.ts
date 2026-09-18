@@ -144,8 +144,9 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
-  const readConfig: () => UserConfig =
-    options.hosted ? () => ({}) : deps.readConfig ?? readUserConfig;
+  const readConfig: () => UserConfig = options.hosted
+    ? () => ({})
+    : (deps.readConfig ?? readUserConfig);
 
   if (options.resolver !== undefined) {
     return runResolverExtraction(
