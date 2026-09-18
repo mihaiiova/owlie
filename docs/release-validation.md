@@ -55,7 +55,7 @@ in the same change. Any URL replacement must be reviewed and documented.
 
 1. **GitHub Pages** — enable Pages with **GitHub Actions** as the source
    (Settings → Pages). The first `Deploy release corpus` run publishes the
-   corpus to `https://mihaiiova.github.io/owlie-cli/`.
+   corpus to `https://mihaiiova.github.io/owlie/`.
 2. **Protected environment** — create a GitHub Environment named `release`,
    restrict it to `main`, and require reviewer approval.
 3. **Secrets/variables** — add to the `release` environment:
@@ -83,16 +83,24 @@ gate is operational before it is used for a real release.
 
 ## Publishing the tested artifact
 
-Do not re-run `pnpm publish` locally. Publish the exact tarball that passed
-validation:
+Publishing is automated via npm Trusted Publishers (OIDC); see
+[ADR 0027](decisions/0027-trusted-publishing.md). After the validation run
+passes, dispatch the publish workflow on `main`:
+
+1. Run **Actions → Publish to npm → Run workflow**, entering the same
+   `expected_version`.
+2. The workflow rebuilds from source, runs the offline artifact smoke test,
+   and publishes with `npm publish --access public` using a short-lived OIDC
+   credential — no npm token or 2FA is involved.
+
+Fallback (manual, only when trusted publishing is unavailable): publish the
+exact tarball that passed validation:
 
 ```bash
 # Download and verify the uploaded tarball against the manifest checksum.
-sha256sum owlie-<version>.tgz   # compare to candidate-manifest.json sha256
-npm publish owlie-<version>.tgz
+sha256sum owlieio-owlie-<version>.tgz   # compare to candidate-manifest.json sha256
+npm publish owlieio-owlie-<version>.tgz --access public
 ```
-
-Publishing remains manual and requires explicit repository-owner approval.
 
 ## Retry and failure semantics
 
@@ -123,8 +131,8 @@ The runner can be run locally against the built CLI, with live credentials:
 ```bash
 pnpm build
 OWLIE_E2E_EXPECTED_VERSION=$(node -p "require('./apps/cli/package.json').version") \
-OWLIE_E2E_ARTICLE_URL=https://mihaiiova.github.io/owlie-cli/article.html \
-OWLIE_E2E_RSS_URL=https://mihaiiova.github.io/owlie-cli/feed.xml \
+OWLIE_E2E_ARTICLE_URL=https://mihaiiova.github.io/owlie/article.html \
+OWLIE_E2E_RSS_URL=https://mihaiiova.github.io/owlie/feed.xml \
 OWLIE_E2E_YOUTUBE_URL=https://www.youtube.com/watch?v=jNQXAC9IVRw \
 DEEPSEEK_API_KEY=... \
 node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js --out /tmp/report.json

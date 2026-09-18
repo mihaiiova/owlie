@@ -226,7 +226,7 @@ async function run(args) {
   }
 
   const candidate = {
-    packageName: 'owlie',
+    packageName: '@owlieio/owlie',
     version: packageVersion,
     commitSha: commitSha ?? 'local',
     tarball: tarballPath ? basename(tarballPath) : null,

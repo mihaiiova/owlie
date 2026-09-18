@@ -9,6 +9,7 @@ import { readUserConfig, writeUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { getProviderCatalog, listProviders } from '../registry.js';
 import type { ProviderInfo } from '../registry.js';
+import { writeDiagnostic } from '../style.js';
 
 export interface SetupDeps {
   /** Detects a local executable without installing it. */
@@ -130,17 +131,19 @@ export async function runSetupCommand(
       });
       const provider = providers.find((entry) => entry.id === providerId);
       if (!provider) {
-        if (!options.quiet) io.stderr.write(`owlie: unknown provider "${providerId}"\n`);
+        if (!options.quiet) writeDiagnostic(io, 'warning', `unknown provider "${providerId}"`);
         return ExitCode.Usage;
       }
 
       const existingProfile = existing.providers?.[providerId] ?? {};
 
       // auth (API key; never shown as a default)
-      const apiKeyInput = await prompt('API key');
+      const apiKeyInput = await prompt(
+        existingProfile.apiKey ? 'API key (already set; press Enter to keep)' : 'API key',
+      );
       const apiKey = apiKeyInput.trim() || existingProfile.apiKey;
       if (!apiKey) {
-        if (!options.quiet) io.stderr.write('owlie: API key is required\n');
+        if (!options.quiet) writeDiagnostic(io, 'warning', 'API key is required');
         return ExitCode.Usage;
       }
 
@@ -155,20 +158,20 @@ export async function runSetupCommand(
       } catch (error) {
         if (!options.quiet) {
           const message = error instanceof Error ? error.message : String(error);
-          io.stderr.write(`owlie: failed to list models for "${providerId}": ${message}\n`);
+          writeDiagnostic(io, 'error', `failed to list models for "${providerId}": ${message}`);
         }
         return ExitCode.Error;
       }
       if (modelInfos.length === 0) {
         if (!options.quiet)
-          io.stderr.write(`owlie: provider "${providerId}" returned no selectable models\n`);
+          writeDiagnostic(io, 'error', `provider "${providerId}" returned no selectable models`);
         return ExitCode.Error;
       }
 
       const models = modelInfos.map((modelInfo) => modelInfo.id);
       const model = await select('Model', models, { default: existingProfile.model ?? models[0] });
       if (!models.includes(model)) {
-        if (!options.quiet) io.stderr.write(`owlie: unknown model "${model}"\n`);
+        if (!options.quiet) writeDiagnostic(io, 'warning', `unknown model "${model}"`);
         return ExitCode.Usage;
       }
 
@@ -187,14 +190,16 @@ export async function runSetupCommand(
     if (section === 'Transcription') {
       const [python, ffmpeg, ffprobe, whisper] = await Promise.all([
         toolAvailable('python3'),
-        toolAvailable('ffmpeg'),
-        toolAvailable('ffprobe'),
+        toolAvailable('ffmpeg', ['-version']),
+        toolAvailable('ffprobe', ['-version']),
         toolAvailable('python3', ['-c', 'import faster_whisper']),
       ]);
       if (!python || !ffmpeg || !ffprobe || !whisper) {
         if (!options.quiet)
-          io.stderr.write(
-            `owlie: transcription tools missing: ${[
+          writeDiagnostic(
+            io,
+            'error',
+            `transcription tools missing: ${[
               ['python3', python],
               ['faster-whisper', whisper],
               ['ffmpeg', ffmpeg],
@@ -202,7 +207,7 @@ export async function runSetupCommand(
             ]
               .filter(([, available]) => !available)
               .map(([tool]) => tool)
-              .join(', ')}\n`,
+              .join(', ')}`,
           );
         return ExitCode.Error;
       }
@@ -210,7 +215,7 @@ export async function runSetupCommand(
         default: existing.transcription?.model ?? 'small',
       });
       if (!WHISPER_MODELS.includes(model as (typeof WHISPER_MODELS)[number])) {
-        if (!options.quiet) io.stderr.write(`owlie: unknown whisper model "${model}"\n`);
+        if (!options.quiet) writeDiagnostic(io, 'warning', `unknown whisper model "${model}"`);
         return ExitCode.Usage;
       }
       writeConfig({ ...existing, transcription: { provider: 'whisper-local', model } });
@@ -228,14 +233,14 @@ export async function runSetupCommand(
         const password = (await prompt('WebShare password')).trim();
         if (!username || !password) {
           if (!options.quiet)
-            io.stderr.write('owlie: WebShare username and password are required\n');
+            writeDiagnostic(io, 'warning', 'WebShare username and password are required');
           return ExitCode.Usage;
         }
         proxy = { type: 'webshare', username, password };
       } else if (proxyType === 'generic') {
         const url = (await prompt('Proxy URL')).trim();
         if (!url) {
-          if (!options.quiet) io.stderr.write('owlie: proxy URL is required\n');
+          if (!options.quiet) writeDiagnostic(io, 'warning', 'proxy URL is required');
           return ExitCode.Usage;
         }
         proxy = { type: 'generic', url };
@@ -246,12 +251,12 @@ export async function runSetupCommand(
       return ExitCode.Success;
     }
 
-    if (!options.quiet) io.stderr.write(`owlie: unknown section "${section}"\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unknown section "${section}"`);
     return ExitCode.Usage;
   } catch (error) {
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }

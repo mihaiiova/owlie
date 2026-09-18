@@ -1,6 +1,6 @@
 # ADR 0004 — Single published package; `owlie-app` consumes the CLI
 
-- **Status:** Accepted
+- **Status:** Superseded (package naming) by [ADR 0026](0026-scoped-published-package-name.md)
 - **Date:** 2026-08-18
 
 ## Context

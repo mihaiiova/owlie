@@ -69,6 +69,38 @@ describe('ApplePodcastsResolver', () => {
     });
   });
 
+  it('accepts Apple lookup responses served as text/javascript', async () => {
+    const resolver = new ApplePodcastsResolver({
+      fetcher: {
+        async fetch(url) {
+          return {
+            url,
+            contentType: 'text/javascript; charset=utf-8',
+            text: JSON.stringify({
+              results: [
+                {
+                  wrapperType: 'podcastEpisode',
+                  trackId: 67890,
+                  trackName: 'The episode',
+                  episodeUrl: 'https://cdn.example.com/episode.mp3',
+                },
+              ],
+            }),
+          };
+        },
+      },
+    });
+
+    await expect(
+      resolver.resolve({
+        url: 'https://podcasts.apple.com/gb/podcast/example-show/id12345?i=67890',
+      }),
+    ).resolves.toEqual({
+      mediaUrl: 'https://cdn.example.com/episode.mp3',
+      metadata: { title: 'The episode', resolvedFrom: 'apple' },
+    });
+  });
+
   it('falls back to the matching RSS enclosure when lookup has no episode URL', async () => {
     const lookup = 'https://itunes.apple.com/lookup?id=12345&entity=podcastEpisode&country=gb';
     const resolver = new ApplePodcastsResolver({

@@ -10,7 +10,7 @@ function capture() {
   let stderr = '';
   const io: CliIo = {
     stdout: { write: (chunk: string) => (stdout += chunk) },
-    stderr: { write: (chunk: string) => (stderr += chunk) },
+    stderr: { write: (chunk: string) => (stderr += chunk), isTTY: false },
     stdin: { isTTY: false, read: async () => '' },
   };
   return { io, stdout: () => stdout, stderr: () => stderr };
@@ -172,6 +172,22 @@ describe('owlie setup', () => {
     expect(writes).toHaveLength(0);
   });
 
+  it('probes ffmpeg and ffprobe with -version (not --version)', async () => {
+    const calls: Array<[string, readonly string[] | undefined]> = [];
+    const { deps } = makeSetup({
+      select: scriptedSelect(['Transcription', 'medium']),
+      toolAvailable: async (tool, args) => {
+        calls.push([tool, args]);
+        return true;
+      },
+      readConfig: () => ({}),
+    });
+    const { io } = capture();
+    await run(['setup'], io, deps);
+    expect(calls.find(([tool]) => tool === 'ffmpeg')?.[1]).toEqual(['-version']);
+    expect(calls.find(([tool]) => tool === 'ffprobe')?.[1]).toEqual(['-version']);
+  });
+
   it('rejects an unknown provider', async () => {
     const { deps } = makeSetup({ select: scriptedSelect(['LLM provider', 'anthropic']) });
     const { io, stderr } = capture();
@@ -218,6 +234,24 @@ describe('owlie setup', () => {
     const code = await run(['setup'], io, deps);
     expect(code).toBe(ExitCode.Success);
     expect(writes[0]?.providers?.deepseek?.apiKey).toBe('sk-old');
+  });
+
+  it('tells the user when an API key is already saved', async () => {
+    let question = '';
+    const { deps } = makeSetup({
+      select: scriptedSelect(['LLM provider', 'deepseek', 'deepseek-chat']),
+      prompt: async (q) => {
+        question = q;
+        return '';
+      },
+      readConfig: () => ({
+        providers: { deepseek: { model: 'deepseek-chat', apiKey: 'sk-old' } },
+      }),
+      listModels: async () => [{ provider: 'deepseek', id: 'deepseek-chat' }],
+    });
+    const { io } = capture();
+    await run(['setup'], io, deps);
+    expect(question).toContain('already set');
   });
 
   it('uses the existing profile as menu defaults', async () => {

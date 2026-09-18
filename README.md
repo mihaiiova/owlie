@@ -47,9 +47,11 @@ owlie extract "https://example.com/feed.xml" --limit 20
 # List entries in an RSS/Atom feed (bounded)
 owlie list "https://example.com/feed.xml" --limit 20
 
-# Process plain text or a normalized document with DeepSeek or OpenAI
+# Process plain text, a normalized document, or a URL with DeepSeek or OpenAI
 owlie extract "https://youtube.com/watch?v=..." |
   owlie process --prompt "Summarize this"
+
+owlie process "https://example.com/article" --prompt "Summarize this"
 
 # --model provider/model-id is self-contained; a plain --model id uses the saved provider
 owlie process transcript.txt --prompt "Summarize this" --model openai/gpt-4o-mini
@@ -109,7 +111,7 @@ owlie doctor
 owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
 owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
-owlie process FILE --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
+owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
 owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)
 owlie auth add|list|remove PROVIDER  # manage API keys in the local store
@@ -200,16 +202,16 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/provider-deepseek` | DeepSeek `ContentProcessor`                                     |
 | `@owlieio/provider-openai`   | OpenAI `ContentProcessor`                                       |
 | `@owlieio/provider-whisper`  | Local faster-whisper `Transcriber`                              |
-| `owlie`                      | The `owlie` command-line interface (published)                  |
+| `@owlieio/owlie`             | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and
 `@ai-sdk/openai`) behind the provider-neutral `ContentProcessor` contract.
 
-Only `owlie` is published. The `@owlieio/*` packages are internal (private) —
-they organize the code and enforce dependency boundaries, and are bundled into
-the `owlie` package at build time. They are never published to npm, so no npm
-scope needs to be claimed.
+Only `@owlieio/owlie` is published. The other `@owlieio/*` packages are internal
+(private) — they organize the code and enforce dependency boundaries, and are
+bundled into the `@owlieio/owlie` package at build time. They are never
+published to npm; only the `@owlieio` scope is claimed for the published CLI.
 
 ## Development setup
 

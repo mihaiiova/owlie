@@ -9,6 +9,7 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import {
+  assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
   OwlieError,
@@ -30,8 +31,9 @@ import {
   resolveProviderSettings,
 } from '../config.js';
 import type { ProviderEnvConfig, UserConfig } from '../config.js';
-import { parseLanguages } from './extract.js';
+import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
 import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
 import {
   assertKnownProvider,
@@ -41,6 +43,10 @@ import {
 } from '../registry.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
+import { writeDiagnostic } from '../style.js';
+
+/** Spinner message shown while waiting for the LLM response. */
+const LLM_WAIT_NOTICE = 'waiting for llm response';
 
 export interface ProcessDeps {
   signal?: AbortSignal;
@@ -208,6 +214,97 @@ function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): Con
   return resolveConfiguredProcessor(provider, effectiveSettings);
 }
 
+function resolveItemAdapters(
+  options: CliOptions,
+  deps: ProcessDeps,
+  readConfig: () => UserConfig,
+): readonly ItemAdapter[] {
+  return (
+    deps.itemAdapters ??
+    defaultItemAdapters({
+      languages: parseLanguages(options.language),
+      proxy: readConfig().proxy,
+      cacheDir: cacheDir(),
+      whisperModel: readConfig().transcription?.model,
+    })
+  );
+}
+
+/** Extracts a single URL through the universal dispatch, then processes it. */
+async function runUrlProcessing(
+  url: string,
+  args: string[],
+  io: CliIo,
+  options: CliOptions,
+  deps: ProcessDeps,
+  spinner: SpinnerLike,
+): Promise<number> {
+  const [, extra] = args;
+  if (extra !== undefined) {
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    return ExitCode.Usage;
+  }
+  if (options.input !== undefined) {
+    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with --input');
+    return ExitCode.Usage;
+  }
+  if (!io.stdin.isTTY) {
+    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with piped stdin');
+    return ExitCode.Usage;
+  }
+
+  const readConfig = deps.readConfig ?? readUserConfig;
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+
+  if (feedAdapter.recognize({ url })) {
+    if (!options.quiet)
+      writeDiagnostic(
+        io,
+        'warning',
+        'processing a feed requires --each (owlie process URL --each)',
+      );
+    return ExitCode.Usage;
+  }
+
+  assertNoUrlCredentials(url);
+  // Resolve the processor before any network work so a missing provider, key,
+  // or model fails fast instead of after an expensive extraction.
+  const processor = resolveProcessorForCommand(options, deps);
+
+  const progress: ProgressSink = {
+    emit: (event) => {
+      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+    },
+  };
+  const { document } = await extractWithFallback(
+    itemAdapters,
+    { url },
+    {
+      signal: deps.signal,
+      progress,
+      onFallback: () => {
+        if (!options.quiet) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
+      },
+    },
+  );
+
+  spinner.start(LLM_WAIT_NOTICE);
+  const result = await processor.process(
+    { document, instruction: options.prompt },
+    { signal: deps.signal },
+  );
+  spinner.stop();
+
+  if (options.json) {
+    io.stdout.write(JSON.stringify(result) + '\n');
+  } else {
+    io.stdout.write(result.output + '\n');
+  }
+  return ExitCode.Success;
+}
+
 export async function runProcessCommand(
   args: string[],
   io: CliIo,
@@ -220,6 +317,7 @@ export async function runProcessCommand(
       write: (text) => {
         if (!options.quiet) io.stderr.write(text);
       },
+      tty: io.stderr.isTTY,
     });
 
   try {
@@ -228,6 +326,11 @@ export async function runProcessCommand(
     }
 
     const stdinPiped = !io.stdin.isTTY;
+    const positional = args[0];
+    if (positional !== undefined && /^https?:\/\//i.test(positional)) {
+      return await runUrlProcessing(positional, args, io, options, deps, spinner);
+    }
+
     const needsStdinRead = stdinPiped && args[0] === undefined && options.input === undefined;
     const stdinContent = needsStdinRead ? await io.stdin.read() : undefined;
 
@@ -242,7 +345,7 @@ export async function runProcessCommand(
     const processor = resolveProcessorForCommand(options, deps);
 
     const request: ProcessRequest = { document, instruction: options.prompt };
-    spinner.start('processing');
+    spinner.start(LLM_WAIT_NOTICE);
     const result = await processor.process(request, { signal: deps.signal });
     spinner.stop();
 
@@ -260,7 +363,7 @@ export async function runProcessCommand(
         const pointer = modelsPointer(options, deps);
         if (pointer) message += `\n\n${pointer}`;
       }
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }
@@ -275,36 +378,30 @@ async function runFeedProcessing(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) io.stderr.write('owlie: --each requires a feed URL\n');
+    if (!options.quiet) writeDiagnostic(io, 'warning', '--each requires a feed URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
   if (options.input !== undefined) {
-    if (!options.quiet) io.stderr.write('owlie: --each cannot be combined with --input\n');
+    if (!options.quiet) writeDiagnostic(io, 'warning', '--each cannot be combined with --input');
     return ExitCode.Usage;
   }
   if (!io.stdin.isTTY) {
-    if (!options.quiet) io.stderr.write('owlie: --each cannot be combined with piped stdin\n');
+    if (!options.quiet)
+      writeDiagnostic(io, 'warning', '--each cannot be combined with piped stdin');
     return ExitCode.Usage;
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters =
-    deps.itemAdapters ??
-    defaultItemAdapters({
-      languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
-      cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
-    });
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
   const feedAdapter = deps.feedAdapter ?? new RssAdapter();
 
   if (!feedAdapter.recognize({ url })) {
     if (!options.quiet)
-      io.stderr.write(`owlie: --each requires an RSS/Atom feed URL, received "${url}"\n`);
+      writeDiagnostic(io, 'warning', `--each requires an RSS/Atom feed URL, received "${url}"`);
     return ExitCode.Usage;
   }
 

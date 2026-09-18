@@ -12,6 +12,7 @@ import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
+import { writeDiagnostic } from '../style.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
 export interface ListDeps {
@@ -113,11 +114,11 @@ export async function runListCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) io.stderr.write('owlie: list requires a URL\n');
+    if (!options.quiet) writeDiagnostic(io, 'warning', 'list requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
@@ -128,6 +129,7 @@ export async function runListCommand(
       write: (text) => {
         if (!options.quiet) io.stderr.write(text);
       },
+      tty: io.stderr.isTTY,
     });
 
   try {
@@ -147,7 +149,7 @@ export async function runListCommand(
     spinner.stop();
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }

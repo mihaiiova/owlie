@@ -17,7 +17,8 @@ compile, tests pass, and `pnpm check` is green. Functional commands today:
 episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
 `owlie list`, `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
-stdin document, a normalized JSON document, or a feed `--each` batch, selected
+stdin document, a normalized JSON document, a single http(s) URL, or a feed
+`--each` batch, selected
 by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `--provider` alias, `OWLIE_PROVIDER`, or the saved active provider),
 `owlie models` (dynamic per-provider model discovery with a TTL cache),
@@ -40,7 +41,7 @@ differ from older v1 plans.
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
-RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE] --prompt`, `owlie
+RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
 `owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie --help`,
 `owlie --version`. In scope: individual YouTube video transcript

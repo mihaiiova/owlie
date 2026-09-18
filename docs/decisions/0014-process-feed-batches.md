@@ -1,6 +1,6 @@
 # ADR 0014 — Bounded feed processing with `process --each` (JSONL)
 
-- **Status:** Accepted
+- **Status:** Accepted (single-input "never fetches a URL" decision superseded by [ADR 0028](0028-process-url-shortcut.md))
 - **Date:** 2026-08-20
 
 ## Context

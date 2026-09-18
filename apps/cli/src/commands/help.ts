@@ -7,7 +7,7 @@ Commands:
   extract   Extract content from a YouTube video, an article, or an RSS/Atom feed
   resolve   Resolve a URL to its validated audio media URL (no transcription)
   list      List entries in an RSS/Atom feed
-  process   Process text, a document, or a feed's linked items with an LLM
+  process   Process text, a document, a URL, or a feed's linked items with an LLM
   models    List current models for your LLM providers
   auth      Manage API keys for LLM providers
   setup     Configure providers and models interactively
@@ -62,12 +62,13 @@ const LIST_HELP =
   'metadata, item metadata, and truncation state with --json.';
 
 const PROCESS_HELP =
-  'owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +
+  'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +
   'owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id]\n\n' +
-  'Process plain text or a normalized document with an LLM (DeepSeek or\n' +
-  'OpenAI). Reads exactly one input: a positional file, --input FILE, or\n' +
-  'stdin. Never fetches a URL in single-input mode. --model selects the model;\n' +
-  'use provider/model-id to select the provider too, or a plain model-id with\n' +
+  'Process plain text, a normalized document, or a URL with an LLM (DeepSeek\n' +
+  'or OpenAI). Reads exactly one input: a positional http(s) URL (extracted\n' +
+  'first through the universal YouTube/podcast/article rule), a positional\n' +
+  'file, --input FILE, or stdin. --model selects the model; use\n' +
+  'provider/model-id to select the provider too, or a plain model-id with\n' +
   'the saved active provider or OWLIE_PROVIDER. Model ids are discovered at\n' +
   'runtime (see `owlie models`). With --each and a feed URL, processes each\n' +
   'bounded linked item sequentially and streams one JSONL record per\n' +

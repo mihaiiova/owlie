@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
-// Internal packages are private and never published. `owlie` is the single
+// Internal packages are private and never published. `@owlieio/owlie` is the single
 // publishable package: it bundles the internal packages into one artifact.
 const PACKAGES = [
   { name: '@owlieio/core', dir: 'packages/core', publishable: false },
@@ -20,7 +20,7 @@ const PACKAGES = [
   { name: '@owlieio/provider-openai', dir: 'packages/provider-openai', publishable: false },
   { name: '@owlieio/provider-deepseek', dir: 'packages/provider-deepseek', publishable: false },
   { name: '@owlieio/provider-whisper', dir: 'packages/provider-whisper', publishable: false },
-  { name: 'owlie', dir: 'apps/cli', publishable: true },
+  { name: '@owlieio/owlie', dir: 'apps/cli', publishable: true },
 ];
 
 const ADAPTERS = [
@@ -49,7 +49,7 @@ const ALLOWED = {
   '@owlieio/provider-openai': ['@owlieio/core'],
   '@owlieio/provider-deepseek': ['@owlieio/core'],
   '@owlieio/provider-whisper': ['@owlieio/core'],
-  owlie: ['@owlieio/core', ...ADAPTERS, ...PROVIDERS],
+  '@owlieio/owlie': ['@owlieio/core', ...ADAPTERS, ...PROVIDERS],
 };
 
 const scopedDeps = (deps) => Object.keys(deps ?? {}).filter((d) => d.startsWith('@owlieio/'));

@@ -100,7 +100,7 @@ describe('guidance assertions', () => {
   it('detects prerequisite installation guidance', () => {
     expect(
       assertPrerequisiteGuidance(
-        'podcast extraction failed: local transcription failed; ensure ffprobe, ffmpeg, and python3 with faster-whisper are installed',
+        'podcast extraction failed: ffprobe is not installed; install ffmpeg/ffprobe from your package manager',
       ).ok,
     ).toBe(true);
     expect(assertPrerequisiteGuidance('something else').ok).toBe(false);
@@ -129,11 +129,7 @@ describe('assertRuntimePrerequisitesClear', () => {
   });
 
   it('fails when prerequisite guidance is present', () => {
-    expect(
-      assertRuntimePrerequisitesClear(
-        'ensure ffprobe, ffmpeg, and python3 with faster-whisper are installed',
-      ).ok,
-    ).toBe(false);
+    expect(assertRuntimePrerequisitesClear('ffprobe is not installed').ok).toBe(false);
   });
 
   it('fails when model-download guidance is present', () => {

@@ -3,7 +3,8 @@ name: Release validation
 # Validation-only: builds and packs the candidate once, installs and
 # offline-smoke-tests the exact artifact on Node 20 and 22, and runs the full
 # live E2E suite once on Node 22. It does NOT tag, publish, or create a GitHub
-# Release. Maintainers publish the uploaded, tested tarball manually.
+# Release. Publishing happens in the separate publish.yml workflow (npm Trusted
+# Publishers) after this gate passes.
 #
 # Requires a protected GitHub Environment named `release` (restricted to main)
 # with the `DEEPSEEK_API_KEY` secret and, optionally, `OWLIE_E2E_PROXY_URL`.
@@ -53,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: owlie-candidate
-          path: ${{ runner.temp }}/owlie-*.tgz
+          path: ${{ runner.temp }}/*.tgz
           if-no-files-found: error
           retention-days: 14
 
@@ -77,7 +78,7 @@ jobs:
           name: owlie-candidate
 
       - name: Verify the exact packaged artifact
-        run: node scripts/verify-artifact.mjs --tarball "$(ls owlie-*.tgz)"
+        run: node scripts/verify-artifact.mjs --tarball "$(ls *.tgz)"
 
   live:
     name: Live E2E (Node 22)
@@ -103,7 +104,7 @@ jobs:
       - name: Run live release E2E
         run: >-
           node scripts/release-e2e.mjs
-          --tarball "$(ls owlie-*.tgz)"
+          --tarball "$(ls *.tgz)"
           --commit "${{ github.sha }}"
           --out release-e2e-report.json
 

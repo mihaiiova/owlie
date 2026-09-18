@@ -30,6 +30,7 @@ import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
+import { writeDiagnostic } from '../style.js';
 
 export interface ExtractDeps {
   /** Ordered item adapters for direct-URL dispatch (specialized first). */
@@ -125,11 +126,11 @@ export async function runExtractCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) io.stderr.write('owlie: extract requires a URL\n');
+    if (!options.quiet) writeDiagnostic(io, 'warning', 'extract requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
@@ -139,7 +140,7 @@ export async function runExtractCommand(
     timeoutMs = parsePositiveInteger(options.timeoutMs, '--timeout-ms');
     maxMediaBytes = parsePositiveInteger(options.maxMediaBytes, '--max-media-bytes');
   } catch (error) {
-    if (!options.quiet) io.stderr.write(`owlie: ${(error as Error).message}\n`);
+    if (!options.quiet) writeDiagnostic(io, 'warning', (error as Error).message);
     return ExitCode.Usage;
   }
 
@@ -174,6 +175,7 @@ export async function runExtractCommand(
       write: (text) => {
         if (!options.quiet) io.stderr.write(text);
       },
+      tty: io.stderr.isTTY,
     });
 
   try {
@@ -185,11 +187,14 @@ export async function runExtractCommand(
     spinner.stop();
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }
 }
+
+/** stderr notice when a URL defers from audio resolution to article text. */
+export const ARTICLE_FALLBACK_NOTICE = 'extracting article text';
 
 async function runDirectExtraction(
   url: string,
@@ -216,9 +221,9 @@ async function runDirectExtraction(
       {
         signal: operation.signal,
         progress,
-        onFallback: (error) => {
+        onFallback: () => {
           if (!options.quiet) {
-            io.stderr.write(`owlie: ${error.message}; trying article extraction\n`);
+            writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
           }
         },
       },
@@ -262,6 +267,7 @@ async function runResolverExtraction(
       write: (text) => {
         if (!options.quiet) io.stderr.write(text);
       },
+      tty: io.stderr.isTTY,
     });
 
   const operation = deadlineSignal(deps.signal, timeoutMs);
@@ -303,12 +309,12 @@ async function runResolverExtraction(
   } catch (error) {
     spinner.stop();
     if (error instanceof ConfigurationError) {
-      if (!options.quiet) io.stderr.write(`owlie: ${error.message}\n`);
+      if (!options.quiet) writeDiagnostic(io, 'warning', error.message);
       return ExitCode.Usage;
     }
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   } finally {

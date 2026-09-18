@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type {
   ProgressSink,
   Transcriber,
@@ -100,6 +100,12 @@ function requiredMediaPath(input: TranscriptionInput): string {
 /** A subprocess that failed to launch (e.g. a missing binary) rather than running and failing. */
 function isErrnoError(cause: unknown): boolean {
   return cause instanceof Error && typeof (cause as { code?: unknown }).code === 'string';
+}
+
+/** Returns the prerequisite binary missing from PATH when a spawn failed with ENOENT. */
+function missingBinary(message: string): string | undefined {
+  const match = /^spawn (\S+) ENOENT$/.exec(message);
+  return match ? basename(match[1] ?? '') : undefined;
 }
 
 function asSegments(value: unknown): TranscriptionSegment[] | undefined {
@@ -348,14 +354,37 @@ export class WhisperLocalTranscriber implements Transcriber {
         throw new CancelledError('transcription cancelled', { cause });
       if (cause instanceof TranscriptionError || cause instanceof ConfigurationError) throw cause;
       const message = cause instanceof Error ? cause.message : String(cause);
+
       if (/OWLIE_MODEL_UNAVAILABLE/.test(message)) {
         throw new TranscriptionError(
-          `Whisper model "${model}" is unavailable locally; pre-provision it before extraction because Owlie never downloads model weights: ${message}`,
+          `Whisper model "${model}" is unavailable locally; pre-provision it before extraction because Owlie never downloads model weights`,
           { cause },
         );
       }
+
+      const missing = missingBinary(message);
+      if (missing === 'ffprobe' || missing === 'ffmpeg') {
+        throw new TranscriptionError(
+          `${missing} is not installed; install ffmpeg/ffprobe from your package manager`,
+          { cause },
+        );
+      }
+      if (missing === 'python3') {
+        throw new TranscriptionError(
+          `python3 is not installed; install Python 3, then run "python3 -m pip install faster-whisper"`,
+          { cause },
+        );
+      }
+
+      if (/faster_whisper/.test(message)) {
+        throw new TranscriptionError(
+          `faster-whisper is not installed; run "python3 -m pip install faster-whisper"`,
+          { cause },
+        );
+      }
+
       throw new TranscriptionError(
-        `local transcription failed; ensure ${ffprobe}, ${ffmpeg}, and ${python} with faster-whisper are installed (install ffmpeg/ffprobe from your package manager and run "python3 -m pip install faster-whisper"): ${message}`,
+        `local transcription failed; run \`owlie doctor\` to check prerequisites`,
         { cause },
       );
     } finally {

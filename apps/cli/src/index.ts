@@ -12,6 +12,8 @@ export {
   spinnerLine,
 } from './spinner.js';
 export type { SpinnerLike, SpinnerOptions } from './spinner.js';
+export { colorize, writeDiagnostic } from './style.js';
+export type { Severity } from './style.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { runAuthCommand } from './commands/auth.js';
 export type { AuthDeps } from './commands/auth.js';

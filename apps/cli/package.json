@@ -1,9 +1,16 @@
 {
-  "name": "owlie",
-  "version": "0.1.0",
+  "name": "@owlieio/owlie",
+  "version": "0.3.1",
   "description": "Local-first content extraction and processing CLI",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mihaiiova/owlie.git"
+  },
   "bin": {
     "owlie": "./dist/bin.js"
   },
