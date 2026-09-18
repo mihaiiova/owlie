@@ -45,7 +45,10 @@ non-goals.
 
 Every command writes its result to **stdout** and diagnostics/progress to
 **stderr**, so commands compose over Unix pipes. JSON output (`--json`) is never
-mixed with progress text.
+mixed with progress text. In `--json` mode every successful single-result command
+writes one versioned envelope `{ schemaVersion, command, result }`; streaming
+commands (`process --each`) write versioned JSONL records. stderr carries
+versioned JSONL progress and terminal error/cancellation records (ADR 0030).
 
 ### Extract
 
@@ -160,24 +163,24 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 
 ## Global options
 
-| Option                                                   | Applies to                                  | Description                                                                               |
-| -------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `--help`, `-h`                                           | all                                         | Show help (or help for a command)                                                         |
-| `--version`, `-V`                                        | all                                         | Show version                                                                              |
-| `--quiet`, `-q`                                          | all                                         | Suppress diagnostics on stderr                                                            |
-| `--json`                                                 | all                                         | Emit machine-readable JSON on stdout                                                      |
-| `--env-file PATH`                                        | all                                         | Load an explicit environment file                                                         |
-| `--hosted`                                               | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache) |
-| `--model MODEL`                                          | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                     |
-| `--refresh`                                              | `models`                                    | Bypass the model cache                                                                    |
-| `--language LANG`                                        | `extract`                                   | Comma-separated transcript languages (default `en`)                                       |
-| `--limit N`                                              | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                            |
-| `--timeout-ms N`                                         | `extract` (direct media)                    | One end-to-end deadline across resolution, download, and transcription                    |
-| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes                                                            |
-| `--each`                                                 | `process`                                   | Process each linked item of an RSS/Atom feed                                              |
-| `--input FILE`                                           | `process`                                   | Read input from a file instead of a positional argument or stdin                          |
-| `--input-format text\|json`                              | `process`                                   | Declare the input format (`text` default)                                                 |
-| `--podcast-media` / `--podcast-page` / `--podcast-apple` | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                            |
+| Option                                                   | Applies to                                  | Description                                                                                                               |
+| -------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--help`, `-h`                                           | all                                         | Show help (or help for a command)                                                                                         |
+| `--version`, `-V`                                        | all                                         | Show version                                                                                                              |
+| `--quiet`, `-q`                                          | all                                         | Suppress diagnostics on stderr                                                                                            |
+| `--json`                                                 | all                                         | Emit the versioned JSON subprocess protocol on stdout (`{ schemaVersion, command, result }` envelope, or versioned JSONL) |
+| `--env-file PATH`                                        | all                                         | Load an explicit environment file                                                                                         |
+| `--hosted`                                               | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)                                 |
+| `--model MODEL`                                          | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                                                     |
+| `--refresh`                                              | `models`                                    | Bypass the model cache                                                                                                    |
+| `--language LANG`                                        | `extract`                                   | Comma-separated transcript languages (default `en`)                                                                       |
+| `--limit N`                                              | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                                                            |
+| `--timeout-ms N`                                         | `extract` (direct media)                    | One end-to-end deadline across resolution, download, and transcription                                                    |
+| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes                                                                                            |
+| `--each`                                                 | `process`                                   | Process each linked item of an RSS/Atom feed                                                                              |
+| `--input FILE`                                           | `process`                                   | Read input from a file instead of a positional argument or stdin                                                          |
+| `--input-format text\|json`                              | `process`                                   | Declare the input format (`text` default)                                                                                 |
+| `--podcast-media` / `--podcast-page` / `--podcast-apple` | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                                                            |
 
 ## Exit codes
 
