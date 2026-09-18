@@ -2,6 +2,7 @@ import {
   CancelledError,
   JSON_PROTOCOL_SCHEMA_VERSION,
   OwlieError,
+  type ContentItem,
   type ProgressEvent,
   type ProtocolErrorRecord,
   type ProtocolProgressRecord,
@@ -40,6 +41,26 @@ export function redactUrls(text: string): string {
   return String(text).replace(/https?:\/\/[^\s"'<>]+/g, (match) => redactUrl(match));
 }
 
+/** Redacts token-shaped values in addition to URL credentials and parameters. */
+function redactDiagnostic(value: string): string {
+  return redactUrls(value)
+    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [REDACTED]')
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[REDACTED]')
+    .replace(/\b(api[_-]?key|token|secret|password)\s*([:=])\s*([^\s,"'}\]]+)/gi, '$1$2[REDACTED]');
+}
+
+/** Recursively redacts string fields in metadata carried by an item progress event. */
+function redactValue(value: unknown): unknown {
+  if (typeof value === 'string') return redactDiagnostic(value);
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactValue(entry)]),
+    );
+  }
+  return value;
+}
+
 /** Redacts the URL-bearing string fields of a progress event before transport. */
 function redactProgressEvent(event: ProgressEvent): ProgressEvent {
   const target = redactUrl(event.target);
@@ -50,14 +71,15 @@ function redactProgressEvent(event: ProgressEvent): ProgressEvent {
       return {
         ...event,
         target,
-        message: event.message === undefined ? undefined : redactUrls(event.message),
+        message: event.message === undefined ? undefined : redactDiagnostic(event.message),
       };
     case 'item':
-      return { ...event, target };
+      return { ...event, target, item: redactValue(event.item) as ContentItem };
     case 'completed':
-      return { ...event, target };
+      // Result data belongs exclusively on stdout; only retain completion state on stderr.
+      return { type: 'completed', target };
     case 'failed':
-      return { ...event, target, error: redactUrls(event.error) };
+      return { ...event, target, error: redactDiagnostic(event.error) };
     case 'cancelled':
       return { type: 'cancelled', target };
   }
@@ -105,7 +127,7 @@ export function writeErrorRecord(io: CliIo, command: string, code: string, messa
     command,
     kind: 'error',
     code,
-    message: redactUrls(message),
+    message: redactDiagnostic(message),
   };
   io.stderr.write(JSON.stringify(record) + '\n');
 }
@@ -117,7 +139,7 @@ export function writeCancelledRecord(io: CliIo, command: string, message: string
       schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
       command,
       kind: 'cancelled',
-      message: redactUrls(message),
+      message: redactDiagnostic(message),
     }) + '\n',
   );
 }

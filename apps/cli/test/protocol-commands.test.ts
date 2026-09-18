@@ -10,7 +10,7 @@ import type {
   NormalizedDocument,
   ProgressSink,
 } from '@owlieio/core';
-import { ExtractionError, JSON_PROTOCOL_SCHEMA_VERSION } from '@owlieio/core';
+import { CancelledError, ExtractionError, JSON_PROTOCOL_SCHEMA_VERSION } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -334,5 +334,32 @@ describe('unified JSON protocol through run()', () => {
       kind: 'error',
       code: 'USAGE_ERROR',
     });
+  });
+
+  it('writes a versioned cancellation record through run()', async () => {
+    const { io, stdout, stderrLines } = capture();
+    const code = await run(['extract', ARTICLE_URL, '--json'], io, {
+      extract: {
+        itemAdapters: [
+          {
+            ...articleAdapter(),
+            async extract() {
+              throw new CancelledError('extraction cancelled');
+            },
+          },
+        ],
+        feedAdapter: feedAdapter(),
+      },
+    });
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderrLines()).toEqual([
+      {
+        schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
+        command: 'extract',
+        kind: 'cancelled',
+        message: 'extraction cancelled',
+      },
+    ]);
   });
 });

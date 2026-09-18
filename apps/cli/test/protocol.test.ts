@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CancelledError, ExtractionError, JSON_PROTOCOL_SCHEMA_VERSION } from '@owlieio/core';
+import {
+  CancelledError,
+  ConfigurationError,
+  ExtractionError,
+  JSON_PROTOCOL_SCHEMA_VERSION,
+} from '@owlieio/core';
 import type { CliIo } from 'owlie';
 import {
   redactUrl,
@@ -73,17 +78,16 @@ describe('protocol records', () => {
     });
   });
 
-  it('writes ordered versioned progress records with redacted targets', () => {
+  it('writes ordered versioned progress records with redacted targets and no result data', () => {
     const { io, stderrLines } = capture();
     writeProgressRecord(io, 'extract', {
       type: 'started',
       target: 'https://alice:secret@example.com/a?token=query#frag',
     });
     writeProgressRecord(io, 'extract', {
-      type: 'progress',
-      target: 'a',
-      current: 1,
-      message: 'ok',
+      type: 'completed',
+      target: 'https://example.com/a?token=query',
+      result: { canonicalUrl: 'https://example.com/a?token=query', apiKey: 'sk-secret' },
     });
     const records = stderrLines();
     expect(records).toHaveLength(2);
@@ -93,7 +97,12 @@ describe('protocol records', () => {
       kind: 'progress',
       event: { type: 'started', target: 'https://example.com/a' },
     });
-    expect(records[1]).toMatchObject({ command: 'extract', kind: 'progress' });
+    expect(records[1]).toEqual({
+      schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
+      command: 'extract',
+      kind: 'progress',
+      event: { type: 'completed', target: 'https://example.com/a' },
+    });
   });
 
   it('writes a terminal error record with a stable code', () => {
@@ -108,23 +117,32 @@ describe('protocol records', () => {
     });
   });
 
-  it('writes a terminal cancellation record', () => {
+  it('writes terminal cancellation and configuration records with stable codes', () => {
     const { io, stderrLines } = capture();
     writeTerminalRecord(io, 'process', new CancelledError('aborted'));
+    writeTerminalRecord(io, 'process', new ConfigurationError('missing API key'));
     expect(stderrLines()[0]).toEqual({
       schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
       command: 'process',
       kind: 'cancelled',
       message: 'aborted',
     });
+    expect(stderrLines()[1]).toMatchObject({ kind: 'error', code: 'CONFIGURATION_ERROR' });
   });
 
   it('redacts URLs from terminal error and cancellation messages', () => {
     const { io, stderrLines } = capture();
-    writeErrorRecord(io, 'extract', 'EXTRACTION_ERROR', 'bad https://u:p@example.com/a?x=1#f');
+    writeErrorRecord(
+      io,
+      'extract',
+      'EXTRACTION_ERROR',
+      'bad https://u:p@example.com/a?x=1#f with Bearer token-value and sk-secret',
+    );
     writeCancelledRecord(io, 'extract', 'cancelled at https://u:p@example.com/b?x=2#g');
     const lines = stderrLines() as Array<{ message: string }>;
-    expect(lines[0]?.message).toBe('bad https://example.com/a');
+    expect(lines[0]?.message).toBe(
+      'bad https://example.com/a with Bearer [REDACTED] and [REDACTED]',
+    );
     expect(lines[1]?.message).toBe('cancelled at https://example.com/b');
   });
 });

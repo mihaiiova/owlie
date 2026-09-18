@@ -112,4 +112,23 @@ describe('auth command', () => {
       { provider: 'openai', source: 'not set' },
     ]);
   });
+
+  it.each([
+    ['add', { action: 'added', provider: 'deepseek' }],
+    ['remove', { action: 'removed', provider: 'deepseek' }],
+  ])('wraps auth %s success in the JSON protocol envelope', async (subcommand, result) => {
+    const { io, stdout, all } = capture();
+    const code = await run(
+      ['auth', subcommand, 'deepseek', '--json'],
+      io,
+      deps({
+        prompt: async () => 'sk-secret',
+        readConfig: () => ({}),
+        writeConfig: () => {},
+      }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(JSON.parse(stdout())).toMatchObject({ schemaVersion: 1, command: 'auth', result });
+    expect(all()).not.toContain('sk-secret');
+  });
 });

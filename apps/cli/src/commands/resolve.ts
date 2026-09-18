@@ -67,7 +67,7 @@ export async function runResolveCommand(
         if (options.json) writeTerminalRecord(io, 'resolve', error);
         else writeDiagnostic(io, 'warning', error.message);
       }
-      return ExitCode.Usage;
+      return exitCodeForError(error);
     }
     writeCommandError(io, options, 'resolve', error);
     return exitCodeForError(error);

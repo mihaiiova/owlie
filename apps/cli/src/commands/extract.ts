@@ -300,7 +300,7 @@ async function runResolverExtraction(
         if (options.json) writeTerminalRecord(io, 'extract', error);
         else writeDiagnostic(io, 'warning', error.message);
       }
-      return ExitCode.Usage;
+      return exitCodeForError(error);
     }
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);

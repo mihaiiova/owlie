@@ -1,5 +1,5 @@
 import type { HttpFetcher } from '@owlieio/core';
-import { ConfigurationError } from '@owlieio/core';
+import { ConfigurationError, ValidationError } from '@owlieio/core';
 import type { PodcastAudioResolver } from '@owlieio/adapter-podcast';
 import {
   ApplePodcastsResolver,
@@ -83,8 +83,9 @@ export interface ResolvePodcastAudioOptions {
  * Resolves a URL to a validated media URL through the podcast resolvers. With
  * a `resolverName`, only that resolver runs; without one, resolvers run in
  * registration order and the first recognizing resolver wins. Resolution never
- * downloads or transcribes media. Throws {@link ConfigurationError} when the
- * requested resolver is unknown or no resolver recognizes the URL.
+ * downloads or transcribes media. Throws {@link ValidationError} when an
+ * explicitly selected resolver does not recognize the URL, and
+ * {@link ConfigurationError} when no resolver recognizes it.
  */
 export async function resolvePodcastAudio(
   url: string,
@@ -97,7 +98,7 @@ export async function resolvePodcastAudio(
   if (options.resolverName !== undefined) {
     const entry = registry.find((candidate) => candidate.name === options.resolverName);
     if (!entry) {
-      throw new ConfigurationError(`unknown resolver "${options.resolverName}"`);
+      throw new ValidationError(`unknown resolver "${options.resolverName}"`);
     }
     entries = [entry];
   } else {
@@ -113,7 +114,7 @@ export async function resolvePodcastAudio(
 
   if (options.resolverName !== undefined) {
     const entry = entries[0];
-    throw new ConfigurationError(
+    throw new ValidationError(
       `resolver "${entry?.flag ?? options.resolverName}" does not recognize URL: ${url}`,
     );
   }
