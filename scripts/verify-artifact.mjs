@@ -27,6 +27,7 @@ function run(cmd, args, opts = {}) {
 
 const packDir = mkdtempSync(join(tmpdir(), 'owlie-pack-'));
 const installDir = mkdtempSync(join(tmpdir(), 'owlie-install-'));
+const homeDir = mkdtempSync(join(tmpdir(), 'owlie-home-'));
 let tarball;
 
 const tarballArgIndex = process.argv.indexOf('--tarball');
@@ -86,9 +87,29 @@ try {
       status: 1,
       stderr: /stdin is empty/i,
     },
+    {
+      // Hosted mode is deterministic: an injected environment alone must
+      // drive configuration, with no CWD .env or home-directory profile/cache
+      // affecting the reported source policy.
+      name: 'hosted doctor reports flags+env policy without CWD/home state',
+      args: ['--hosted', 'doctor', '--json'],
+      status: 0,
+      cwd: installDir,
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        XDG_CONFIG_HOME: join(homeDir, '.config'),
+        XDG_CACHE_HOME: join(homeDir, '.cache'),
+        DEEPSEEK_API_KEY: 'sk-hosted-test',
+      },
+      stdout: /"configurationSource"\s*:\s*"hosted"/,
+    },
   ];
   for (const item of acceptance) {
-    const r = run(process.execPath, [bin, ...item.args]);
+    const r = run(process.execPath, [bin, ...item.args], {
+      cwd: item.cwd,
+      env: item.env,
+    });
     const statusOk = r.status === item.status;
     const stdoutOk = item.stdout ? item.stdout.test(r.stdout) : true;
     const stderrOk = item.stderr ? item.stderr.test(r.stderr) : true;
@@ -97,6 +118,7 @@ try {
 } finally {
   rmSync(packDir, { recursive: true, force: true });
   rmSync(installDir, { recursive: true, force: true });
+  rmSync(homeDir, { recursive: true, force: true });
 }
 
 if (failures.length > 0) {
