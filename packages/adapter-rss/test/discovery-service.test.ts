@@ -29,7 +29,9 @@ describe('FeedDiscoveryService.discover', () => {
         text: '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
       },
     });
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result).toEqual([
       {
         id: 'rss:feed:https://example.com/feed.xml',
@@ -48,7 +50,9 @@ describe('FeedDiscoveryService.discover', () => {
         text: '<link rel="alternate" type="application/atom+xml" href="/atom.xml">',
       },
     });
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/atom.xml']);
   });
 
@@ -60,7 +64,9 @@ describe('FeedDiscoveryService.discover', () => {
         text: '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
       },
     });
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result).toEqual([]);
   });
 
@@ -74,7 +80,9 @@ describe('FeedDiscoveryService.discover', () => {
           '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
       },
     });
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result.map((c) => c.canonicalUrl)).toEqual([
       'https://example.com/feed.xml',
       'https://example.com/atom.xml',
@@ -98,7 +106,9 @@ describe('FeedDiscoveryService.discover', () => {
       },
       calls,
     );
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/feed']);
     expect(calls.map((c) => c.url)).toEqual([
       'https://example.com/',
@@ -124,7 +134,9 @@ describe('FeedDiscoveryService.discover', () => {
         text: RSS_XML,
       },
     });
-    const result = await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
     expect(result).toEqual([]);
   });
 
@@ -141,7 +153,10 @@ describe('FeedDiscoveryService.discover', () => {
       calls,
     );
     const signal = new AbortController().signal;
-    await new FeedDiscoveryService({ fetcher }).discover({ url: 'https://example.com/' }, { signal });
+    await new FeedDiscoveryService({ fetcher }).discover(
+      { url: 'https://example.com/' },
+      { signal },
+    );
     expect(calls).toHaveLength(1);
     expect(calls[0]?.signal).toBe(signal);
   });

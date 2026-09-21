@@ -28,7 +28,12 @@ function makeItem(): ContentItem {
 }
 
 function discoverCollection(url: string): ContentCollection {
-  return { id: `rss:feed:${url}`, sourceType: 'rss', canonicalUrl: url, metadata: { format: 'rss' } };
+  return {
+    id: `rss:feed:${url}`,
+    sourceType: 'rss',
+    canonicalUrl: url,
+    metadata: { format: 'rss' },
+  };
 }
 
 function makeAdapter(discovered: ContentCollection[] | undefined) {

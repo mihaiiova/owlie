@@ -144,7 +144,10 @@ function makeFeedAdapter(entries: { url: string; title?: string }[], listError?:
 }
 
 /** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
-function makeDiscoveringFeedAdapter(entries: { url: string; title?: string }[], discoveredUrl: string) {
+function makeDiscoveringFeedAdapter(
+  entries: { url: string; title?: string }[],
+  discoveredUrl: string,
+) {
   const { adapter, calls } = makeFeedAdapter(entries);
   (adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [
     {

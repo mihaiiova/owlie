@@ -1,4 +1,9 @@
-import type { ContentCollection, ContentLocator, HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
+import type {
+  ContentCollection,
+  ContentLocator,
+  HttpFetcher,
+  HttpFetchPolicy,
+} from '@owlieio/core';
 import {
   DefaultHttpFetcher,
   assertSafeHttpUrl,
@@ -169,7 +174,9 @@ export class FeedDiscoveryService implements FeedDiscovery {
   ): Promise<ContentCollection[]> {
     let pageUrl: URL;
     try {
-      pageUrl = assertSafeHttpUrl(locator.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+      pageUrl = assertSafeHttpUrl(locator.url, {
+        allowPrivateHosts: this.policy?.allowPrivateHosts,
+      });
     } catch {
       return [];
     }
@@ -198,7 +205,10 @@ export class FeedDiscoveryService implements FeedDiscovery {
     return candidates;
   }
 
-  private async probeCandidates(baseUrl: string, signal: AbortSignal | undefined): Promise<FeedCandidate[]> {
+  private async probeCandidates(
+    baseUrl: string,
+    signal: AbortSignal | undefined,
+  ): Promise<FeedCandidate[]> {
     const candidates: FeedCandidate[] = [];
     for (const path of PROBE_PATHS) {
       if (candidates.length >= MAX_DISCOVERY_CANDIDATES) break;
@@ -231,5 +241,3 @@ export class FeedDiscoveryService implements FeedDiscovery {
     );
   }
 }
-
-

@@ -118,7 +118,9 @@ describe('resolveFeedLinkHref', () => {
 
   it('rejects non-http(s) and malformed hrefs', () => {
     expect(resolveFeedLinkHref('javascript:alert(1)', 'https://example.com/')).toBeUndefined();
-    expect(resolveFeedLinkHref('ftp://example.com/feed.xml', 'https://example.com/')).toBeUndefined();
+    expect(
+      resolveFeedLinkHref('ftp://example.com/feed.xml', 'https://example.com/'),
+    ).toBeUndefined();
     expect(resolveFeedLinkHref('data:text/html,x', 'https://example.com/')).toBeUndefined();
   });
 });
@@ -177,6 +179,13 @@ describe('rankFeedCandidates', () => {
 
 describe('PROBE_PATHS', () => {
   it('uses the agreed fixed conventional-path order', () => {
-    expect(PROBE_PATHS).toEqual(['/feed', '/rss', '/feed.xml', '/rss.xml', '/atom.xml', '/index.xml']);
+    expect(PROBE_PATHS).toEqual([
+      '/feed',
+      '/rss',
+      '/feed.xml',
+      '/rss.xml',
+      '/atom.xml',
+      '/index.xml',
+    ]);
   });
 });

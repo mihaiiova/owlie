@@ -304,7 +304,11 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       name: 'extract discovered feed',
       allowProxyFallback: false,
       run: () =>
-        spawn({ args: ['extract', articleUrl, '--limit', '2', '--json'], env: {}, timeoutMs: 60_000 }),
+        spawn({
+          args: ['extract', articleUrl, '--limit', '2', '--json'],
+          env: {},
+          timeoutMs: 60_000,
+        }),
       assert: jsonAssert(parseJson, (envelope) => {
         if (!Array.isArray(envelope.items) || envelope.items.length !== corpus.entryCount) {
           return { ok: false, error: `expected ${corpus.entryCount} items` };
