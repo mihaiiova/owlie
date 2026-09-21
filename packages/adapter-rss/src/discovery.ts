@@ -200,7 +200,13 @@ export class FeedDiscoveryService implements FeedDiscovery {
     const candidates: FeedCandidate[] = [];
     for (const link of extractFeedLinks(html)) {
       const resolved = resolveFeedLinkHref(link.href, baseUrl);
-      if (resolved !== undefined) candidates.push({ url: resolved, format: link.format });
+      if (resolved === undefined) continue;
+      try {
+        assertSafeHttpUrl(resolved, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+        candidates.push({ url: resolved, format: link.format });
+      } catch {
+        // Invalid, credential-bearing, or unsafe declared candidates are ignored.
+      }
     }
     return candidates;
   }
@@ -220,6 +226,7 @@ export class FeedDiscoveryService implements FeedDiscovery {
         });
         const declaredType = response.contentType !== null && response.contentType.trim() !== '';
         if (declaredType && !isFeedContentType(response.contentType)) continue;
+        assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
         const feed = await parseFeed(response.text);
         candidates.push({ url: response.url, format: feed.format });
       } catch (error) {
@@ -233,7 +240,7 @@ export class FeedDiscoveryService implements FeedDiscovery {
   }
 
   private toCollections(candidates: FeedCandidate[]): ContentCollection[] {
-    return rankFeedCandidates(capFeedCandidates(dedupeFeedCandidates(candidates))).map(
+    return capFeedCandidates(rankFeedCandidates(dedupeFeedCandidates(candidates))).map(
       (candidate) => ({
         id: `rss:feed:${candidate.url}`,
         sourceType: 'rss',

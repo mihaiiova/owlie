@@ -177,6 +177,22 @@ describe('rankFeedCandidates', () => {
   });
 });
 
+describe('candidate selection', () => {
+  it('ranks before capping so an RSS candidate beyond the first eight still wins', () => {
+    const atoms: FeedCandidate[] = Array.from({ length: MAX_DISCOVERY_CANDIDATES }, (_, i) => ({
+      url: `https://example.com/atom-${i}.xml`,
+      format: 'atom' as const,
+    }));
+    const rss: FeedCandidate = { url: 'https://example.com/rss.xml', format: 'rss' };
+    expect(
+      capFeedCandidates(rankFeedCandidates([...atoms, rss])).map((candidate) => candidate.url),
+    ).toEqual([
+      rss.url,
+      ...atoms.slice(0, MAX_DISCOVERY_CANDIDATES - 1).map((candidate) => candidate.url),
+    ]);
+  });
+});
+
 describe('PROBE_PATHS', () => {
   it('uses the agreed fixed conventional-path order', () => {
     expect(PROBE_PATHS).toEqual([

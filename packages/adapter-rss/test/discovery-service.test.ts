@@ -89,6 +89,25 @@ describe('FeedDiscoveryService.discover', () => {
     ]);
   });
 
+  it('selects RSS before Atom even when it appears after eight declared Atom links', async () => {
+    const atomLinks = Array.from(
+      { length: 8 },
+      (_, i) => `<link rel="alternate" type="application/atom+xml" href="/atom-${i}.xml">`,
+    ).join('');
+    const fetcher = fakeFetcher({
+      'https://example.com/': {
+        url: 'https://example.com/',
+        contentType: 'text/html',
+        text: atomLinks + '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
+      },
+    });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
+    expect(result).toHaveLength(8);
+    expect(result[0]?.canonicalUrl).toBe('https://example.com/feed.xml');
+  });
+
   it('probes the fixed conventional paths when no declared feed exists', async () => {
     const calls: { url: string }[] = [];
     const fetcher = fakeFetcher(
@@ -132,6 +151,39 @@ describe('FeedDiscoveryService.discover', () => {
         url: 'https://example.com/feed',
         contentType: 'text/html',
         text: RSS_XML,
+      },
+    });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('rejects a probe whose final URL is unsafe after a redirect', async () => {
+    const fetcher = fakeFetcher({
+      'https://example.com/': {
+        url: 'https://example.com/',
+        contentType: 'text/html',
+        text: '<html></html>',
+      },
+      'https://example.com/feed': {
+        url: 'https://localhost/feed',
+        contentType: 'application/rss+xml',
+        text: RSS_XML,
+      },
+    });
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/',
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('rejects an unsafe declared candidate', async () => {
+    const fetcher = fakeFetcher({
+      'https://example.com/': {
+        url: 'https://example.com/',
+        contentType: 'text/html',
+        text: '<link rel="alternate" type="application/rss+xml" href="https://localhost/feed.xml">',
       },
     });
     const result = await new FeedDiscoveryService({ fetcher }).discover({

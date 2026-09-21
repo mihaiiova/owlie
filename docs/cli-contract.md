@@ -6,7 +6,7 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
+owlie extract  Extract a YouTube video, a podcast, or a feed's linked items   (v0.1)
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
 owlie list     List entries in an RSS/Atom feed (direct URL or discovered page) (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
