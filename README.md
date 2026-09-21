@@ -14,7 +14,7 @@ processed with an LLM — entirely on your machine.
 > feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
 > audio media URLs), `owlie list` and
 > `owlie process --each` (RSS/Atom feeds, direct or discovered), and `owlie
-> process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
+process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
 > extracted through the universal dispatch including the static-article
 > adapter). The repository compiles, lints,
 > and tests cleanly. See [Product scope](docs/product-scope.md) for what works
