@@ -1,8 +1,14 @@
-import type { HttpFetcher } from '@owlieio/core';
+import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher, assertNoUrlCredentials } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import {
+  writeCommandError,
+  writeResultEnvelope,
+  writeTerminalRecord,
+  writeUsageError,
+} from '../protocol.js';
 import { resolvePodcastAudio } from '../resolvers.js';
 import type { PodcastResolverRegistration } from '../resolvers.js';
 import { writeDiagnostic } from '../style.js';
@@ -12,6 +18,8 @@ export interface ResolveDeps {
   fetcher?: HttpFetcher;
   registry?: readonly PodcastResolverRegistration[];
   signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /**
@@ -28,11 +36,11 @@ export async function runResolveCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'resolve requires a URL');
+    if (!options.quiet) writeUsageError(io, options, 'resolve', 'resolve requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'resolve', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
@@ -44,29 +52,27 @@ export async function runResolveCommand(
       registry: deps.registry,
       resolverName: options.resolver,
       signal: deps.signal,
+      policy: deps.networkPolicy,
     });
     if (options.json) {
-      io.stdout.write(
-        JSON.stringify({
-          schemaVersion: 1,
-          resolver: resolved.resolver,
-          mediaUrl: resolved.mediaUrl,
-          metadata: resolved.metadata ?? {},
-        }) + '\n',
-      );
+      writeResultEnvelope(io, 'resolve', {
+        resolver: resolved.resolver,
+        mediaUrl: resolved.mediaUrl,
+        metadata: resolved.metadata ?? {},
+      });
     } else {
       io.stdout.write(resolved.mediaUrl + '\n');
     }
     return ExitCode.Success;
   } catch (error) {
     if (error instanceof ConfigurationError) {
-      if (!options.quiet) writeDiagnostic(io, 'warning', error.message);
-      return ExitCode.Usage;
+      if (!options.quiet) {
+        if (options.json) writeTerminalRecord(io, 'resolve', error);
+        else writeDiagnostic(io, 'warning', error.message);
+      }
+      return exitCodeForError(error);
     }
-    if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
-      writeDiagnostic(io, 'error', message);
-    }
+    writeCommandError(io, options, 'resolve', error);
     return exitCodeForError(error);
   }
 }

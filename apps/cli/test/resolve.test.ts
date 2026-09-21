@@ -63,9 +63,12 @@ describe('resolve command', () => {
     const envelope = JSON.parse(stdout());
     expect(envelope).toEqual({
       schemaVersion: 1,
-      resolver: 'podcast-apple',
-      mediaUrl: MEDIA_URL,
-      metadata: { title: 'Episode', resolvedFrom: 'apple' },
+      command: 'resolve',
+      result: {
+        resolver: 'podcast-apple',
+        mediaUrl: MEDIA_URL,
+        metadata: { title: 'Episode', resolvedFrom: 'apple' },
+      },
     });
   });
 

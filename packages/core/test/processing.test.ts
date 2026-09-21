@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NormalizedDocument, ProcessRequest } from '@owlieio/core';
 import {
   buildProcessResult,
+  buildProvenance,
   CancelledError,
   isAbortError,
   mapProcessingError,
@@ -12,13 +13,20 @@ import {
 } from '@owlieio/core';
 
 const document: NormalizedDocument = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: 'test:doc',
   sourceType: 'article',
   canonicalUrl: 'https://example.com/article',
   mediaType: 'text',
   text: '  hello world  ',
   metadata: {},
+  provenance: buildProvenance({
+    sourceId: 'test:doc',
+    canonicalUrl: 'https://example.com/article',
+    adapterId: 'article',
+    text: '  hello world  ',
+    fetchedAt: '2026-09-21T00:00:00.000Z',
+  }),
 };
 
 describe('renderPrompt', () => {

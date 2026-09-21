@@ -1,8 +1,14 @@
-import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
-import { ConfigurationError, ExtractionError } from '@owlieio/core';
+import type { HttpFetchPolicy, ModelInfo, ProviderCatalog } from '@owlieio/core';
+import { CancelledError, ConfigurationError, ExtractionError } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import {
+  USAGE_ERROR_CODE,
+  writeErrorRecord,
+  writeResultEnvelope,
+  writeTerminalRecord,
+} from '../protocol.js';
 import { loadDotEnv, readUserConfig, resolveProviderSettings } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { resolveCredentialSource } from '../auth.js';
@@ -19,6 +25,9 @@ export interface ModelsDeps {
   loadFile?: (path: string) => Record<string, string>;
   cachePath?: string;
   now?: () => number;
+  signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (deadline + max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /**
@@ -50,7 +59,8 @@ export async function runModelsCommand(
       } catch (error) {
         if (!options.quiet) {
           const message = error instanceof Error ? error.message : String(error);
-          io.stderr.write(`owlie: ${message}\n`);
+          if (options.json) writeErrorRecord(io, 'models', USAGE_ERROR_CODE, message);
+          else io.stderr.write(`owlie: ${message}\n`);
         }
         return ExitCode.Usage;
       }
@@ -60,7 +70,7 @@ export async function runModelsCommand(
         (provider) =>
           resolveCredentialSource(
             provider.id,
-            { envFile: options.envFile },
+            { envFile: options.envFile, hosted: options.hosted },
             env,
             loadFile,
             readConfig,
@@ -68,20 +78,22 @@ export async function runModelsCommand(
       );
       if (targets.length === 0) {
         if (!options.quiet) {
-          io.stderr.write('owlie: no configured providers (run "owlie auth add <provider>")\n');
+          const message = 'no configured providers (run "owlie auth add <provider>")';
+          if (options.json) writeErrorRecord(io, 'models', 'CONFIGURATION_ERROR', message);
+          else io.stderr.write(`owlie: ${message}\n`);
         }
         return ExitCode.Error;
       }
     }
 
-    const cache = readModelCache(cachePath);
+    const cache = options.hosted ? {} : readModelCache(cachePath);
     const results: ModelInfo[] = [];
     const fallbacks: string[] = [];
 
     for (const provider of targets) {
       const settings = resolveProviderSettings(
         provider.id,
-        { envFile: options.envFile },
+        { envFile: options.envFile, hosted: options.hosted },
         env,
         loadFile,
         readConfig,
@@ -98,12 +110,13 @@ export async function runModelsCommand(
         models = cached.models;
       } else {
         try {
-          models = await catalog.listModels({
-            apiKey: settings.apiKey,
-            baseUrl: settings.baseUrl ?? provider.baseUrl,
-          });
+          models = await catalog.listModels(
+            { apiKey: settings.apiKey, baseUrl: settings.baseUrl ?? provider.baseUrl },
+            { signal: deps.signal, policy: deps.networkPolicy },
+          );
           cache[provider.id] = { models, fetchedAt: now() };
         } catch (error) {
+          if (error instanceof CancelledError || deps.signal?.aborted) throw error;
           if (cached) {
             models = cached.models;
             fallbacks.push(
@@ -120,14 +133,14 @@ export async function runModelsCommand(
       results.push(...models);
     }
 
-    writeModelCache(cache, cachePath);
+    if (!options.hosted) writeModelCache(cache, cachePath);
 
     for (const diagnostic of fallbacks) {
-      if (!options.quiet) io.stderr.write(diagnostic + '\n');
+      if (!options.quiet && !options.json) io.stderr.write(diagnostic + '\n');
     }
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(results) + '\n');
+      writeResultEnvelope(io, 'models', results);
     } else if (options.provider) {
       io.stdout.write(results.map((model) => model.id).join('\n') + '\n');
     } else {
@@ -137,7 +150,8 @@ export async function runModelsCommand(
   } catch (error) {
     if (!options.quiet) {
       const message = error instanceof Error ? error.message : String(error);
-      io.stderr.write(`owlie: ${message}\n`);
+      if (options.json) writeTerminalRecord(io, 'models', error, message);
+      else io.stderr.write(`owlie: ${message}\n`);
     }
     return exitCodeForError(error);
   }

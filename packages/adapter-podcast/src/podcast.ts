@@ -11,7 +11,9 @@ import type {
 import type { ContentItem, ContentLocator, NormalizedDocument } from '@owlieio/core';
 import {
   assertSafeHttpUrl,
+  buildProvenance,
   CancelledError,
+  extractionFetchedAt,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
@@ -392,7 +394,7 @@ export class PodcastAdapter implements ItemAdapter {
         { signal: options.signal, progress: options.progress },
       );
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'podcast',
         canonicalUrl: item.canonicalUrl,
@@ -404,6 +406,14 @@ export class PodcastAdapter implements ItemAdapter {
           language: result.language,
           segments: result.segments,
         },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: PodcastAdapter.id,
+          text: result.text,
+          fetchedAt: extractionFetchedAt(options),
+          language: result.language,
+        }),
       };
       options.progress?.emit({ type: 'completed', target: item.canonicalUrl, result: document });
       return document;

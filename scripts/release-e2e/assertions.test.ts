@@ -5,6 +5,7 @@ import {
   assertExitCode,
   assertMatch,
   assertNoSecrets,
+  assertProtocolEnvelope,
   parseJson,
   parseJsonLines,
 } from './assertions.mjs';
@@ -98,5 +99,22 @@ describe('assertNoSecrets', () => {
 
   it('ignores empty secrets', () => {
     expect(assertNoSecrets('clean', ['']).ok).toBe(true);
+  });
+});
+
+describe('assertProtocolEnvelope', () => {
+  it('returns the result payload for a versioned envelope', () => {
+    const result = assertProtocolEnvelope({
+      schemaVersion: 1,
+      command: 'doctor',
+      result: { a: 1 },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.value).toEqual({ a: 1 });
+  });
+
+  it('fails when the envelope shape is missing', () => {
+    expect(assertProtocolEnvelope({ a: 1 }).ok).toBe(false);
+    expect(assertProtocolEnvelope(null).ok).toBe(false);
   });
 });

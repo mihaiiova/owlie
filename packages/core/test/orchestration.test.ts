@@ -6,7 +6,13 @@ import type {
   ContentItem,
   ItemAdapter,
 } from '@owlieio/core';
-import { ConfigurationError, extractItem, listCollection, resolveItem } from '@owlieio/core';
+import {
+  buildProvenance,
+  ConfigurationError,
+  extractItem,
+  listCollection,
+  resolveItem,
+} from '@owlieio/core';
 
 function collection(locatorUrl: string): ContentCollection {
   return {
@@ -39,13 +45,20 @@ const itemAdapter: ItemAdapter = {
   recognize: () => true,
   resolveItem: async (locator) => item(locator.url.split('/').pop() ?? '1'),
   extract: async (i) => ({
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: i.id,
     sourceType: 'rss',
     canonicalUrl: i.canonicalUrl,
     mediaType: 'text',
     text: 'hello',
     metadata: {},
+    provenance: buildProvenance({
+      sourceId: i.id,
+      canonicalUrl: i.canonicalUrl,
+      adapterId: 'fake-item',
+      text: 'hello',
+      fetchedAt: '2026-09-21T00:00:00.000Z',
+    }),
   }),
 };
 

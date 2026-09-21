@@ -7,7 +7,7 @@ import type {
   ItemAdapter,
   NormalizedDocument,
 } from '@owlieio/core';
-import { ExtractionError, NotHandledError } from '@owlieio/core';
+import { ExtractionError, NotHandledError, buildProvenance } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
@@ -15,6 +15,7 @@ import type { CliDeps, CliIo } from 'owlie';
 const FEED_URL = 'https://example.com/feed.xml';
 const YT_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const ARTICLE_URL = 'https://example.com/story-one';
+const PAGE_URL = 'https://example.com/';
 
 /** Sanitized RSS 2.0 fixture (no credentials, user data, or network content). */
 const RSS20 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -79,13 +80,20 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
           ? options.text(item.canonicalUrl)
           : (options.text ?? `${id} text`);
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: item.sourceType,
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text,
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: id,
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       extractOptions?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;
@@ -135,6 +143,20 @@ function itemDeps(adapters: ItemAdapter[], feedAdapter?: CollectionAdapter): Cli
   return { extract: { itemAdapters: adapters, feedAdapter } };
 }
 
+/** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
+function makeDiscoveringFeedAdapter(entries: FakeFeedEntry[], discoveredUrl: string) {
+  const { adapter, calls } = makeFeedAdapter(entries);
+  (adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [
+    {
+      id: `rss:feed:${discoveredUrl}`,
+      sourceType: 'rss' as const,
+      canonicalUrl: discoveredUrl,
+      metadata: { format: 'rss' },
+    },
+  ];
+  return { adapter, calls };
+}
+
 describe('extract — feed batch', () => {
   it('extracts a feed into a single JSON envelope regardless of --json', async () => {
     const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
@@ -153,7 +175,7 @@ describe('extract — feed batch', () => {
 
     expect(code).toBe(ExitCode.Success);
     expect(stderr()).not.toContain('{');
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope).toMatchObject({
       collection: {
         id: 'rss:feed:https://example.com/feed.xml',
@@ -191,7 +213,7 @@ describe('extract — feed batch', () => {
       itemDeps([youtube.adapter, article.adapter], feed.adapter),
     );
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items.map((item: { url: string }) => item.url)).toEqual([
       ARTICLE_URL,
       YT_URL,
@@ -208,7 +230,7 @@ describe('extract — feed batch', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', FEED_URL], io, itemDeps([article.adapter], feed.adapter));
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items[0]).not.toHaveProperty('title');
     expect(envelope.items[0]).toHaveProperty('document');
   });
@@ -241,7 +263,7 @@ describe('extract — feed batch', () => {
     expect(code).toBe(ExitCode.Error);
     // stdout carries only the envelope; the error message never leaks to stderr
     expect(stderr()).not.toContain('no readable content');
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.items).toHaveLength(2);
     expect(envelope.items[0]).toMatchObject({
       url: ARTICLE_URL,
@@ -265,7 +287,7 @@ describe('extract — feed batch', () => {
     );
     expect(defaultCode).toBe(ExitCode.Success);
     expect(feed.calls.limit).toBe(10);
-    expect(JSON.parse(first.stdout()).truncated).toBe(true);
+    expect(JSON.parse(first.stdout()).result.truncated).toBe(true);
 
     const second = capture();
     const code = await run(
@@ -275,7 +297,7 @@ describe('extract — feed batch', () => {
     );
     expect(code).toBe(ExitCode.Success);
     expect(feed.calls.limit).toBe(2);
-    const envelope = JSON.parse(second.stdout());
+    const envelope = JSON.parse(second.stdout()).result;
     expect(envelope.items).toHaveLength(2);
     expect(envelope.truncated).toBe(true);
   });
@@ -316,11 +338,11 @@ describe('extract — feed batch', () => {
       itemDeps([article.adapter], feed.adapter),
     );
     expect(code).toBe(ExitCode.Success);
-    expect(JSON.parse(stdout()).items).toHaveLength(1);
+    expect(JSON.parse(stdout()).result.items).toHaveLength(1);
     expect(stderr()).toBe('');
   });
 
-  it('stops starting new items after cancellation and exits 1', async () => {
+  it('stops starting new items after cancellation and exits 130', async () => {
     const controller = new AbortController();
     let extractions = 0;
     const article = makeItemAdapter('article', { text: 'body' });
@@ -344,7 +366,7 @@ describe('extract — feed batch', () => {
         signal: controller.signal,
       },
     });
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(extractions).toBe(1);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('cancelled');
@@ -366,7 +388,7 @@ describe('extract — feed batch', () => {
       },
     });
     expect(code).toBe(ExitCode.Success);
-    const envelope = JSON.parse(stdout());
+    const envelope = JSON.parse(stdout()).result;
     expect(envelope.collection).toMatchObject({
       id: 'rss:feed:https://example.com/feed.xml',
       sourceType: 'rss',
@@ -383,8 +405,30 @@ describe('extract — feed batch', () => {
   });
 });
 
-describe('extract — direct dispatch', () => {
-  it('extracts a direct article URL through the article adapter', async () => {
+describe('extract — direct dispatch and discovery', () => {
+  it('discovers a feed from a supplied page URL and extracts the bounded batch', async () => {
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeDiscoveringFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }], FEED_URL);
+
+    const { io, stdout } = capture();
+    const code = await run(
+      ['extract', PAGE_URL],
+      io,
+      itemDeps([youtube.adapter, article.adapter], feed.adapter),
+    );
+    expect(code).toBe(ExitCode.Success);
+    const envelope = JSON.parse(stdout()).result;
+    expect(envelope.collection.canonicalUrl).toBe(FEED_URL);
+    expect(envelope.items).toHaveLength(1);
+    expect(envelope.items[0]).toMatchObject({
+      url: ARTICLE_URL,
+      title: 'A story',
+      document: { sourceType: 'article' },
+    });
+  });
+
+  it('returns a clear discovery error for an article URL with no discoverable feed', async () => {
     const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
     const article = makeItemAdapter('article', {
       recognize: (url) => url.startsWith('https://'),
@@ -392,32 +436,19 @@ describe('extract — direct dispatch', () => {
     });
     const feed = makeFeedAdapter([]);
 
-    const { io, stdout } = capture();
+    const { io, stdout, stderr } = capture();
     const code = await run(
       ['extract', ARTICLE_URL],
       io,
       itemDeps([youtube.adapter, article.adapter], feed.adapter),
     );
-    expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toBe('article body\n');
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
+    expect(stderr()).not.toContain('article body');
   });
 
-  it('extracts a direct article URL as a JSON document with --json', async () => {
-    const article = makeItemAdapter('article', { text: 'article body' });
-    const feed = makeFeedAdapter([]);
-    const { io, stdout } = capture();
-    const code = await run(
-      ['extract', ARTICLE_URL, '--json'],
-      io,
-      itemDeps([article.adapter], feed.adapter),
-    );
-    expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
-    expect(doc.text).toBe('article body');
-    expect(doc.sourceType).toBe('article');
-  });
-
-  it('falls back to the article adapter when the podcast probe finds no enclosure', async () => {
+  it('does not fall back to the article adapter when the podcast probe finds no enclosure', async () => {
     const podcast = makeItemAdapter('podcast', {
       recognize: (url) => url.startsWith('https://'),
       resolveError: new NotHandledError('no podcast audio enclosure found at ' + ARTICLE_URL),
@@ -434,13 +465,13 @@ describe('extract — direct dispatch', () => {
       io,
       itemDeps([podcast.adapter, article.adapter], feed.adapter),
     );
-    expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toBe('article body\n');
-    expect(stderr()).toContain('extracting article text');
-    expect(stderr()).not.toContain('owlie: extracting article text');
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
+    expect(stderr()).not.toContain('article body');
   });
 
-  it('fails with a clear error when no adapter recognizes a direct URL', async () => {
+  it('fails with a clear discovery error for a non-HTTP URL', async () => {
     const article = makeItemAdapter('article', { recognize: () => false });
     const feed = makeFeedAdapter([]);
     const { io, stdout, stderr } = capture();
@@ -451,6 +482,6 @@ describe('extract — direct dispatch', () => {
     );
     expect(code).toBe(ExitCode.Error);
     expect(stdout()).toBe('');
-    expect(stderr()).toContain('no adapter recognizes URL');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
-import { ConfigurationError } from '@owlieio/core';
+import { ValidationError } from '@owlieio/core';
 import type { PodcastAudioResolver } from '@owlieio/adapter-podcast';
 import {
   PODCAST_RESOLVER_REGISTRY,
@@ -100,7 +100,7 @@ describe('resolvePodcastAudio', () => {
         fetcher: fakeFetcher(''),
         resolverName: 'podcast-apple',
       }),
-    ).rejects.toThrow(ConfigurationError);
+    ).rejects.toThrow(ValidationError);
     await expect(
       resolvePodcastAudio('https://example.com/article', {
         fetcher: fakeFetcher(''),

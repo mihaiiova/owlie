@@ -1,6 +1,7 @@
 import type { CliIo } from '../io.js';
 import { ExitCode } from '../io.js';
 import type { CliOptions } from '../cli.js';
+import { writeResultEnvelope, writeUsageError } from '../protocol.js';
 import { loadDotEnv, readUserConfig, writeUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { removeCredential, resolveCredentialSource, setCredential } from '../auth.js';
@@ -52,7 +53,7 @@ export async function runAuthCommand(
 
   if (subcommand === 'list') {
     if (providerArg !== undefined || extra !== undefined) {
-      if (!options.quiet) io.stderr.write('owlie: auth list takes no arguments\n');
+      if (!options.quiet) writeUsageError(io, options, 'auth', 'auth list takes no arguments');
       return ExitCode.Usage;
     }
     const statuses = providers.map((provider) => ({
@@ -60,7 +61,7 @@ export async function runAuthCommand(
       source: resolveCredentialSource(provider.id, {}, env, loadFile, readConfig),
     }));
     if (options.json) {
-      io.stdout.write(JSON.stringify(statuses) + '\n');
+      writeResultEnvelope(io, 'auth', statuses);
     } else {
       for (const status of statuses) {
         io.stdout.write(`${status.provider}: ${formatSource(status.source)}\n`);
@@ -71,11 +72,12 @@ export async function runAuthCommand(
 
   if (subcommand === 'add' || subcommand === 'remove') {
     if (providerArg === undefined) {
-      if (!options.quiet) io.stderr.write(`owlie: auth ${subcommand} requires a provider\n`);
+      if (!options.quiet)
+        writeUsageError(io, options, 'auth', `auth ${subcommand} requires a provider`);
       return ExitCode.Usage;
     }
     if (extra !== undefined) {
-      if (!options.quiet) io.stderr.write(`owlie: unexpected argument "${extra}"\n`);
+      if (!options.quiet) writeUsageError(io, options, 'auth', `unexpected argument "${extra}"`);
       return ExitCode.Usage;
     }
     try {
@@ -83,7 +85,7 @@ export async function runAuthCommand(
     } catch (error) {
       if (!options.quiet) {
         const message = error instanceof Error ? error.message : String(error);
-        io.stderr.write(`owlie: ${message}\n`);
+        writeUsageError(io, options, 'auth', message);
       }
       return ExitCode.Usage;
     }
@@ -92,21 +94,28 @@ export async function runAuthCommand(
     if (subcommand === 'add') {
       const key = (await prompt(`API key for ${providerArg}`)).trim();
       if (!key) {
-        if (!options.quiet) io.stderr.write('owlie: API key is required\n');
+        if (!options.quiet) writeUsageError(io, options, 'auth', 'API key is required');
         return ExitCode.Usage;
       }
       writeConfig(setCredential(existing, providerArg, key));
-      io.stdout.write(`stored API key for ${providerArg}\n`);
+      if (options.json) writeResultEnvelope(io, 'auth', { action: 'added', provider: providerArg });
+      else io.stdout.write(`stored API key for ${providerArg}\n`);
     } else {
       writeConfig(removeCredential(existing, providerArg));
-      io.stdout.write(`removed stored API key for ${providerArg}\n`);
+      if (options.json)
+        writeResultEnvelope(io, 'auth', { action: 'removed', provider: providerArg });
+      else io.stdout.write(`removed stored API key for ${providerArg}\n`);
     }
     return ExitCode.Success;
   }
 
   if (!options.quiet) {
-    io.stderr.write(`owlie: unknown auth command "${subcommand ?? ''}"\n`);
-    io.stderr.write('Usage: owlie auth <add|list|remove> [provider]\n');
+    if (options.json)
+      writeUsageError(io, options, 'auth', `unknown auth command "${subcommand ?? ''}"`);
+    else {
+      io.stderr.write(`owlie: unknown auth command "${subcommand ?? ''}"\n`);
+      io.stderr.write('Usage: owlie auth <add|list|remove> [provider]\n');
+    }
   }
   return ExitCode.Usage;
 }

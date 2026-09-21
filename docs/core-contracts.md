@@ -10,8 +10,18 @@ and the CLI build on. See `packages/core/src/` for the canonical definitions.
 - `ContentCollection` — `{ id, sourceType, canonicalUrl, title?, metadata }`
 - `ContentItem` — `{ id, sourceType, canonicalUrl, title?, description?,
 publishedAt?, author?, metadata }`
-- `NormalizedDocument` — `{ schemaVersion: 1, id, sourceType, canonicalUrl,
-mediaType, title?, text, publishedAt?, author?, metadata }`
+- `NormalizedDocument` — `{ schemaVersion: 2, id, sourceType, canonicalUrl,
+mediaType, title?, text, publishedAt?, author?, metadata, provenance }`,
+  where `provenance` is a required `DocumentProvenance`
+  (`{ sourceId, canonicalUrl, adapterId, resolverId?, fetchedAt, language?,
+contentFingerprint, warnings }`). `contentFingerprint` is
+  `{ algorithm: "sha256", digest }`; `warnings` is `Array<{ code, message }>`.
+  `fetchedAt` is ISO-8601 UTC; provenance values must not expose credentials,
+  URL userinfo, query strings, or fragments.
+- `ContentFingerprint` — `{ algorithm: "sha256", digest }`.
+- `ExtractionWarning` — `{ code, message }`.
+- `DocumentProvenance` — see above; `sourceId` is the stable idempotency
+  identity and is distinct from the SHA-256 normalized-text fingerprint.
 - `ProcessRequest` — `{ document, instruction?, outputSchema? }`
 - `ProcessResult` — `{ output, format: ProcessResultFormat, metadata }`, where
   `ProcessResultFormat` is `'text' | 'markdown' | 'json'` (a single-result
@@ -98,6 +108,29 @@ Throw typed errors (`ConfigurationError`, `ExtractionError`,
 `process.exit`. `CaptionsUnavailableError` extends `ExtractionError` and
 carries the code `CAPTIONS_UNAVAILABLE` for cases where extraction succeeds
 but the requested captions/transcript are not available.
+
+## JSON subprocess protocol
+
+`packages/core/src/protocol.ts` defines the provider-neutral types for the
+versioned JSON subprocess protocol (ADR 0030):
+
+- `JSON_PROTOCOL_SCHEMA_VERSION` — the protocol schema version (currently `1`).
+- `ProtocolRecord` — `{ schemaVersion, command }`, the base identity of every record.
+- `ProtocolResultEnvelope` — `{ schemaVersion, command, result }`, the single-result stdout envelope.
+- `ProtocolProgressRecord` — `{ schemaVersion, command, kind: "progress", event }`.
+- `ProtocolErrorRecord` — `{ schemaVersion, command, kind: "error", code, message }`.
+- `ProtocolCancelledRecord` — `{ schemaVersion, command, kind: "cancelled", message }`.
+
+`packages/core/src/provenance.ts` defines the pure fingerprinting helpers used
+by provenance (ADR 0032): `fingerprintText(text)` returns the SHA-256 hex
+over the exact `text` UTF-8 bytes, `contentFingerprint(text)` returns the
+labeled `{ algorithm: "sha256", digest }`, and `buildProvenance(input)`
+assembles a `DocumentProvenance` from document facts plus the caller-owned
+`fetchedAt`/`warnings`. `NORMALIZED_DOCUMENT_SCHEMA_VERSION` is the document
+schema constant (currently `2`).
+
+The CLI owns serialization, redaction, transport, and exit-code translation;
+core owns the neutral vocabulary only.
 
 ## Orchestration
 

@@ -80,4 +80,32 @@ describe('resolveCredentialSource', () => {
       resolveCredentialSource('deepseek', { envFile: 'custom.env' }, {}, loadFile, () => ({})),
     ).toBe('environment');
   });
+
+  it('reports process env only in hosted mode, ignoring files and profile', () => {
+    expect(
+      resolveCredentialSource(
+        'deepseek',
+        { hosted: true },
+        { DEEPSEEK_API_KEY: 'sk-env' },
+        () => {
+          throw new Error('loadFile called');
+        },
+        () => {
+          throw new Error('readConfig called');
+        },
+      ),
+    ).toBe('environment');
+    const files: Record<string, Record<string, string>> = {
+      '.env': { DEEPSEEK_API_KEY: 'sk-file' },
+    };
+    expect(
+      resolveCredentialSource(
+        'deepseek',
+        { hosted: true },
+        {},
+        (path) => files[path] ?? {},
+        stored,
+      ),
+    ).toBe('not set');
+  });
 });

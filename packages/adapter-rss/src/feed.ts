@@ -1,4 +1,4 @@
-import { ExtractionError } from '@owlieio/core';
+import { ExtractionError, buildProvenance, extractionFetchedAt } from '@owlieio/core';
 import type { ContentItem, NormalizedDocument } from '@owlieio/core';
 import { decodeHTML } from 'entities';
 import { XMLParser } from 'fast-xml-parser';
@@ -455,7 +455,10 @@ export function entryToItem(entry: ParsedEntry, feedUrl: string): ContentItem {
  * preferring full `content` over `description` (both HTML-stripped). Returns
  * `null` when the item carries no text so callers can attempt a re-fetch.
  */
-export function documentFromItem(item: ContentItem): NormalizedDocument | null {
+export function documentFromItem(
+  item: ContentItem,
+  options: { fetchedAt?: string } = {},
+): NormalizedDocument | null {
   const rawContent = typeof item.metadata.content === 'string' ? item.metadata.content : undefined;
   const rawDescription =
     typeof item.metadata.description === 'string' ? item.metadata.description : undefined;
@@ -468,13 +471,20 @@ export function documentFromItem(item: ContentItem): NormalizedDocument | null {
   if (!text) return null;
 
   const document: NormalizedDocument = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: item.id,
     sourceType: 'rss',
     canonicalUrl: item.canonicalUrl,
     mediaType: 'text',
     text,
     metadata: {},
+    provenance: buildProvenance({
+      sourceId: item.id,
+      canonicalUrl: item.canonicalUrl,
+      adapterId: 'rss',
+      text,
+      fetchedAt: extractionFetchedAt(options),
+    }),
   };
   if (item.title) document.title = item.title;
   if (item.publishedAt) document.publishedAt = item.publishedAt;

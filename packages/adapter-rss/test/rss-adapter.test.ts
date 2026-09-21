@@ -112,12 +112,18 @@ describe('RssAdapter.extract', () => {
     const result = await adapter.list(collection, { limit: 10 });
     const doc = await adapter.extract(result.items[0]!);
 
-    expect(doc.schemaVersion).toBe(1);
+    expect(doc.schemaVersion).toBe(2);
     expect(doc.mediaType).toBe('text');
     expect(doc.sourceType).toBe('rss');
     expect(doc.text).toBe('Full body with markup.');
     expect(doc.title).toBe('First post');
     expect(doc.canonicalUrl).toBe('https://example.com/1');
+    expect(doc.provenance).toMatchObject({
+      sourceId: doc.id,
+      canonicalUrl: 'https://example.com/1',
+      adapterId: 'rss',
+    });
+    expect(doc.provenance.contentFingerprint.digest).toHaveLength(64);
   });
 
   it('re-fetches the feed when an item carries no text', async () => {
