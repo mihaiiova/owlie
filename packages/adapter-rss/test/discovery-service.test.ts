@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentLocator, HttpFetcher, HttpTextResponse } from '@owlieio/core';
-import { ExtractionError } from '@owlieio/core';
+import { CancelledError, ExtractionError } from '@owlieio/core';
 import { FeedDiscoveryService, RssAdapter } from '@owlieio/adapter-rss';
 import { RSS20 } from './fixtures.js';
 
@@ -138,6 +138,26 @@ describe('FeedDiscoveryService.discover', () => {
       url: 'https://example.com/',
     });
     expect(result).toEqual([]);
+  });
+
+  it('propagates cancellation from a conventional-path probe', async () => {
+    const controller = new AbortController();
+    const fetcher = fakeFetcher({
+      'https://example.com/': {
+        url: 'https://example.com/',
+        contentType: 'text/html',
+        text: '<html></html>',
+      },
+      'https://example.com/feed': () => {
+        controller.abort();
+        throw new CancelledError('discovery cancelled');
+      },
+    });
+    const service = new FeedDiscoveryService({ fetcher });
+
+    await expect(
+      service.discover({ url: 'https://example.com/' }, { signal: controller.signal }),
+    ).rejects.toThrow('discovery cancelled');
   });
 
   it('forwards cancellation and policy through every fetch', async () => {

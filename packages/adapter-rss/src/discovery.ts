@@ -222,7 +222,9 @@ export class FeedDiscoveryService implements FeedDiscovery {
         if (declaredType && !isFeedContentType(response.contentType)) continue;
         const feed = await parseFeed(response.text);
         candidates.push({ url: response.url, format: feed.format });
-      } catch {
+      } catch (error) {
+        // Cancellation is terminal for the invocation; only ordinary probe failures continue.
+        if (signal?.aborted) throw error;
         // A failing, redirected-away, or incompatible probe is simply not a candidate.
         continue;
       }
