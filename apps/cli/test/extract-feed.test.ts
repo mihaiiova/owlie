@@ -15,6 +15,7 @@ import type { CliDeps, CliIo } from 'owlie';
 const FEED_URL = 'https://example.com/feed.xml';
 const YT_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const ARTICLE_URL = 'https://example.com/story-one';
+const PAGE_URL = 'https://example.com/';
 
 /** Sanitized RSS 2.0 fixture (no credentials, user data, or network content). */
 const RSS20 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -140,6 +141,20 @@ function makeFeedAdapter(entries: FakeFeedEntry[], listError?: unknown) {
 
 function itemDeps(adapters: ItemAdapter[], feedAdapter?: CollectionAdapter): CliDeps {
   return { extract: { itemAdapters: adapters, feedAdapter } };
+}
+
+/** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
+function makeDiscoveringFeedAdapter(entries: FakeFeedEntry[], discoveredUrl: string) {
+  const { adapter, calls } = makeFeedAdapter(entries);
+  (adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [
+    {
+      id: `rss:feed:${discoveredUrl}`,
+      sourceType: 'rss' as const,
+      canonicalUrl: discoveredUrl,
+      metadata: { format: 'rss' },
+    },
+  ];
+  return { adapter, calls };
 }
 
 describe('extract — feed batch', () => {
@@ -390,8 +405,30 @@ describe('extract — feed batch', () => {
   });
 });
 
-describe('extract — direct dispatch', () => {
-  it('extracts a direct article URL through the article adapter', async () => {
+describe('extract — direct dispatch and discovery', () => {
+  it('discovers a feed from a supplied page URL and extracts the bounded batch', async () => {
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeDiscoveringFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }], FEED_URL);
+
+    const { io, stdout } = capture();
+    const code = await run(
+      ['extract', PAGE_URL],
+      io,
+      itemDeps([youtube.adapter, article.adapter], feed.adapter),
+    );
+    expect(code).toBe(ExitCode.Success);
+    const envelope = JSON.parse(stdout()).result;
+    expect(envelope.collection.canonicalUrl).toBe(FEED_URL);
+    expect(envelope.items).toHaveLength(1);
+    expect(envelope.items[0]).toMatchObject({
+      url: ARTICLE_URL,
+      title: 'A story',
+      document: { sourceType: 'article' },
+    });
+  });
+
+  it('returns a clear discovery error for an article URL with no discoverable feed', async () => {
     const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
     const article = makeItemAdapter('article', {
       recognize: (url) => url.startsWith('https://'),
@@ -399,32 +436,19 @@ describe('extract — direct dispatch', () => {
     });
     const feed = makeFeedAdapter([]);
 
-    const { io, stdout } = capture();
+    const { io, stdout, stderr } = capture();
     const code = await run(
       ['extract', ARTICLE_URL],
       io,
       itemDeps([youtube.adapter, article.adapter], feed.adapter),
     );
-    expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toBe('article body\n');
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
+    expect(stderr()).not.toContain('article body');
   });
 
-  it('extracts a direct article URL as a JSON document with --json', async () => {
-    const article = makeItemAdapter('article', { text: 'article body' });
-    const feed = makeFeedAdapter([]);
-    const { io, stdout } = capture();
-    const code = await run(
-      ['extract', ARTICLE_URL, '--json'],
-      io,
-      itemDeps([article.adapter], feed.adapter),
-    );
-    expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout()).result;
-    expect(doc.text).toBe('article body');
-    expect(doc.sourceType).toBe('article');
-  });
-
-  it('falls back to the article adapter when the podcast probe finds no enclosure', async () => {
+  it('does not fall back to the article adapter when the podcast probe finds no enclosure', async () => {
     const podcast = makeItemAdapter('podcast', {
       recognize: (url) => url.startsWith('https://'),
       resolveError: new NotHandledError('no podcast audio enclosure found at ' + ARTICLE_URL),
@@ -441,13 +465,13 @@ describe('extract — direct dispatch', () => {
       io,
       itemDeps([podcast.adapter, article.adapter], feed.adapter),
     );
-    expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toBe('article body\n');
-    expect(stderr()).toContain('extracting article text');
-    expect(stderr()).not.toContain('owlie: extracting article text');
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
+    expect(stderr()).not.toContain('article body');
   });
 
-  it('fails with a clear error when no adapter recognizes a direct URL', async () => {
+  it('fails with a clear discovery error for a non-HTTP URL', async () => {
     const article = makeItemAdapter('article', { recognize: () => false });
     const feed = makeFeedAdapter([]);
     const { io, stdout, stderr } = capture();
@@ -458,6 +482,6 @@ describe('extract — direct dispatch', () => {
     );
     expect(code).toBe(ExitCode.Error);
     expect(stdout()).toBe('');
-    expect(stderr()).toContain('no adapter recognizes URL');
+    expect(stderr()).toContain('no RSS/Atom feed discoverable');
   });
 });
