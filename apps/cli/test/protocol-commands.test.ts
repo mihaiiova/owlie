@@ -81,6 +81,22 @@ function articleAdapter(progress?: ProgressSink): ItemAdapter {
   };
 }
 
+function specializedAdapter(): ItemAdapter {
+  return {
+    ...articleAdapter(),
+    id: 'youtube',
+    sourceType: 'youtube',
+    async resolveItem(locator) {
+      return {
+        id: `youtube:${locator.url}`,
+        sourceType: 'youtube',
+        canonicalUrl: locator.url,
+        metadata: {},
+      };
+    },
+  };
+}
+
 function feedAdapter(entries: Array<{ url: string; title?: string }> = []): CollectionAdapter {
   return {
     id: 'rss',
@@ -222,7 +238,7 @@ describe('unified JSON protocol through run()', () => {
   it('wraps direct extract --json in a versioned result envelope and emits progress JSONL on stderr', async () => {
     const { io, stdoutJson, stderrLines } = capture();
     const code = await run(['extract', ARTICLE_URL, '--json'], io, {
-      extract: { itemAdapters: [articleAdapter()], feedAdapter: feedAdapter() },
+      extract: { itemAdapters: [specializedAdapter()], feedAdapter: feedAdapter() },
     });
     expect(code).toBe(ExitCode.Success);
     const envelope = stdoutJson();
@@ -354,7 +370,7 @@ describe('unified JSON protocol through run()', () => {
       extract: {
         itemAdapters: [
           {
-            ...articleAdapter(),
+            ...specializedAdapter(),
             async extract() {
               throw new CancelledError('extraction cancelled');
             },

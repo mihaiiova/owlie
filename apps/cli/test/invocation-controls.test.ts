@@ -96,6 +96,22 @@ function articleAdapter(text = 'article body'): ItemAdapter {
   };
 }
 
+function specializedAdapter(text = 'article body'): ItemAdapter {
+  return {
+    ...articleAdapter(text),
+    id: 'youtube',
+    sourceType: 'youtube',
+    async resolveItem(locator) {
+      return {
+        id: `youtube:${locator.url}`,
+        sourceType: 'youtube',
+        canonicalUrl: locator.url,
+        metadata: {},
+      };
+    },
+  };
+}
+
 describe('invocation-wide timeout deadline', () => {
   it('rejects an invalid --timeout-ms as a usage error', async () => {
     const { io, stdout, stderr } = capture();
@@ -214,7 +230,7 @@ describe('stdout byte budget', () => {
   it('rejects an oversize result as a distinct error before the protocol boundary', async () => {
     const { io, stdout, stderr, stderrLines } = capture();
     const code = await run(['extract', ARTICLE_URL, '--max-stdout-bytes', '16', '--json'], io, {
-      extract: { itemAdapters: [articleAdapter('this body is far too long')] },
+      extract: { itemAdapters: [specializedAdapter('this body is far too long')] },
     });
     expect(code).toBe(ExitCode.Error);
     expect(stdout()).toBe('');
@@ -238,7 +254,7 @@ describe('stdout byte budget', () => {
   it('allows output within budget', async () => {
     const { io, stdout } = capture();
     const code = await run(['extract', ARTICLE_URL, '--max-stdout-bytes', '1024'], io, {
-      extract: { itemAdapters: [articleAdapter('hello')] },
+      extract: { itemAdapters: [specializedAdapter('hello')] },
     });
     expect(code).toBe(ExitCode.Success);
     expect(stdout()).toBe('hello\n');
