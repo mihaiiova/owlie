@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type {
   CollectionAdapter,
@@ -12,7 +12,12 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
-import { ConfigurationError, NotHandledError, ProcessingError } from '@owlieio/core';
+import {
+  buildProvenance,
+  ConfigurationError,
+  NotHandledError,
+  ProcessingError,
+} from '@owlieio/core';
 import { ExitCode, resolveModelSelection, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -64,13 +69,20 @@ function articleAdapter(): ItemAdapter {
     async extract(item: ContentItem, options?: ExtractionOptions) {
       options?.progress?.emit({ type: 'started', target: item.id });
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'article',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text: 'article body',
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'article',
+          text: 'article body',
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
     },
   };
@@ -108,13 +120,20 @@ describe('process command', () => {
   it('parses a JSON NormalizedDocument with --input-format json', async () => {
     const { processor, requests } = makeFakeProcessor();
     const doc: NormalizedDocument = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'youtube:video:abc',
       sourceType: 'youtube',
       canonicalUrl: 'https://youtube.com/watch?v=abc',
       mediaType: 'transcript',
       text: 'the transcript',
       metadata: { videoId: 'abc', isGenerated: true },
+      provenance: buildProvenance({
+        sourceId: 'youtube:video:abc',
+        canonicalUrl: 'https://youtube.com/watch?v=abc',
+        adapterId: 'youtube',
+        text: 'the transcript',
+        fetchedAt: '2026-09-21T00:00:00.000Z',
+      }),
     };
     const { io, stdout } = capture({ isTTY: false, content: JSON.stringify(doc) });
     const code = await run(
@@ -127,6 +146,7 @@ describe('process command', () => {
     expect(requests[0]?.document.id).toBe('youtube:video:abc');
     expect(requests[0]?.document.sourceType).toBe('youtube');
     expect(requests[0]?.document.metadata).toMatchObject({ videoId: 'abc' });
+    expect(requests[0]?.document.provenance).toEqual(doc.provenance);
   });
 
   it('models piped stdin as a local document with a stable identity', async () => {
@@ -140,7 +160,7 @@ describe('process command', () => {
     expect(doc?.canonicalUrl).toBe('');
   });
 
-  it('models a positional text file as local content without host paths', async () => {
+  it('models a positional text file as local content with a normalized absolute path identity', async () => {
     const { processor, requests } = makeFakeProcessor();
     const dir = mkdtempSync(join(tmpdir(), 'owlie-process-'));
     const file = join(dir, 'notes.txt');
@@ -151,8 +171,8 @@ describe('process command', () => {
       expect(code).toBe(ExitCode.Success);
       const doc = requests[0]?.document;
       expect(doc?.sourceType).toBe('local');
-      expect(doc?.id).toBe('local:file:notes.txt');
-      expect(doc?.id).not.toContain(dir);
+      expect(doc?.id).toBe(`local:file:${resolve(file)}`);
+      expect(doc?.provenance.sourceId).toBe(`local:file:${resolve(file)}`);
       expect(doc?.canonicalUrl).toBe('');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -173,7 +193,7 @@ describe('process command', () => {
       );
       expect(code).toBe(ExitCode.Success);
       expect(requests[0]?.document.sourceType).toBe('local');
-      expect(requests[0]?.document.id).toBe('local:file:draft.md');
+      expect(requests[0]?.document.id).toBe(`local:file:${resolve(file)}`);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentItem, ItemAdapter, NormalizedDocument } from '@owlieio/core';
-import { CancelledError, CaptionsUnavailableError } from '@owlieio/core';
+import { CancelledError, CaptionsUnavailableError, buildProvenance } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -39,13 +39,20 @@ function makeFakeAdapter(
         throw behavior.extractError;
       }
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'youtube',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'transcript',
         text: behavior.text ?? 'hello transcript',
         metadata: { videoId: 'test', isGenerated: false },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'fake-youtube',
+          text: behavior.text ?? 'hello transcript',
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       options?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;

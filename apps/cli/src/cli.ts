@@ -12,11 +12,13 @@ import {
   USAGE_ERROR_CODE,
   writeCommandError,
   writeErrorRecord,
+  writeResultEnvelope,
   writeUsageError,
 } from './protocol.js';
 import { writeDiagnostic } from './style.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runAuthCommand, type AuthDeps } from './commands/auth.js';
+import { runCapabilitiesCommand } from './capabilities.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runListCommand, type ListDeps } from './commands/list.js';
@@ -238,7 +240,11 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   try {
     if (parsed.versionRequested) {
-      bounded.stdout.write(`owlie ${VERSION}\n`);
+      if (options.json) {
+        writeResultEnvelope(bounded, 'version', VERSION);
+      } else {
+        bounded.stdout.write(`owlie ${VERSION}\n`);
+      }
       return ExitCode.Success;
     }
 
@@ -286,6 +292,10 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
     if (command === 'doctor') {
       return runDoctorCommand(bounded, options, deps.doctor);
+    }
+
+    if (command === 'capabilities') {
+      return runCapabilitiesCommand(bounded, options);
     }
 
     if (command === 'auth') {

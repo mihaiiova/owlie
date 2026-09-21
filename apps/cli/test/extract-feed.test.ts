@@ -7,7 +7,7 @@ import type {
   ItemAdapter,
   NormalizedDocument,
 } from '@owlieio/core';
-import { ExtractionError, NotHandledError } from '@owlieio/core';
+import { ExtractionError, NotHandledError, buildProvenance } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
@@ -79,13 +79,20 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
           ? options.text(item.canonicalUrl)
           : (options.text ?? `${id} text`);
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: item.sourceType,
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text,
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: id,
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       extractOptions?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;
