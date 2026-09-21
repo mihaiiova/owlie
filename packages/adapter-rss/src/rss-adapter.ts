@@ -21,6 +21,11 @@ import {
   type HttpFetchPolicy,
 } from '@owlieio/core';
 import { documentFromItem, entryToItem, isFeedUrl, normalizeFeedUrl, parseFeed } from './feed.js';
+import {
+  FeedDiscoveryService,
+  type FeedDiscovery,
+  type FeedDiscoveryOptions,
+} from './discovery.js';
 
 /** Options accepted by the {@link RssAdapter} constructor. */
 export interface RssAdapterOptions {
@@ -38,7 +43,7 @@ export interface RssAdapterOptions {
  * a `mediaType: 'text'` document, preferring item-carried text and only
  * re-fetching the feed as a fallback.
  */
-export class RssAdapter implements CollectionAdapter, ContentExtractor {
+export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDiscovery {
   static readonly id = 'rss';
   readonly id = RssAdapter.id;
   readonly sourceType = 'rss' as const;
@@ -132,6 +137,16 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   private effectivePolicy(): HttpFetchPolicy {
     if (this.timeoutMs === undefined) return this.policy ?? {};
     return { ...(this.policy ?? {}), timeoutMs: this.timeoutMs };
+  }
+
+  async discover(
+    locator: ContentLocator,
+    options: FeedDiscoveryOptions = {},
+  ): Promise<ContentCollection[]> {
+    return new FeedDiscoveryService({
+      fetcher: this.fetcher,
+      policy: this.effectivePolicy(),
+    }).discover(locator, options);
   }
 }
 
