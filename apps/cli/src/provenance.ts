@@ -1,6 +1,6 @@
 import type { ExtractionWarning, NormalizedDocument } from '@owlieio/core';
 import { buildProvenance } from '@owlieio/core';
-import { redactUrl } from './protocol.js';
+import { redactUrl, redactUrls } from './protocol.js';
 
 /** Structured warning emitted when a URL defers from audio resolution to article text. */
 export const ARTICLE_FALLBACK_WARNING: ExtractionWarning = {
@@ -37,7 +37,7 @@ export function finalizeDocument(
   input: FinalizeDocumentInput,
 ): NormalizedDocument {
   const provenance = buildProvenance({
-    sourceId: input.sourceId ?? document.provenance.sourceId,
+    sourceId: redactUrls(input.sourceId ?? document.provenance.sourceId),
     canonicalUrl: redactUrl(input.canonicalUrl ?? document.provenance.canonicalUrl),
     adapterId: input.adapterId,
     text: document.text,

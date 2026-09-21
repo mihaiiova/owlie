@@ -2,28 +2,11 @@ import type { CliIo } from './io.js';
 import { ExitCode } from './io.js';
 import type { CliOptions } from './cli.js';
 import { JSON_PROTOCOL_SCHEMA_VERSION, NORMALIZED_DOCUMENT_SCHEMA_VERSION } from '@owlieio/core';
+import { COMMAND_IDS } from './commands/catalog.js';
 import { ADAPTER_IDS, PROVIDER_IDS } from './registry.js';
 import { PODCAST_RESOLVER_REGISTRY } from './resolvers.js';
 import { writeResultEnvelope } from './protocol.js';
 import { VERSION } from './version.js';
-
-/**
- * The functional commands the published `owlie` CLI accepts. This is the
- * single source of truth for the command catalog reported by `capabilities`;
- * the dispatch branches in `cli.ts` are the behavior for these ids.
- */
-export const COMMAND_IDS: readonly string[] = [
-  'extract',
-  'resolve',
-  'list',
-  'process',
-  'models',
-  'auth',
-  'setup',
-  'doctor',
-  'capabilities',
-  'help',
-];
 
 /** Credential-free startup manifest reported by `owlie capabilities --json`. */
 export interface CapabilitiesReport {

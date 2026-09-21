@@ -88,13 +88,29 @@ describe('extractWithFallback', () => {
     expect(document.text).toBe('article text');
   });
 
-  it('stamps the winning adapter id, boundary timestamp, and ARTICLE_FALLBACK warning', async () => {
+  it('redacts URL credentials, query strings, and fragments from provenance identities', async () => {
+    const { document } = await extractWithFallback([fallbackAdapter('podcast')], {
+      url: 'https://user:pass@cdn.example.com/episode.mp3?signature=topsecret#player',
+    });
+    expect(document.provenance.sourceId).toBe('podcast:https://cdn.example.com/episode.mp3');
+    expect(document.provenance.canonicalUrl).toBe('https://cdn.example.com/episode.mp3');
+  });
+
+  it('stamps one CLI-boundary timestamp for the adapter and finalized provenance', async () => {
     const clock = () => new Date('2026-09-21T12:00:00.000Z');
+    const article = fallbackAdapter('article');
+    const extract = article.extract.bind(article);
+    let adapterFetchedAt: string | undefined;
+    article.extract = async (item, options) => {
+      adapterFetchedAt = options?.fetchedAt;
+      return extract(item, options);
+    };
     const { document } = await extractWithFallback(
-      [fallbackAdapter('podcast', { defer: true }), fallbackAdapter('article')],
+      [fallbackAdapter('podcast', { defer: true }), article],
       { url: 'https://example.com/story' },
       { clock },
     );
+    expect(adapterFetchedAt).toBe('2026-09-21T12:00:00.000Z');
     expect(document.provenance.adapterId).toBe('article');
     expect(document.provenance.fetchedAt).toBe('2026-09-21T12:00:00.000Z');
     expect(document.provenance.warnings).toEqual([

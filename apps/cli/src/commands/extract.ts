@@ -223,6 +223,7 @@ async function runResolverExtraction(
     deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
   const workCacheDir = deps.cacheDir ?? cacheDir();
   const spinner = createCommandSpinner(io, options, deps.spinner);
+  const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
 
   try {
     assertNoUrlCredentials(url);
@@ -251,10 +252,10 @@ async function runResolverExtraction(
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
       else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     });
-    const extracted = await adapter.extract(item, { signal: deps.signal, progress });
+    const extracted = await adapter.extract(item, { signal: deps.signal, progress, fetchedAt });
     const document = finalizeDocument(extracted, {
       adapterId: adapter.id,
-      fetchedAt: (deps.clock?.() ?? new Date()).toISOString(),
+      fetchedAt,
       resolverId: resolverName,
       // Source identity derives from the canonical supplied locator, never the
       // resolved (possibly signed) media URL.

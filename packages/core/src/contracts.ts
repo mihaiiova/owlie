@@ -21,6 +21,8 @@ export interface ProgressSink {
 export interface ExtractionOptions {
   signal?: AbortSignal;
   progress?: ProgressSink;
+  /** CLI-boundary extraction timestamp shared by every adapter attempt. */
+  fetchedAt?: string;
 }
 
 /** Options shared by item-resolution operations. */

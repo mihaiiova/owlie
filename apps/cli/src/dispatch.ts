@@ -53,6 +53,9 @@ export async function extractWithFallback(
   options: ExtractWithFallbackOptions = {},
 ): Promise<{ item: ContentItem; document: NormalizedDocument }> {
   const candidates = adapters.filter((adapter) => adapter.recognize(locator));
+  // Stamp once before the adapter attempts. A fallback must preserve the same
+  // CLI-boundary time rather than acquiring a timestamp from its own fetch hop.
+  const fetchedAt = (options.clock?.() ?? new Date()).toISOString();
   let deferred: NotHandledError | undefined;
   const fallbackWarnings: ExtractionWarning[] = [];
   for (const adapter of candidates) {
@@ -62,16 +65,18 @@ export async function extractWithFallback(
         ? adapter.extractDeferred(item, deferred.deferredResponse, {
             signal: options.signal,
             progress: options.progress,
+            fetchedAt,
           })
         : extractItem(adapter, item, {
             signal: options.signal,
             progress: options.progress,
+            fetchedAt,
           }));
       return {
         item,
         document: finalizeDocument(document, {
           adapterId: adapter.id,
-          fetchedAt: (options.clock?.() ?? new Date()).toISOString(),
+          fetchedAt,
           warnings: fallbackWarnings,
         }),
       };

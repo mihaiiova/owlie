@@ -6,6 +6,7 @@ import {
   assertSafeHttpUrl,
   buildProvenance,
   CancelledError,
+  extractionFetchedAt,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
@@ -256,7 +257,7 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
         canonicalUrl,
         adapterId: ArticleAdapter.id,
         text,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: extractionFetchedAt(options),
       }),
     };
   }

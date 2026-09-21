@@ -15,6 +15,7 @@ import {
   assertBoundedLimit,
   buildProvenance,
   CancelledError,
+  extractionFetchedAt,
   ConfigurationError,
   ExtractionError,
   NotImplementedError,
@@ -190,7 +191,7 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
           canonicalUrl: item.canonicalUrl,
           adapterId: YouTubeAdapter.id,
           text: payload.transcript,
-          fetchedAt: new Date().toISOString(),
+          fetchedAt: extractionFetchedAt(options),
           language: payload.language,
         }),
       };

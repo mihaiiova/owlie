@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { ExtractionOptions } from './contracts.js';
 import type { ContentFingerprint, DocumentProvenance, ExtractionWarning } from './types.js';
 
 /**
@@ -32,6 +33,15 @@ export interface BuildProvenanceInput {
  * fingerprint. The caller owns the CLI-boundary `fetchedAt` timestamp and any
  * structured warnings; this helper never reads environment state or secrets.
  */
+/**
+ * Resolves the timestamp for a direct adapter consumer. The CLI supplies this
+ * once at its extraction boundary; this fallback preserves the adapter contract
+ * for non-CLI consumers without tying it to an individual fetch hop.
+ */
+export function extractionFetchedAt(options: Pick<ExtractionOptions, 'fetchedAt'>): string {
+  return options.fetchedAt ?? new Date().toISOString();
+}
+
 export function buildProvenance(input: BuildProvenanceInput): DocumentProvenance {
   const provenance: DocumentProvenance = {
     sourceId: input.sourceId,

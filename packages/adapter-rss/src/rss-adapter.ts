@@ -97,7 +97,7 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   }
 
   async extract(item: ContentItem, options: ExtractionOptions = {}): Promise<NormalizedDocument> {
-    const carried = documentFromItem(item);
+    const carried = documentFromItem(item, { fetchedAt: options.fetchedAt });
     if (carried) return carried;
 
     const feedUrl = typeof item.metadata.feedUrl === 'string' ? item.metadata.feedUrl : undefined;
@@ -120,7 +120,9 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
       throw new ExtractionError(`entry ${entryId} not found in feed ${feedUrl}`);
     }
 
-    const document = documentFromItem(entryToItem(entry, feedUrl));
+    const document = documentFromItem(entryToItem(entry, feedUrl), {
+      fetchedAt: options.fetchedAt,
+    });
     if (!document) {
       throw new ExtractionError(`entry ${entryId} has no text content`);
     }

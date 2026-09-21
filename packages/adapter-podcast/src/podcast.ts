@@ -13,6 +13,7 @@ import {
   assertSafeHttpUrl,
   buildProvenance,
   CancelledError,
+  extractionFetchedAt,
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
@@ -410,7 +411,7 @@ export class PodcastAdapter implements ItemAdapter {
           canonicalUrl: item.canonicalUrl,
           adapterId: PodcastAdapter.id,
           text: result.text,
-          fetchedAt: new Date().toISOString(),
+          fetchedAt: extractionFetchedAt(options),
           language: result.language,
         }),
       };

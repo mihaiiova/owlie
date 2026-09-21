@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExitCode, run } from 'owlie';
+import { COMMAND_IDS, ExitCode, run } from 'owlie';
 import type { CliIo } from 'owlie';
 
 function capture() {
@@ -27,6 +27,7 @@ describe('capabilities command', () => {
     expect(report.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(report.protocolSchemaVersion).toBe(1);
     expect(report.documentSchemaVersion).toBe(2);
+    expect(report.commands).toEqual(COMMAND_IDS);
     expect(report.commands).toContain('extract');
     expect(report.commands).toContain('capabilities');
     expect(report.adapters).toEqual(
