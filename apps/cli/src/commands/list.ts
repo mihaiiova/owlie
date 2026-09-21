@@ -11,6 +11,7 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
+import { resolveFeedCollectionUrl } from '../feed.js';
 import {
   createCommandSpinner,
   writeCommandError,
@@ -135,7 +136,8 @@ export async function runListCommand(
   try {
     const limit = parseListLimit(options.limit);
     spinner.start('listing feed');
-    const result = await listCollection(adapter, { url }, { limit, signal: deps.signal });
+    const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
+    const result = await listCollection(adapter, { url: feedUrl }, { limit, signal: deps.signal });
     const envelope = buildEnvelope(result);
     spinner.stop();
 
