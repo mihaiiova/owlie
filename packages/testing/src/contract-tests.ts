@@ -73,7 +73,7 @@ export function itemAdapterContract(
       expect(item).toBeDefined();
       if (!item) return;
       const doc = await adapter.extract(item);
-      expect(doc.schemaVersion).toBe(1);
+      expect(doc.schemaVersion).toBe(2);
       expect(doc.text.length).toBeGreaterThan(0);
     });
   });

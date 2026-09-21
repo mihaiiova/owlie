@@ -38,7 +38,7 @@ describe('YouTubeAdapter.extract', () => {
   it('returns a normalized transcript document with no title', async () => {
     const adapter = new YouTubeAdapter({ client: makeClient() });
     const document = await adapter.extract(makeItem());
-    expect(document.schemaVersion).toBe(1);
+    expect(document.schemaVersion).toBe(2);
     expect(document.mediaType).toBe('transcript');
     expect(document.text).toBe('hello world');
     expect(document.title).toBeUndefined();
@@ -48,6 +48,15 @@ describe('YouTubeAdapter.extract', () => {
       languageCode: 'en',
       isGenerated: false,
     });
+    expect(document.provenance).toMatchObject({
+      sourceId: document.id,
+      canonicalUrl: document.canonicalUrl,
+      adapterId: 'youtube',
+      language: 'English',
+    });
+    expect(document.provenance.contentFingerprint.algorithm).toBe('sha256');
+    expect(document.provenance.contentFingerprint.digest).toHaveLength(64);
+    expect(document.provenance.warnings).toEqual([]);
   });
 
   it('passes the configured languages to the client', async () => {

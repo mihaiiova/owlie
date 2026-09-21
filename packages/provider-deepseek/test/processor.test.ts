@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NormalizedDocument } from '@owlieio/core';
-import { CancelledError, ProcessingError } from '@owlieio/core';
+import { buildProvenance, CancelledError, ProcessingError } from '@owlieio/core';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 import type {
   DeepSeekClient,
@@ -9,13 +9,20 @@ import type {
 } from '@owlieio/provider-deepseek';
 
 const document: NormalizedDocument = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: 'test:doc',
   sourceType: 'youtube',
   canonicalUrl: 'https://example.com',
   mediaType: 'transcript',
   text: 'hello world',
   metadata: {},
+  provenance: buildProvenance({
+    sourceId: 'test:doc',
+    canonicalUrl: 'https://example.com',
+    adapterId: 'youtube',
+    text: 'hello world',
+    fetchedAt: '2026-09-21T00:00:00.000Z',
+  }),
 };
 
 function makeClient(

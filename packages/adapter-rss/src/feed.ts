@@ -1,4 +1,4 @@
-import { ExtractionError } from '@owlieio/core';
+import { ExtractionError, buildProvenance } from '@owlieio/core';
 import type { ContentItem, NormalizedDocument } from '@owlieio/core';
 import { decodeHTML } from 'entities';
 import { XMLParser } from 'fast-xml-parser';
@@ -468,13 +468,20 @@ export function documentFromItem(item: ContentItem): NormalizedDocument | null {
   if (!text) return null;
 
   const document: NormalizedDocument = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: item.id,
     sourceType: 'rss',
     canonicalUrl: item.canonicalUrl,
     mediaType: 'text',
     text,
     metadata: {},
+    provenance: buildProvenance({
+      sourceId: item.id,
+      canonicalUrl: item.canonicalUrl,
+      adapterId: 'rss',
+      text,
+      fetchedAt: new Date().toISOString(),
+    }),
   };
   if (item.title) document.title = item.title;
   if (item.publishedAt) document.publishedAt = item.publishedAt;

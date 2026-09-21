@@ -113,6 +113,12 @@ describe('PodcastAdapter extraction', () => {
       text: `transcript of ${url}`,
       metadata: { fake: true, language: 'en' },
     });
+    expect(document.provenance).toMatchObject({
+      sourceId: `podcast:episode:${url}`,
+      adapterId: 'podcast',
+      language: 'en',
+    });
+    expect(document.provenance.contentFingerprint.digest).toHaveLength(64);
     await expect(readdir(cacheDir)).resolves.toEqual([]);
   });
 

@@ -13,6 +13,7 @@ import type {
 } from '@owlieio/core';
 import {
   assertBoundedLimit,
+  buildProvenance,
   CancelledError,
   ConfigurationError,
   ExtractionError,
@@ -172,7 +173,7 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
       });
 
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'youtube',
         canonicalUrl: item.canonicalUrl,
@@ -184,6 +185,14 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
           languageCode: payload.languageCode,
           isGenerated: payload.isGenerated,
         },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: YouTubeAdapter.id,
+          text: payload.transcript,
+          fetchedAt: new Date().toISOString(),
+          language: payload.language,
+        }),
       };
 
       options.progress?.emit({ type: 'completed', target, result: document });

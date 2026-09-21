@@ -4,6 +4,7 @@ import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } fro
 import type { DeferredResponseItemAdapter, HttpTextResponse } from '@owlieio/core';
 import {
   assertSafeHttpUrl,
+  buildProvenance,
   CancelledError,
   ConfigurationError,
   DefaultHttpFetcher,
@@ -240,7 +241,7 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
 
     const canonicalUrl = canonicalizeArticleUrl(response.url);
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: `article:${canonicalUrl}`,
       sourceType: 'article',
       canonicalUrl,
@@ -250,6 +251,13 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
       ...(article?.published ? { publishedAt: normalizeDate(article.published) } : {}),
       ...(article?.author ? { author: article.author } : {}),
       metadata: {},
+      provenance: buildProvenance({
+        sourceId: `article:${canonicalUrl}`,
+        canonicalUrl,
+        adapterId: ArticleAdapter.id,
+        text,
+        fetchedAt: new Date().toISOString(),
+      }),
     };
   }
 
