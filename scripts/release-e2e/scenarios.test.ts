@@ -238,6 +238,8 @@ describe('buildScenarios', () => {
     expect(scenarios.map((s) => s.name)).toEqual([
       'help',
       'version',
+      'version --json',
+      'capabilities',
       'doctor',
       'setup (proxy none)',
       'list',

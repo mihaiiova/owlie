@@ -182,6 +182,36 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       },
     },
     {
+      name: 'version --json',
+      allowProxyFallback: false,
+      run: () => spawn({ args: ['--version', '--json'], env: {}, timeoutMs: 30_000 }),
+      assert: jsonAssert(parseJson, (version) => {
+        if (!assertMatch(String(version), /^\d+\.\d+\.\d+$/).ok)
+          return { ok: false, error: 'version --json result is not a scalar version' };
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'capabilities',
+      allowProxyFallback: false,
+      run: () => spawn({ args: ['capabilities', '--json'], env: {}, timeoutMs: 30_000 }),
+      assert: jsonAssert(parseJson, (report) => {
+        if (!assertMatch(String(report?.version), /^\d+\.\d+\.\d+$/).ok)
+          return { ok: false, error: 'capabilities missing artifact version' };
+        if (report?.protocolSchemaVersion !== 1)
+          return { ok: false, error: 'capabilities missing protocolSchemaVersion' };
+        if (report?.documentSchemaVersion !== 2)
+          return { ok: false, error: 'capabilities missing documentSchemaVersion' };
+        if (!Array.isArray(report?.adapters) || !report.adapters.includes('youtube'))
+          return { ok: false, error: 'capabilities missing adapter catalog' };
+        if (!Array.isArray(report?.providers) || !report.providers.includes('deepseek'))
+          return { ok: false, error: 'capabilities missing provider catalog' };
+        if (!Array.isArray(report?.resolvers) || !report.resolvers.includes('podcast-apple'))
+          return { ok: false, error: 'capabilities missing resolver catalog' };
+        return { ok: true };
+      }),
+    },
+    {
       name: 'doctor',
       allowProxyFallback: false,
       run: () =>

@@ -23,6 +23,8 @@ The scenario inventory lives in `scripts/release-e2e/scenarios.mjs`:
 | -------------------------- | ------------------------------------------------------------------------- | ------------------------------- |
 | help                       | `owlie --help`                                                            | none                            |
 | version                    | `owlie --version`                                                         | none                            |
+| version --json             | `owlie --version --json`                                                  | none                            |
+| capabilities               | `owlie capabilities --json`                                               | none                            |
 | doctor                     | `owlie doctor --json`                                                     | none                            |
 | setup (proxy none)         | `owlie setup` via a pseudo-terminal                                       | none                            |
 | list                       | `owlie list <feed> --limit 2 --json`                                      | Pages feed                      |

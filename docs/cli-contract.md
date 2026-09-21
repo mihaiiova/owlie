@@ -14,6 +14,7 @@ owlie models   List current models for your LLM providers     (v0.1)
 owlie auth     Manage API keys for LLM providers             (v0.1)
 owlie setup    Configure provider, model, and API key       (v0.1)
 owlie doctor   Report local environment health             (functional)
+owlie capabilities  Report the artifact, schema, and catalog manifest   (functional)
 owlie help     Show help
 ```
 
@@ -71,6 +72,7 @@ owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model
 owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie auth add <provider> | list | remove <provider>
+owlie capabilities [--json]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
@@ -155,6 +157,13 @@ owlie auth add <provider> | list | remove <provider>
   `auth list` reports each provider's effective credential source
   (`environment` vs `stored`, never the key); `auth remove <provider>` deletes
   a stored key. Environment variables override stored keys.
+- `capabilities` is a non-network, non-secret startup manifest command. With
+  `--json` it writes a versioned envelope whose `result` is
+  `{ version, protocolSchemaVersion, documentSchemaVersion, commands,
+adapters, providers, resolvers }`; plain output is concise human-readable
+  text. `owlie --version --json` writes the versioned envelope
+  `{ schemaVersion: 1, command: "version", result: <version> }` while plain
+  `owlie --version` output is unchanged.
 
 ## Conventions
 

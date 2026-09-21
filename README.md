@@ -166,7 +166,7 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 | Option                                                   | Applies to                                  | Description                                                                                                               |
 | -------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `--help`, `-h`                                           | all                                         | Show help (or help for a command)                                                                                         |
-| `--version`, `-V`                                        | all                                         | Show version                                                                                                              |
+| `--version`, `-V`                                        | all                                         | Show version (`--version --json` emits the versioned envelope)                                                            |
 | `--quiet`, `-q`                                          | all                                         | Suppress diagnostics on stderr                                                                                            |
 | `--json`                                                 | all                                         | Emit the versioned JSON subprocess protocol on stdout (`{ schemaVersion, command, result }` envelope, or versioned JSONL) |
 | `--env-file PATH`                                        | all                                         | Load an explicit environment file                                                                                         |
@@ -239,6 +239,8 @@ owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed
 owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)
 owlie auth add|list|remove PROVIDER  # manage API keys in the local store
 owlie setup        # configure providers, models, and API keys
+owlie capabilities [--json]  # report the artifact, schema, and catalog manifest
+owlie --version --json  # versioned scalar version response
 ```
 
 `--quiet`/`-q` suppresses diagnostics, `--json` emits machine-readable output,

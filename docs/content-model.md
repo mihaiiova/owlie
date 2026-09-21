@@ -28,10 +28,10 @@ title/description/publishedAt/author, and `metadata`.
 
 ## Normalized documents
 
-Extraction produces a `NormalizedDocument` with `schemaVersion: 1`, a stable
+Extraction produces a `NormalizedDocument` with `schemaVersion: 2`, a stable
 `id`, `sourceType`, `canonicalUrl`, a `mediaType` (`text` | `transcript` |
-`mixed`), the normalized `text`, and optional title/publishedAt/author and
-metadata.
+`mixed`), the normalized `text`, optional title/publishedAt/author and
+metadata, and a required first-class `provenance` field.
 
 Not every document is a transcript:
 
@@ -39,15 +39,37 @@ Not every document is a transcript:
 - Reddit and RSS documents contain normalized written text.
 - Local documents (`sourceType: 'local'`) contain user-supplied text with no
   remote canonical URL (represented as an empty string). Their identity is
-  `local:stdin` for piped stdin or `local:file:<basename>` for a text file.
+  `local:stdin` for piped stdin or `local:file:<normalized-absolute-path>` for
+  a text file.
+
+### Provenance
+
+Every v2 document carries `provenance` with:
+
+- `sourceId` — the stable idempotency identity, distinct from the content
+  fingerprint. Adapter item identities remain authoritative; podcast resolver
+  extraction derives it from the canonical supplied locator (never the
+  resolved/signed media URL).
+- `canonicalUrl` — the redacted canonical source URL (no userinfo, query, or
+  fragment).
+- `adapterId` — the adapter that produced the document.
+- `resolverId` — the selected podcast resolver, when resolver extraction
+  produced it.
+- `fetchedAt` — the ISO-8601 UTC timestamp stamped once at the CLI boundary.
+- `language` — the normalized transcript language when available.
+- `contentFingerprint` — `{ algorithm: "sha256", digest }` over the exact
+  normalized document `text` UTF-8 bytes (source identity and mutable metadata
+  are excluded).
+- `warnings` — structured `{ code, message }` entries (for example
+  `ARTICLE_FALLBACK`).
 
 ## Stable identities
 
 Identities must be stable across runs so callers can correlate items and
 deduplicate results. Adapters derive them from canonical URLs and provider
 identifiers — never from volatile page structure. Local documents derive their
-identity from the resolved input (stdin or the file basename), which stays
-stable for the same input without leaking host-specific absolute paths.
+identity from the resolved input (stdin or the normalized absolute file path),
+which stays stable for the same input.
 
 ## Discriminated unions
 
