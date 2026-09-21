@@ -69,6 +69,15 @@ describe('--help', () => {
     expect(stdout()).toContain('--model provider/model-id');
     expect(stdout()).not.toContain('--provider');
   });
+
+  it('documents feed discovery from supplied pages in list/extract/process help', async () => {
+    for (const command of ['list', 'extract', 'process']) {
+      const { io, stdout } = capture();
+      const code = await run([command, '--help'], io);
+      expect(code).toBe(ExitCode.Success);
+      expect(stdout()).toMatch(/page|discover/i);
+    }
+  });
 });
 
 describe('direct-media limit flags', () => {

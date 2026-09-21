@@ -14,10 +14,12 @@ text that can be searched, transcribed, and processed with an LLM — locally.
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
-episode URLs, and declarative server-rendered episode pages, static articles, and bounded RSS/Atom feed batches),
+episode URLs, and declarative server-rendered episode pages, and bounded RSS/Atom feed batches —
+from a feed URL or an HTML page URL that exposes one),
 `owlie list`, `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
-stdin document, a normalized JSON document, a single http(s) URL, or a feed
+stdin document, a normalized JSON document, a single http(s) URL — which still
+uses the static-article adapter — or a feed
 `--each` batch, selected
 by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `--provider` alias, `OWLIE_PROVIDER`, or the saved active provider),
@@ -54,8 +56,9 @@ differ from older v1 plans.
 ### v0.1 (current milestone)
 
 Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
-URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
-RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
+URL, Apple Podcasts episode URL, declarative server-rendered episode page, or a bounded
+RSS/Atom feed — supplied as a feed URL or an HTML page URL that exposes one),
+`owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
 `owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie capabilities`,
 `owlie --help`, `owlie --version`. In scope: individual YouTube video transcript
@@ -63,9 +66,10 @@ extraction, direct-media, Apple Podcasts episode, and declarative episode-page
 podcast transcription via local faster-whisper, explicit resolver-selection
 flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
 `resolve`, a single generic local faster-whisper pipeline with chunked long-form
-transcription, static article extraction via the universal `extract`
-dispatch, bounded RSS/Atom listing, linked-item feed extraction, and linked-item
-feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
+transcription, static article extraction via the universal dispatch (`process
+URL` and linked-item feed extraction), bounded RSS/Atom listing, linked-item
+feed extraction, linked-item feed processing (`process --each`), and bounded
+one-hop RSS/Atom feed discovery from supplied HTML pages (ADR 0033), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), a provider-neutral
 `ProviderCatalog` for dynamic model discovery, BYOK credential management
 (`owlie auth`), the `--model provider/model-id` selection model (the deprecated

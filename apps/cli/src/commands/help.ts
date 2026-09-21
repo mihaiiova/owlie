@@ -4,9 +4,9 @@ Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract content from a YouTube video, an article, or an RSS/Atom feed
+  extract   Extract a YouTube video, podcast episode, or an RSS/Atom feed (direct URL or discovered page)
   resolve   Resolve a URL to its validated audio media URL (no transcription)
-  list      List entries in an RSS/Atom feed
+  list      List entries in an RSS/Atom feed (direct URL or discovered page)
   process   Process text, a document, a URL, or a feed's linked items with an LLM
   models    List current models for your LLM providers
   auth      Manage API keys for LLM providers
@@ -38,12 +38,15 @@ Exit codes:
 
 const EXTRACT_HELP =
   'owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
-  'Extract content from a URL. A YouTube video or static article writes its\n' +
+  'Extract content from a URL. A YouTube video or podcast episode writes its\n' +
   'normalized text to stdout, or a JSON NormalizedDocument with --json. An\n' +
-  'RSS/Atom feed URL writes a single JSON envelope of its bounded linked items,\n' +
-  'each with its URL, title, and normalized document or structured error.\n' +
-  '--limit bounds feed extraction (default 10, max 500). --language sets a\n' +
-  'comma-separated language priority list for YouTube transcripts (default en).\n' +
+  'RSS/Atom feed URL — or an HTML page URL that exposes one via a link element\n' +
+  'or a conventional feed path — writes a single JSON envelope of its bounded\n' +
+  'linked items, each with its URL, title, and normalized document or\n' +
+  'structured error. A page URL with no discoverable feed is a clear error\n' +
+  'rather than article extraction. --limit bounds feed extraction (default 10,\n' +
+  'max 500). --language sets a comma-separated language priority list for\n' +
+  'YouTube transcripts (default en).\n' +
   '--timeout-ms applies one positive end-to-end deadline to the complete\n' +
   'invocation: listing, safe HTTP requests, extraction/transcription, feed\n' +
   'processing, and provider calls. Cancellation exits 130 with a structured\n' +
@@ -67,8 +70,10 @@ const RESOLVE_HELP =
 const LIST_HELP =
   'owlie list FEED_URL [--limit N] [--json]\n\n' +
   'List entries in an RSS/Atom feed, bounded by --limit (default 10, max 500).\n' +
-  'Writes a line-oriented summary to stdout, or a JSON envelope of collection\n' +
-  'metadata, item metadata, and truncation state with --json.';
+  'A feed URL is used directly; an HTML page URL that exposes a feed is\n' +
+  'discovered first. Writes a line-oriented summary to stdout, or a JSON\n' +
+  'envelope of collection metadata, item metadata, and truncation state with\n' +
+  '--json.';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +
@@ -79,10 +84,11 @@ const PROCESS_HELP =
   'file, --input FILE, or stdin. --model selects the model; use\n' +
   'provider/model-id to select the provider too, or a plain model-id with\n' +
   'the saved active provider or OWLIE_PROVIDER. Model ids are discovered at\n' +
-  'runtime (see `owlie models`). With --each and a feed URL, processes each\n' +
-  'bounded linked item sequentially and streams one JSONL record per\n' +
-  'attempted entry (success: item, document, result; failure: item, error).\n' +
-  '--limit bounds the batch (default 10, max 500).';
+  'runtime (see `owlie models`). With --each and a feed URL — or an HTML page\n' +
+  'URL that exposes one — processes each bounded linked item sequentially and\n' +
+  'streams one JSONL record per attempted entry (success: item, document,\n' +
+  'result; failure: item, error). --limit bounds the batch (default 10, max\n' +
+  '500).';
 
 const MODELS_HELP =
   'owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]\n\n' +
