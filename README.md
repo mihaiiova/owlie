@@ -10,10 +10,13 @@ processed with an LLM — entirely on your machine.
 
 > **Status: functional core (v0.1 milestone complete).** The v0.1 milestone is
 > shipped (latest release v0.4.0) and covers: `owlie extract` (YouTube
-> transcripts, local podcast transcription, static articles, and bounded feed
-> batches), `owlie resolve` (validated audio media URLs), `owlie list` and
-> `owlie process --each` (RSS/Atom feeds), and `owlie process` (text,
-> documents, or URLs with DeepSeek or OpenAI). The repository compiles, lints,
+> transcripts, local podcast transcription, and bounded feed batches — from a
+> feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
+> audio media URLs), `owlie list` and
+> `owlie process --each` (RSS/Atom feeds, direct or discovered), and `owlie
+process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
+> extracted through the universal dispatch including the static-article
+> adapter). The repository compiles, lints,
 > and tests cleanly. See [Product scope](docs/product-scope.md) for what works
 > and what does not.
 
@@ -27,11 +30,10 @@ owlie extract "https://www.youtube.com/watch?v=..."
 # an Apple Podcasts episode URL, or a declarative server-rendered episode page
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 
-# Extract the readable text of a static article
-owlie extract "https://example.com/story"
-
-# List or batch-extract the bounded items of an RSS/Atom feed
+# List or batch-extract the bounded items of an RSS/Atom feed, supplied as a
+# feed URL or an HTML page URL that exposes one
 owlie list "https://example.com/feed.xml" --limit 20
+owlie extract "https://example.com/" --limit 20
 
 # Process text, a document, or a URL with DeepSeek or OpenAI
 owlie extract "https://www.youtube.com/watch?v=..." |
@@ -58,9 +60,6 @@ owlie extract "https://www.youtube.com/watch?v=..."
 owlie extract "https://www.youtube.com/watch?v=..." --language en,es
 owlie extract "https://www.youtube.com/watch?v=..." --json   # JSON NormalizedDocument
 
-# Static article text
-owlie extract "https://example.com/story"
-
 # Podcast audio (requires local Python + faster-whisper, ffmpeg, ffprobe,
 # and a pre-provisioned Whisper model). A direct-media invocation can bound
 # the whole operation and the download size.
@@ -71,8 +70,10 @@ owlie extract "https://publisher.example/episodes/my-episode"
 # Authoritative resolver selection (no fallback; at most one flag)
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890" --podcast-apple
 
-# Bounded linked-item extraction from an RSS/Atom feed (one JSON envelope)
+# Bounded linked-item extraction from an RSS/Atom feed (one JSON envelope).
+# A direct feed URL or an HTML page URL that exposes a feed both work.
 owlie extract "https://example.com/feed.xml" --limit 20
+owlie extract "https://example.com/" --limit 20
 ```
 
 ### Resolve
@@ -86,7 +87,9 @@ owlie resolve "https://publisher.example/episodes/my-episode" --podcast-page --j
 ### List
 
 ```bash
+# A feed URL works directly; an HTML page URL that exposes a feed is discovered
 owlie list "https://example.com/feed.xml" --limit 20
+owlie list "https://example.com/" --limit 20
 owlie list "https://example.com/feed.xml" --json   # collection + item metadata + truncated
 ```
 
@@ -114,8 +117,10 @@ owlie process transcript.txt --prompt "Summarize this" --model openai/gpt-4o-min
 # JSON result instead of text/markdown
 owlie process transcript.txt --prompt "Summarize this" --json
 
-# Process each linked item of a feed, streaming one JSONL record per item
+# Process each linked item of a feed, streaming one JSONL record per item.
+# A direct feed URL or an HTML page URL that exposes a feed both work.
 owlie process "https://example.com/feed.xml" --each --limit 20 --prompt "Summarize this"
+owlie process "https://example.com/" --each --limit 20 --prompt "Summarize this"
 ```
 
 ### Models
@@ -199,7 +204,8 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 Individual items:
 
 - YouTube video (v0.1)
-- Static article (v0.1, via universal `extract`)
+- Static article (v0.1, via the universal dispatch — `process URL` and
+  linked-item feed extraction)
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
@@ -208,19 +214,22 @@ Collections (deferred — not implemented in v0.1):
 
 - YouTube playlist
 - Subreddit (via Reddit's public Atom feeds)
-- RSS/Atom feed (bounded `owlie list` and `owlie extract` are functional)
+- RSS/Atom feed (bounded `owlie list` and `owlie extract`, plus one-hop
+  discovery from an HTML page URL, are functional)
 
 ## Planned operations
 
-- `extract` normalized text from an individual item (YouTube video or static
-  article) or the bounded linked items of an RSS/Atom feed
+- `extract` normalized text from an individual item (YouTube video or podcast)
+  or the bounded linked items of an RSS/Atom feed (direct URL or discovered
+  page)
 - `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
 - `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
   JSONL record per item
-- `list` items in a collection (RSS/Atom feeds)
+- `list` items in a collection (RSS/Atom feeds, direct or discovered)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
-- `extract` a transcript from podcast media, an Apple Podcasts episode, or a declarative episode page via local Whisper (v0.1)
+- `extract` a transcript from podcast media, an Apple Podcasts episode, or a
+  declarative episode page via local Whisper (v0.1)
 - `process` each item in other (non-feed) collections with an LLM (deferred)
 
 Owlie CLI does **not** monitor sources or schedule recurring work.
@@ -231,7 +240,7 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor [--json]
-owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, article, or bounded feed
+owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, or bounded feed (direct or discovered page)
 owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
@@ -256,8 +265,12 @@ report an "unknown command" usage error (exit code 2) rather than pretending
 to work.
 
 `owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
-dispatches a direct URL to the YouTube, podcast, or article adapter — or, for a feed
-URL, extracts its bounded linked items into one JSON envelope. `owlie resolve`
+dispatches a direct URL to the YouTube or podcast adapter — or, for a feed
+URL (or an HTML page URL that exposes one), extracts its bounded linked items
+into one JSON envelope. Bounded one-hop feed discovery fetches only the
+supplied page, reads `<link rel="alternate">` elements with a constrained
+tokenizer, and otherwise probes six fixed same-origin conventional paths; it
+never executes JavaScript or follows links recursively. `owlie resolve`
 prints a validated audio media URL without transcribing it, with optional
 `--podcast-media`/`--podcast-page`/`--podcast-apple` resolver selection. Remote text
 fetches allow only globally routable destinations by default, canonically
@@ -287,7 +300,8 @@ Owlie CLI does not provide:
 - Reddit OAuth, comment-tree extraction, or HTML scraping
 - generic webpage crawling or browser-rendered extraction (the reusable
   `article` adapter is limited to directly supplied, server-rendered editorial
-  HTML obtained through Owlie's safe HTTP fetcher)
+  HTML obtained through Owlie's safe HTTP fetcher; feed discovery from a
+  supplied page is bounded and one-hop, not a crawl)
 - telemetry
 
 Those responsibilities — where they exist at all — belong to the private,

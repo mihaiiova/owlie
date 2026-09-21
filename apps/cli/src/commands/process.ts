@@ -33,7 +33,13 @@ import {
 } from '../config.js';
 import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
-import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import {
+  canDiscoverFeed,
+  discoverFeedUrl,
+  extractLinkedItem,
+  itemRef,
+  toBatchError,
+} from '../feed.js';
 import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
 import {
@@ -457,22 +463,33 @@ async function runFeedProcessing(
   const itemAdapters = resolveItemAdapters(options, deps, readConfig);
   const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
 
+  let feedUrl = url;
   if (!feedAdapter.recognize({ url })) {
-    if (!options.quiet)
-      writeUsageError(
-        io,
-        options,
-        'process',
-        `--each requires an RSS/Atom feed URL, received "${url}"`,
-      );
-    return ExitCode.Usage;
+    const discovered = canDiscoverFeed(feedAdapter)
+      ? await discoverFeedUrl(feedAdapter, url, deps.signal)
+      : undefined;
+    if (discovered === undefined) {
+      if (!options.quiet)
+        writeUsageError(
+          io,
+          options,
+          'process',
+          `--each requires an RSS/Atom feed URL or a page that exposes one, received "${url}"`,
+        );
+      return ExitCode.Usage;
+    }
+    feedUrl = discovered;
   }
 
   const processor = resolveProcessorForCommand(options, deps);
 
   const limit = parseCollectionLimit(options.limit);
   spinner.start('processing feed');
-  const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
+  const result = await listCollection(
+    feedAdapter,
+    { url: feedUrl },
+    { limit, signal: deps.signal },
+  );
 
   let failed = false;
   const progress = createProgressSink(io, options, 'process', (event) => {

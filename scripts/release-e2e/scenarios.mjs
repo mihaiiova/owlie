@@ -281,15 +281,46 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       }),
     },
     {
-      name: 'extract article',
+      name: 'list discovered feed',
       allowProxyFallback: false,
-      run: () => spawn({ args: ['extract', articleUrl, '--json'], env: {}, timeoutMs: 60_000 }),
-      assert: jsonAssert(parseJson, (doc) => {
-        if (doc.sourceType !== 'article') return { ok: false, error: 'wrong sourceType' };
-        if (doc.mediaType !== 'text') return { ok: false, error: 'wrong mediaType' };
-        if (typeof doc.text !== 'string' || !doc.text.includes(corpus.marker)) {
-          return { ok: false, error: 'article text missing marker' };
+      run: () =>
+        spawn({ args: ['list', articleUrl, '--limit', '2', '--json'], env: {}, timeoutMs: 60_000 }),
+      assert: jsonAssert(parseJson, (envelope) => {
+        if (!Array.isArray(envelope.items) || envelope.items.length !== corpus.entryCount) {
+          return {
+            ok: false,
+            error: `expected ${corpus.entryCount} items, got ${envelope.items?.length}`,
+          };
         }
+        if (envelope.items[0]?.canonicalUrl !== articleUrl) {
+          return { ok: false, error: 'first item does not link the article' };
+        }
+        if (envelope.truncated !== false)
+          return { ok: false, error: 'feed unexpectedly truncated' };
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'extract discovered feed',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['extract', articleUrl, '--limit', '2', '--json'],
+          env: {},
+          timeoutMs: 60_000,
+        }),
+      assert: jsonAssert(parseJson, (envelope) => {
+        if (!Array.isArray(envelope.items) || envelope.items.length !== corpus.entryCount) {
+          return { ok: false, error: `expected ${corpus.entryCount} items` };
+        }
+        const doc = envelope.items[0]?.document;
+        if (doc?.sourceType !== 'article')
+          return { ok: false, error: 'linked item not extracted as article' };
+        if (typeof doc.text !== 'string' || !doc.text.includes(corpus.marker)) {
+          return { ok: false, error: 'linked article text missing marker' };
+        }
+        if (envelope.truncated !== false)
+          return { ok: false, error: 'feed unexpectedly truncated' };
         return { ok: true };
       }),
     },
@@ -359,7 +390,7 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       name: 'extract → process pipeline',
       allowProxyFallback: false,
       run: () => {
-        const extracted = spawn({ args: ['extract', articleUrl], env: {}, timeoutMs: 60_000 });
+        const extracted = spawn({ args: ['extract', youtubeUrl], env: {}, timeoutMs: 60_000 });
         if (extracted.status !== 0) return extracted;
         return spawn({
           args: ['process', '--prompt', 'Reply with exactly: OK', '--json'],
@@ -387,6 +418,51 @@ export function buildScenarios(ctx, spawn, spawnTty) {
           args: [
             'process',
             feedUrl,
+            '--each',
+            '--limit',
+            '2',
+            '--prompt',
+            'Reply with exactly: OK',
+            '--quiet',
+          ],
+          env: {
+            OWLIE_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: apiKey,
+            DEEPSEEK_MODEL: 'deepseek-chat',
+          },
+          timeoutMs: 120_000,
+        }),
+      assert: (result) => {
+        if (!assertExitCode(result, 0).ok) return assertExitCode(result, 0);
+        const parsed = parseJsonLines(result.stdout);
+        if (!parsed.ok) return { ok: false, errors: [parsed.error] };
+        if (parsed.records.length !== corpus.entryCount) {
+          return {
+            ok: false,
+            errors: [`expected ${corpus.entryCount} records, got ${parsed.records.length}`],
+          };
+        }
+        const record = parsed.records[0];
+        if (record?.item?.url !== articleUrl)
+          return { ok: false, errors: ['record item missing article url'] };
+        if (record?.error) return { ok: false, errors: [`record failed: ${record.error.message}`] };
+        if (!assertMatch(record?.result?.output, /OK/i).ok) {
+          return { ok: false, errors: ['record output missing OK marker'] };
+        }
+        if (!assertNoSecrets(result.stdout, secrets).ok) {
+          return { ok: false, errors: ['process output leaked a secret'] };
+        }
+        return { ok: true, errors: [] };
+      },
+    },
+    {
+      name: 'process --each discovered feed',
+      allowProxyFallback: false,
+      run: () =>
+        spawnTty({
+          args: [
+            'process',
+            articleUrl,
             '--each',
             '--limit',
             '2',

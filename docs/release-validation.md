@@ -19,30 +19,35 @@ The workflow proves the published artifact can:
 
 The scenario inventory lives in `scripts/release-e2e/scenarios.mjs`:
 
-| Scenario                   | Command(s)                                                                | External dependency             |
-| -------------------------- | ------------------------------------------------------------------------- | ------------------------------- |
-| help                       | `owlie --help`                                                            | none                            |
-| version                    | `owlie --version`                                                         | none                            |
-| version --json             | `owlie --version --json`                                                  | none                            |
-| capabilities               | `owlie capabilities --json`                                               | none                            |
-| doctor                     | `owlie doctor --json`                                                     | none                            |
-| setup (proxy none)         | `owlie setup` via a pseudo-terminal                                       | none                            |
-| list                       | `owlie list <feed> --limit 2 --json`                                      | Pages feed                      |
-| extract article            | `owlie extract <article> --json`                                          | Pages article                   |
-| extract youtube            | `owlie extract <youtube> --json`                                          | YouTube                         |
-| extract feed               | `owlie extract <feed> --limit 2 --json`                                   | Pages feed + article            |
-| process file               | `owlie process <file> --prompt "Reply with exactly: OK" --json`           | DeepSeek                        |
-| extract → process pipeline | `extract <article>` piped into `process --json`                           | Pages article + DeepSeek        |
-| process feed --each        | `owlie process <feed> --each --limit 2 --prompt "Reply with exactly: OK"` | Pages feed + article + DeepSeek |
+| Scenario                       | Command(s)                                                                   | External dependency                       |
+| ------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------- |
+| help                           | `owlie --help`                                                               | none                                      |
+| version                        | `owlie --version`                                                            | none                                      |
+| version --json                 | `owlie --version --json`                                                     | none                                      |
+| capabilities                   | `owlie capabilities --json`                                                  | none                                      |
+| doctor                         | `owlie doctor --json`                                                        | none                                      |
+| setup (proxy none)             | `owlie setup` via a pseudo-terminal                                          | none                                      |
+| list                           | `owlie list <feed> --limit 2 --json`                                         | Pages feed                                |
+| list discovered feed           | `owlie list <article> --limit 2 --json`                                      | Pages article → feed                      |
+| extract discovered feed        | `owlie extract <article> --limit 2 --json`                                   | Pages article → feed + article            |
+| extract youtube                | `owlie extract <youtube> --json`                                             | YouTube                                   |
+| extract feed                   | `owlie extract <feed> --limit 2 --json`                                      | Pages feed + article                      |
+| process file                   | `owlie process <file> --prompt "Reply with exactly: OK" --json`              | DeepSeek                                  |
+| extract → process pipeline     | `extract <youtube>` piped into `process --json`                              | YouTube + DeepSeek                        |
+| process feed --each            | `owlie process <feed> --each --limit 2 --prompt "Reply with exactly: OK"`    | Pages feed + article + DeepSeek           |
+| process --each discovered feed | `owlie process <article> --each --limit 2 --prompt "Reply with exactly: OK"` | Pages article → feed + article + DeepSeek |
 
 ## Controlled corpus
 
 The article and feed live in `e2e/corpus/` and are published to GitHub Pages by
 `.github/workflows/pages.yml`. They are project-controlled so the suite
 depends on stable, reproducible content rather than mutable third-party
-editorial pages. The runner validates the expected markers, entry count, and
-linked-article relationship before running, so stale or unexpected corpus
-content fails clearly.
+editorial pages. The article page declares a `<link rel="alternate"
+ type="application/rss+xml" href="feed.xml">` element so the discovery
+scenarios exercise bounded one-hop feed discovery from a supplied page. The
+runner validates the expected markers, entry count, and linked-article
+relationship before running, so stale or unexpected corpus content fails
+clearly.
 
 A small generated WAV (`e2e/corpus/audio.wav`) lives in the same corpus and is
 the controlled direct-media fixture for the packaged extractor runtime

@@ -6,9 +6,9 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract a YouTube video, an article, or a feed's linked items   (v0.1)
+owlie extract  Extract a YouTube video, a podcast, or a feed's linked items   (v0.1)
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
-owlie list     List entries in an RSS/Atom feed            (functional)
+owlie list     List entries in an RSS/Atom feed (direct URL or discovered page) (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie models   List current models for your LLM providers     (v0.1)
 owlie auth     Manage API keys for LLM providers             (v0.1)
@@ -78,15 +78,21 @@ owlie capabilities [--json]
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
   to the YouTube adapter; podcast direct-audio URLs, Apple Podcasts episode
   URLs, and safe server-rendered episode pages with declarative audio metadata
-  to the podcast adapter; then any remaining safe HTTP(S) URL to the article
-  adapter. Apple episodes resolve through Apple's public lookup API, with a
-  matching RSS enclosure fallback. Other episode pages use JSON-LD, declared
-  oEmbed, `<audio>`/`<source>`, or RSS/Atom enclosure signals;
-  they never execute JavaScript, and a safe episode-page URL with no
-  discoverable audio defers to the article adapter with a stderr diagnostic.
-  It writes transcript/article text, or a JSON
-  `NormalizedDocument` with `--json`. `--language LANG` sets a comma-separated
-  language priority list for YouTube transcripts (default `en`). Podcast
+  to the podcast adapter. A remaining safe HTTP(S) URL is then a feed-discovery
+  candidate: the command fetches the supplied page (HTML/XHTML only), reads
+  eligible `<link rel="alternate">` elements, and otherwise probes the six
+  fixed same-origin conventional paths, then runs the bounded linked-item
+  batch on the top-ranked discovered feed. A page URL with no discoverable
+  feed is a clear error (it is not reinterpreted as an article). Apple episodes
+  resolve through Apple's public lookup API, with a matching RSS enclosure
+  fallback. Other episode pages use JSON-LD, declared oEmbed,
+  `<audio>`/`<source>`, or RSS/Atom enclosure signals; they never execute
+  JavaScript, and a safe episode-page URL with no discoverable audio is treated
+  as a feed-discovery candidate rather than article text.
+  It writes transcript text, or a feed batch JSON envelope for a feed/page
+  URL, or a JSON `NormalizedDocument` with `--json` for a direct item.
+  `--language LANG` sets a comma-separated language priority list for YouTube
+  transcripts (default `en`). Podcast
   transcription requires local Python with faster-whisper, ffmpeg, and ffprobe.
   A resolver-selection flag (`--podcast-media`, `--podcast-page`,
   `--podcast-apple`) asserts which podcast resolver finds the audio URL; at
@@ -100,7 +106,8 @@ owlie capabilities [--json]
   terminates the active local command and cleans temporary media and
   transcription artifacts. Long media is transcribed in bounded five-minute
   chunks (two-second overlap) with monotonic progress.
-- `extract` on an RSS/Atom feed URL performs a bounded linked-item batch
+- `extract` on an RSS/Atom feed URL — or an HTML page URL that exposes one —
+  performs a bounded linked-item batch
   extraction and always writes a single versioned JSON envelope (regardless of
   `--json`) whose `result` is
   `{ collection, items: [{ url, title, document } | { url, title, error }], truncated }`.
@@ -115,7 +122,8 @@ owlie capabilities [--json]
   whose `result` is `{ resolver, mediaUrl, metadata }`. A flag the URL does not
   match is a usage error (exit code 2); resolution failures (no enclosure,
   unsafe media URL, incompatible content type) are general errors (exit code 1).
-- `list` resolves an RSS/Atom feed URL and writes a bounded, line-oriented
+- `list` resolves an RSS/Atom feed URL (or discovers one from a supplied HTML
+  page URL) and writes a bounded, line-oriented
   summary of its entries to stdout, or a single JSON envelope with `--json`
   (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
   listing (default 10, maximum 500); invalid or oversized limits fail with a
@@ -127,7 +135,8 @@ owlie capabilities [--json]
   single-input mode is rejected with guidance to use `--each`. Empty piped
   stdin is a clear error (exit code 1).
 - `process FEED_URL --each` is the collection-processing mode. It resolves the
-  feed, then lists, extracts (through the same universal dispatch), and
+  feed (or discovers one from a supplied HTML page URL), then lists, extracts
+  (through the same universal dispatch), and
   processes each bounded linked item sequentially in feed order, streaming one
   JSONL record per attempted entry to stdout. Every record carries
   `schemaVersion` and `command: "process"`. Success records add
@@ -135,8 +144,8 @@ owlie capabilities [--json]
   `{ item: { url, title }, error: { code, message, stage } }` where `stage` is
   `extraction` or `processing`. It retains successful items, exits 1 if any
   record is an error, and `--limit N` bounds the batch (default 10, maximum
-  500). `--each` rejects `--input`, piped stdin, and non-feed URLs as usage
-  errors (exit code 2).
+  500). `--each` rejects `--input`, piped stdin, and URLs with no discoverable
+  feed as usage errors (exit code 2).
 - `process` selects a provider and model via `--model`. A compound
   `--model provider/model-id` is self-contained; a plain `--model model-id`
   resolves the provider from the deprecated `--provider` alias, then

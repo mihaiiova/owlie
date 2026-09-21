@@ -17,6 +17,7 @@ import type { CliDeps, CliIo } from 'owlie';
 const FEED_URL = 'https://example.com/feed.xml';
 const YT_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const ARTICLE_URL = 'https://example.com/story-one';
+const PAGE_URL = 'https://example.com/';
 
 /** Sanitized RSS 2.0 fixture (no credentials, user data, or network content). */
 const RSS20 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -139,6 +140,23 @@ function makeFeedAdapter(entries: { url: string; title?: string }[], listError?:
       return { collection, items, truncated: entries.length > options.limit };
     },
   };
+  return { adapter, calls };
+}
+
+/** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
+function makeDiscoveringFeedAdapter(
+  entries: { url: string; title?: string }[],
+  discoveredUrl: string,
+) {
+  const { adapter, calls } = makeFeedAdapter(entries);
+  (adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [
+    {
+      id: `rss:feed:${discoveredUrl}`,
+      sourceType: 'rss' as const,
+      canonicalUrl: discoveredUrl,
+      metadata: { format: 'rss' },
+    },
+  ];
   return { adapter, calls };
 }
 
@@ -381,6 +399,45 @@ describe('process --each (feed collection mode)', () => {
     expect(code).toBe(ExitCode.Usage);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('feed');
+  });
+
+  it('discovers a feed from a supplied page URL and processes each entry', async () => {
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeDiscoveringFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }], FEED_URL);
+    const { processor } = makeProcessor();
+
+    const { io, jsonl } = capture();
+    const code = await run(
+      ['process', PAGE_URL, '--each', '--prompt', 'Summarize'],
+      io,
+      feedDeps([youtube.adapter, article.adapter], feed.adapter, processor),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    const records = jsonl();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      item: { url: ARTICLE_URL, title: 'A story' },
+      document: { sourceType: 'article' },
+      result: { output: 'processed:article text' },
+    });
+  });
+
+  it('returns a usage error when discovery finds no feed for --each', async () => {
+    const article = makeItemAdapter('article');
+    const feed = makeDiscoveringFeedAdapter([], FEED_URL);
+    (feed.adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [];
+    const { processor } = makeProcessor();
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['process', PAGE_URL, '--each', '--prompt', 'x'],
+      io,
+      feedDeps([article.adapter], feed.adapter, processor),
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('page that exposes one');
   });
 
   it('maps a feed listing failure to exit 1', async () => {

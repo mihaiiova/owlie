@@ -13,6 +13,7 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   listCollection,
+  NotHandledError,
 } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -23,7 +24,7 @@ import type { CliOptions } from '../cli.js';
 import { cacheDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
 import { extractWithFallback } from '../dispatch.js';
-import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import { extractLinkedItem, itemRef, resolveFeedCollectionUrl, toBatchError } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
 import { resolvePodcastAudio } from '../resolvers.js';
@@ -155,7 +156,15 @@ export async function runExtractCommand(
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
-    return await runDirectExtraction(url, io, itemAdapters, spinner, options, deps);
+    return await runDirectOrDiscoveredExtraction(
+      url,
+      io,
+      itemAdapters,
+      feedAdapter,
+      spinner,
+      options,
+      deps,
+    );
   } catch (error) {
     spinner.stop();
     writeCommandError(io, options, 'extract', error);
@@ -165,6 +174,41 @@ export async function runExtractCommand(
 
 /** stderr notice when a URL defers from audio resolution to article text. */
 export const ARTICLE_FALLBACK_NOTICE = ARTICLE_FALLBACK_WARNING.message;
+
+/** Whether an error means "no item adapter recognized this URL". */
+function isNoAdapterConfigurationError(error: unknown): boolean {
+  return (
+    error instanceof ConfigurationError && error.message.startsWith('no adapter recognizes URL')
+  );
+}
+
+/**
+ * Routes a non-feed URL through the specialized item adapters (YouTube,
+ * podcast). When none handles it — the article adapter is no longer a
+ * top-level fallback for `extract` — the command attempts bounded collection
+ * discovery instead and fails with a clear discovery error when no feed is
+ * found.
+ */
+async function runDirectOrDiscoveredExtraction(
+  url: string,
+  io: CliIo,
+  itemAdapters: readonly ItemAdapter[],
+  feedAdapter: CollectionAdapter,
+  spinner: SpinnerLike,
+  options: CliOptions,
+  deps: ExtractDeps,
+): Promise<number> {
+  const specialized = itemAdapters.filter((adapter) => adapter.sourceType !== 'article');
+  try {
+    return await runDirectExtraction(url, io, specialized, spinner, options, deps);
+  } catch (error) {
+    if (!(error instanceof NotHandledError) && !isNoAdapterConfigurationError(error)) {
+      throw error;
+    }
+    const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
+    return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+  }
+}
 
 async function runDirectExtraction(
   url: string,
@@ -186,11 +230,6 @@ async function runDirectExtraction(
       signal: deps.signal,
       progress,
       clock: deps.clock,
-      onFallback: () => {
-        if (!options.quiet && !options.json) {
-          writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
-        }
-      },
     },
   );
   spinner.stop();
