@@ -243,12 +243,14 @@ describe('buildScenarios', () => {
       'doctor',
       'setup (proxy none)',
       'list',
-      'extract article',
+      'list discovered feed',
+      'extract discovered feed',
       'extract youtube',
       'extract feed',
       'process file',
       'extract → process pipeline',
       'process feed --each',
+      'process --each discovered feed',
       'deadline cancellation',
     ]);
     for (const s of scenarios) {

@@ -57,11 +57,11 @@ const checks = [
     stderr: /requires a URL/i,
   },
   {
-    name: 'list rejects a non-feed URL',
-    args: ['list', 'https://example.com'],
+    name: 'list rejects an undiscoverable URL',
+    args: ['list', 'ftp://example.com'],
     status: 1,
     stdout: null,
-    stderr: /not a recognized RSS\/Atom feed URL/i,
+    stderr: /no RSS\/Atom feed discoverable/i,
   },
   {
     name: 'extract rejects an invalid URL',
