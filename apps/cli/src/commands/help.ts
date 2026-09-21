@@ -12,6 +12,7 @@ Commands:
   auth      Manage API keys for LLM providers
   setup     Configure providers and models interactively
   doctor    Report local environment health
+  capabilities  Report the artifact, schema, and catalog manifest
   help      Show this help
 
 Options:
@@ -114,6 +115,13 @@ const DOCTOR_HELP =
   'secret values), the functional adapters (YouTube, RSS, article), and the\n' +
   'writable config and cache directories.';
 
+const CAPABILITIES_HELP =
+  'owlie capabilities [--json]\n\n' +
+  'Report the credential-free startup manifest: the artifact version, the JSON\n' +
+  'protocol schema version, the normalized document schema version, and the\n' +
+  'supported command, adapter, provider, and resolver ids. Makes no network\n' +
+  'calls and reads no local configuration or secrets.';
+
 export function helpText(): string {
   return HELP;
 }
@@ -127,5 +135,6 @@ export function commandHelp(command: string): string {
   if (command === 'auth') return AUTH_HELP;
   if (command === 'setup') return SETUP_HELP;
   if (command === 'doctor') return DOCTOR_HELP;
+  if (command === 'capabilities') return CAPABILITIES_HELP;
   return `owlie ${command}\n\nUnknown command; run "owlie --help" for usage.`;
 }

@@ -12,11 +12,14 @@ import {
   USAGE_ERROR_CODE,
   writeCommandError,
   writeErrorRecord,
+  writeResultEnvelope,
   writeUsageError,
 } from './protocol.js';
 import { writeDiagnostic } from './style.js';
+import { isCommandId } from './commands/catalog.js';
 import { commandHelp, helpText } from './commands/help.js';
 import { runAuthCommand, type AuthDeps } from './commands/auth.js';
+import { runCapabilitiesCommand } from './capabilities.js';
 import { runDoctorCommand, type DoctorDeps } from './commands/doctor.js';
 import { runExtractCommand, type ExtractDeps } from './commands/extract.js';
 import { runListCommand, type ListDeps } from './commands/list.js';
@@ -238,7 +241,11 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
   try {
     if (parsed.versionRequested) {
-      bounded.stdout.write(`owlie ${VERSION}\n`);
+      if (options.json) {
+        writeResultEnvelope(bounded, 'version', VERSION);
+      } else {
+        bounded.stdout.write(`owlie ${VERSION}\n`);
+      }
       return ExitCode.Success;
     }
 
@@ -259,6 +266,18 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
     if (command === undefined || command === 'help') {
       bounded.stdout.write(helpText() + '\n');
       return ExitCode.Success;
+    }
+
+    if (!isCommandId(command)) {
+      if (!options.quiet) {
+        if (options.json) {
+          writeErrorRecord(bounded, command, USAGE_ERROR_CODE, `unknown command "${command}"`);
+        } else {
+          writeDiagnostic(bounded, 'warning', `unknown command "${command}"`);
+          bounded.stderr.write('Run "owlie --help" for usage.\n');
+        }
+      }
+      return ExitCode.Usage;
     }
 
     if (options.hosted) {
@@ -286,6 +305,10 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
     if (command === 'doctor') {
       return runDoctorCommand(bounded, options, deps.doctor);
+    }
+
+    if (command === 'capabilities') {
+      return runCapabilitiesCommand(bounded, options);
     }
 
     if (command === 'auth') {
@@ -370,20 +393,9 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
       }
     }
 
-    if (!options.quiet) {
-      if (options.json) {
-        writeErrorRecord(
-          bounded,
-          command ?? 'owlie',
-          USAGE_ERROR_CODE,
-          `unknown command "${command ?? ''}"`,
-        );
-      } else {
-        writeDiagnostic(bounded, 'warning', `unknown command "${command}"`);
-        bounded.stderr.write('Run "owlie --help" for usage.\n');
-      }
-    }
-    return ExitCode.Usage;
+    // Every registered command is handled above. Keep this guard for future
+    // registrations whose implementation branch has not yet been added.
+    throw new Error(`registered command is missing a dispatch handler: ${command}`);
   } catch (error) {
     // A stdout budget overflow can escape command-local handlers (help/version
     // and unknown-command paths write directly); surface it as a normal error.

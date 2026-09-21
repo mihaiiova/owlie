@@ -9,7 +9,7 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
-import { CancelledError, ExtractionError } from '@owlieio/core';
+import { CancelledError, ExtractionError, buildProvenance } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliIo } from 'owlie';
 
@@ -77,13 +77,20 @@ function articleAdapter(text = 'article body'): ItemAdapter {
     },
     async extract(item: ContentItem): Promise<NormalizedDocument> {
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'article',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text,
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'article',
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
     },
   };

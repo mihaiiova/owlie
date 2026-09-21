@@ -23,7 +23,12 @@ by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `--provider` alias, `OWLIE_PROVIDER`, or the saved active provider),
 `owlie models` (dynamic per-provider model discovery with a TTL cache),
 `owlie auth` (BYOK API-key add/list/remove),
-`owlie doctor`, `owlie setup`, `owlie --help`, and `owlie --version`. A global
+`owlie doctor`, `owlie setup`, `owlie capabilities` (credential-free artifact/
+schema/catalog manifest), `owlie --help`, and `owlie --version` (`--json` now
+emits the versioned envelope). Extraction documents carry a first-class v2
+`provenance` field (stable source identity, adapter/resolver ids, CLI-boundary
+`fetchedAt`, optional language, SHA-256 content fingerprint, and structured
+warnings; ADR 0032). A global
 `--hosted` flag makes any command deterministic for a hosted subprocess:
 flags and injected process environment only, with no dotenv, saved user
 configuration, or model-cache fallback, and `auth`/`setup` rejected. `--json`
@@ -52,8 +57,8 @@ Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, or declarative server-rendered episode page, a static article, or a bounded
 RSS/Atom feed), `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
-`owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie --help`,
-`owlie --version`. In scope: individual YouTube video transcript
+`owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie capabilities`,
+`owlie --help`, `owlie --version`. In scope: individual YouTube video transcript
 extraction, direct-media, Apple Podcasts episode, and declarative episode-page
 podcast transcription via local faster-whisper, explicit resolver-selection
 flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
@@ -65,7 +70,9 @@ feed processing (`process --each`), DeepSeek and OpenAI `ContentProcessor`s
 `ProviderCatalog` for dynamic model discovery, BYOK credential management
 (`owlie auth`), the `--model provider/model-id` selection model (the deprecated
 `--provider` flag remains a hidden alias), the global `--hosted` deterministic
-mode for hosted subprocess integration, pipe-first
+mode for hosted subprocess integration, the credential-free `owlie capabilities`
+startup manifest, v2 normalized documents with first-class extraction
+`provenance` (ADR 0032), pipe-first
 stream/output contracts, local text/stdin input modeled as the `local` source
 type, secure configuration, and the shared core and
 coding-agent harness.

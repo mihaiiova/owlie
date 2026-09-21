@@ -10,7 +10,12 @@ import type {
   NormalizedDocument,
   ProgressSink,
 } from '@owlieio/core';
-import { CancelledError, ExtractionError, JSON_PROTOCOL_SCHEMA_VERSION } from '@owlieio/core';
+import {
+  buildProvenance,
+  CancelledError,
+  ExtractionError,
+  JSON_PROTOCOL_SCHEMA_VERSION,
+} from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -54,13 +59,20 @@ function articleAdapter(progress?: ProgressSink): ItemAdapter {
     async extract(item: ContentItem, options) {
       options?.progress?.emit({ type: 'started', target: item.canonicalUrl });
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'article',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text: 'article body',
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'article',
+          text: 'article body',
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       options?.progress?.emit({ type: 'completed', target: item.canonicalUrl, result: document });
       progress?.emit({ type: 'started', target: item.canonicalUrl });

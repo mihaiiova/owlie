@@ -2,11 +2,13 @@ import type {
   ContentItem,
   ContentLocator,
   DeferredResponseItemAdapter,
+  ExtractionWarning,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
 } from '@owlieio/core';
 import { ConfigurationError, NotHandledError, extractItem, resolveItem } from '@owlieio/core';
+import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from './provenance.js';
 
 /**
  * Registry-driven item dispatch: returns the first adapter whose `recognize`
@@ -26,6 +28,8 @@ export interface ExtractWithFallbackOptions {
   progress?: ProgressSink;
   /** Invoked when a recognizing adapter defers to the next adapter. */
   onFallback?: (error: NotHandledError) => void;
+  /** Injected CLI-boundary clock for the single provenance `fetchedAt` stamp. */
+  clock?: () => Date;
 }
 
 function canConsumeDeferredResponse(
@@ -49,25 +53,37 @@ export async function extractWithFallback(
   options: ExtractWithFallbackOptions = {},
 ): Promise<{ item: ContentItem; document: NormalizedDocument }> {
   const candidates = adapters.filter((adapter) => adapter.recognize(locator));
+  // Stamp once before the adapter attempts. A fallback must preserve the same
+  // CLI-boundary time rather than acquiring a timestamp from its own fetch hop.
+  const fetchedAt = (options.clock?.() ?? new Date()).toISOString();
   let deferred: NotHandledError | undefined;
+  const fallbackWarnings: ExtractionWarning[] = [];
   for (const adapter of candidates) {
     try {
       const item = await resolveItem(adapter, locator, { signal: options.signal });
-      if (deferred?.deferredResponse && canConsumeDeferredResponse(adapter)) {
-        const document = await adapter.extractDeferred(item, deferred.deferredResponse, {
-          signal: options.signal,
-          progress: options.progress,
-        });
-        return { item, document };
-      }
-      const document = await extractItem(adapter, item, {
-        signal: options.signal,
-        progress: options.progress,
-      });
-      return { item, document };
+      const document = await (deferred?.deferredResponse && canConsumeDeferredResponse(adapter)
+        ? adapter.extractDeferred(item, deferred.deferredResponse, {
+            signal: options.signal,
+            progress: options.progress,
+            fetchedAt,
+          })
+        : extractItem(adapter, item, {
+            signal: options.signal,
+            progress: options.progress,
+            fetchedAt,
+          }));
+      return {
+        item,
+        document: finalizeDocument(document, {
+          adapterId: adapter.id,
+          fetchedAt,
+          warnings: fallbackWarnings,
+        }),
+      };
     } catch (error) {
       if (error instanceof NotHandledError) {
         deferred = error;
+        fallbackWarnings.push(ARTICLE_FALLBACK_WARNING);
         options.onFallback?.(error);
         continue;
       }

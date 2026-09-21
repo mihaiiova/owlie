@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { resolve } from 'node:path';
 import type {
   CollectionAdapter,
   ContentProcessor,
@@ -10,6 +10,7 @@ import type {
 } from '@owlieio/core';
 import {
   assertNoUrlCredentials,
+  buildProvenance,
   CancelledError,
   ConfigurationError,
   OwlieError,
@@ -71,6 +72,8 @@ export interface ProcessDeps {
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
   networkPolicy?: HttpFetchPolicy;
+  /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
+  clock?: () => Date;
 }
 
 async function readInputFile(path: string): Promise<string> {
@@ -84,19 +87,33 @@ async function readInputFile(path: string): Promise<string> {
   }
 }
 
-function textDocument(text: string, source: ProcessInputSource): NormalizedDocument {
+function textDocument(
+  text: string,
+  source: ProcessInputSource,
+  clock: () => Date,
+): NormalizedDocument {
+  // Local files use a normalized absolute-path identity (not a basename) so
+  // two files with the same name in different directories dedupe separately.
+  const sourceId = source.kind === 'stdin' ? 'local:stdin' : `local:file:${resolve(source.path)}`;
   return {
-    schemaVersion: 1,
-    id: source.kind === 'stdin' ? 'local:stdin' : `local:file:${basename(source.path)}`,
+    schemaVersion: 2,
+    id: sourceId,
     sourceType: 'local',
     canonicalUrl: '',
     mediaType: 'text',
     text,
     metadata: {},
+    provenance: buildProvenance({
+      sourceId,
+      canonicalUrl: '',
+      adapterId: 'local',
+      text,
+      fetchedAt: clock().toISOString(),
+    }),
   };
 }
 
-function parseDocument(json: string): NormalizedDocument {
+function parseDocument(json: string, clock: () => Date): NormalizedDocument {
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -110,8 +127,17 @@ function parseDocument(json: string): NormalizedDocument {
   if (!isSourceType(doc.sourceType)) {
     throw new OwlieError('JSON input has an invalid or missing "sourceType" field');
   }
+  const provenance =
+    doc.provenance ??
+    buildProvenance({
+      sourceId: doc.id ?? 'text:input',
+      canonicalUrl: doc.canonicalUrl ?? '',
+      adapterId: doc.sourceType,
+      text: doc.text,
+      fetchedAt: clock().toISOString(),
+    });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: doc.id ?? 'text:input',
     sourceType: doc.sourceType,
     canonicalUrl: doc.canonicalUrl ?? '',
@@ -121,6 +147,7 @@ function parseDocument(json: string): NormalizedDocument {
     publishedAt: doc.publishedAt,
     author: doc.author,
     metadata: doc.metadata ?? {},
+    provenance,
   };
 }
 
@@ -147,9 +174,10 @@ function unwrapProtocolEnvelope(value: unknown): Partial<NormalizedDocument> {
 async function readDocument(
   source: ProcessInputSource,
   inputFormat: 'text' | 'json' | undefined,
+  clock: () => Date,
 ): Promise<NormalizedDocument> {
   const raw = source.kind === 'stdin' ? source.content : await readInputFile(source.path);
-  return inputFormat === 'json' ? parseDocument(raw) : textDocument(raw, source);
+  return inputFormat === 'json' ? parseDocument(raw, clock) : textDocument(raw, source, clock);
 }
 
 function resolveConfiguredProcessor(
@@ -314,6 +342,7 @@ async function runUrlProcessing(
     {
       signal: deps.signal,
       progress,
+      clock: deps.clock,
       onFallback: () => {
         if (!options.quiet && !options.json) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
       },
@@ -363,7 +392,11 @@ export async function runProcessCommand(
       stdin: stdinPiped ? { isTTY: false, content: stdinContent ?? '' } : undefined,
     });
 
-    const document = await readDocument(source, options.inputFormat);
+    const document = await readDocument(
+      source,
+      options.inputFormat,
+      deps.clock ?? (() => new Date()),
+    );
 
     const processor = resolveProcessorForCommand(options, deps);
 
@@ -457,6 +490,7 @@ async function runFeedProcessing(
         itemAdapters,
         signal: deps.signal,
         progress,
+        clock: deps.clock,
       });
       try {
         const procResult = await processor.process(

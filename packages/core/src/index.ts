@@ -2,6 +2,7 @@ export * from './types.js';
 export * from './contracts.js';
 export * from './progress.js';
 export * from './protocol.js';
+export * from './provenance.js';
 export * from './errors.js';
 export * from './limits.js';
 export * from './output.js';

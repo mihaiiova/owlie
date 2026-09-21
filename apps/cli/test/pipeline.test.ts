@@ -6,6 +6,7 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
+import { buildProvenance } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliIo } from 'owlie';
 
@@ -38,13 +39,20 @@ function makeFakeAdapter(text = 'the transcript text'): ItemAdapter {
     async extract(item: ContentItem, options) {
       options?.progress?.emit({ type: 'started', target: item.id });
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'youtube',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'transcript',
         text,
         metadata: { videoId: 'test', isGenerated: false },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'youtube',
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       options?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;

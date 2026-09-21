@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher, ItemAdapter, NormalizedDocument, Transcriber } from '@owlieio/core';
-import { ConfigurationError, NotHandledError } from '@owlieio/core';
+import { buildProvenance, ConfigurationError, NotHandledError } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import { GenericEpisodePageResolver, PodcastAdapter } from '@owlieio/adapter-podcast';
 import { extractWithFallback, selectItemAdapter } from 'owlie';
@@ -34,14 +34,22 @@ function fallbackAdapter(
       };
     },
     async extract(item): Promise<NormalizedDocument> {
+      const text = behavior.text ?? `${id} text`;
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'article',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
-        text: behavior.text ?? `${id} text`,
+        text,
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: id,
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
     },
   };
@@ -78,6 +86,38 @@ describe('extractWithFallback', () => {
       { url: 'https://example.com/story' },
     );
     expect(document.text).toBe('article text');
+  });
+
+  it('redacts URL credentials, query strings, and fragments from provenance identities', async () => {
+    const { document } = await extractWithFallback([fallbackAdapter('podcast')], {
+      url: 'https://user:pass@cdn.example.com/episode.mp3?signature=topsecret#player',
+    });
+    expect(document.provenance.sourceId).toBe('podcast:https://cdn.example.com/episode.mp3');
+    expect(document.provenance.canonicalUrl).toBe('https://cdn.example.com/episode.mp3');
+  });
+
+  it('stamps one CLI-boundary timestamp for the adapter and finalized provenance', async () => {
+    const clock = () => new Date('2026-09-21T12:00:00.000Z');
+    const article = fallbackAdapter('article');
+    const extract = article.extract.bind(article);
+    let adapterFetchedAt: string | undefined;
+    article.extract = async (item, options) => {
+      adapterFetchedAt = options?.fetchedAt;
+      return extract(item, options);
+    };
+    const { document } = await extractWithFallback(
+      [fallbackAdapter('podcast', { defer: true }), article],
+      { url: 'https://example.com/story' },
+      { clock },
+    );
+    expect(adapterFetchedAt).toBe('2026-09-21T12:00:00.000Z');
+    expect(document.provenance.adapterId).toBe('article');
+    expect(document.provenance.fetchedAt).toBe('2026-09-21T12:00:00.000Z');
+    expect(document.provenance.warnings).toEqual([
+      { code: 'ARTICLE_FALLBACK', message: 'extracting article text' },
+    ]);
+    expect(document.provenance.sourceId).toBe('article:https://example.com/story');
+    expect(document.provenance.contentFingerprint.digest).toHaveLength(64);
   });
 
   it('falls back to the next adapter and reports the deferral', async () => {
@@ -164,24 +204,38 @@ describe('extractWithFallback', () => {
       async extract() {
         articleFetchCount += 1;
         return {
-          schemaVersion: 1 as const,
+          schemaVersion: 2 as const,
           id: 'article:x',
           sourceType: 'article' as const,
           canonicalUrl: 'https://example.com/story',
           mediaType: 'text' as const,
           text: 'fetched',
           metadata: {},
+          provenance: buildProvenance({
+            sourceId: 'article:x',
+            canonicalUrl: 'https://example.com/story',
+            adapterId: 'article',
+            text: 'fetched',
+            fetchedAt: '2026-09-21T00:00:00.000Z',
+          }),
         };
       },
       async extractDeferred(_item, response) {
         return {
-          schemaVersion: 1 as const,
+          schemaVersion: 2 as const,
           id: 'article:x',
           sourceType: 'article' as const,
           canonicalUrl: response.url,
           mediaType: 'text' as const,
           text: response.text,
           metadata: {},
+          provenance: buildProvenance({
+            sourceId: 'article:x',
+            canonicalUrl: response.url,
+            adapterId: 'article',
+            text: response.text,
+            fetchedAt: '2026-09-21T00:00:00.000Z',
+          }),
         };
       },
     };

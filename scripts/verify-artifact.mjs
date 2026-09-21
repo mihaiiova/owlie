@@ -95,6 +95,20 @@ try {
   // 4. Run the offline-safe release acceptance commands.
   const acceptance = [
     { name: '--version', args: ['--version'], status: 0, stdout: /^owlie \d+\.\d+\.\d+/m },
+    {
+      name: '--version --json',
+      args: ['--version', '--json'],
+      status: 0,
+      stdout:
+        /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"version"[\s\S]*"result"\s*:\s*"\d+\.\d+\.\d+"/,
+    },
+    {
+      name: 'capabilities --json',
+      args: ['capabilities', '--json'],
+      status: 0,
+      stdout:
+        /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"capabilities"[\s\S]*"documentSchemaVersion"\s*:\s*2[\s\S]*"commands"[\s\S]*"adapters"[\s\S]*"providers"[\s\S]*"resolvers"/,
+    },
     { name: '--help', args: ['--help'], status: 0, stdout: /extract|process|doctor/i },
     { name: 'doctor', args: ['doctor'], status: 0, stdout: /node/i },
     {

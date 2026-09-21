@@ -31,11 +31,13 @@ import { summarizeCollection } from './list.js';
 import {
   createCommandSpinner,
   createProgressSink,
+  redactUrl,
   writeCommandError,
   writeResultEnvelope,
   writeTerminalRecord,
   writeUsageError,
 } from '../protocol.js';
+import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 import { parsePositiveIntegerFlag } from '../invocation.js';
@@ -56,6 +58,8 @@ export interface ExtractDeps {
   cacheDir?: string;
   /** Invocation-wide network fetch policy (max download bytes). */
   networkPolicy?: HttpFetchPolicy;
+  /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
+  clock?: () => Date;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -160,7 +164,7 @@ export async function runExtractCommand(
 }
 
 /** stderr notice when a URL defers from audio resolution to article text. */
-export const ARTICLE_FALLBACK_NOTICE = 'extracting article text';
+export const ARTICLE_FALLBACK_NOTICE = ARTICLE_FALLBACK_WARNING.message;
 
 async function runDirectExtraction(
   url: string,
@@ -181,6 +185,7 @@ async function runDirectExtraction(
     {
       signal: deps.signal,
       progress,
+      clock: deps.clock,
       onFallback: () => {
         if (!options.quiet && !options.json) {
           writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
@@ -218,6 +223,7 @@ async function runResolverExtraction(
     deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
   const workCacheDir = deps.cacheDir ?? cacheDir();
   const spinner = createCommandSpinner(io, options, deps.spinner);
+  const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
 
   try {
     assertNoUrlCredentials(url);
@@ -228,7 +234,7 @@ async function runResolverExtraction(
       policy: deps.networkPolicy,
     });
     const item: ContentItem = {
-      id: `podcast:episode:${resolved.mediaUrl}`,
+      id: `podcast:episode:${redactUrl(url)}`,
       sourceType: 'podcast',
       canonicalUrl: resolved.mediaUrl,
       metadata: { platform: 'podcast', ...(resolved.metadata ?? {}) },
@@ -246,7 +252,16 @@ async function runResolverExtraction(
       if (event.type === 'started') spinner.start(`extracting ${event.target}`);
       else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     });
-    const document = await adapter.extract(item, { signal: deps.signal, progress });
+    const extracted = await adapter.extract(item, { signal: deps.signal, progress, fetchedAt });
+    const document = finalizeDocument(extracted, {
+      adapterId: adapter.id,
+      fetchedAt,
+      resolverId: resolverName,
+      // Source identity derives from the canonical supplied locator, never the
+      // resolved (possibly signed) media URL.
+      sourceId: `podcast:episode:${redactUrl(url)}`,
+      canonicalUrl: url,
+    });
     spinner.stop();
 
     if (options.json) {
@@ -298,6 +313,7 @@ async function runFeedExtraction(
         itemAdapters,
         signal: deps.signal,
         progress,
+        clock: deps.clock,
       });
       items.push(outcome);
     } catch (error) {

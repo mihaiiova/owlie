@@ -20,6 +20,7 @@ export async function extractLinkedItem(opts: {
   itemAdapters: readonly ItemAdapter[];
   signal?: AbortSignal;
   progress?: ProgressSink;
+  clock?: () => Date;
 }): Promise<LinkedItemResult> {
   assertNoUrlCredentials(opts.url);
   const { document } = await extractWithFallback(
@@ -28,6 +29,7 @@ export async function extractLinkedItem(opts: {
     {
       signal: opts.signal,
       progress: opts.progress,
+      clock: opts.clock,
     },
   );
   return { url: opts.url, ...(opts.title !== undefined ? { title: opts.title } : {}), document };
