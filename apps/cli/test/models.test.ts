@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ModelInfo, ProviderCatalog } from '@owlieio/core';
+import { CancelledError } from '@owlieio/core';
 import { ExitCode, MODEL_CACHE_TTL_MS, run, writeModelCache } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -245,6 +246,134 @@ describe('models command', () => {
       }),
     );
     expect(code).toBe(ExitCode.Success);
-    expect(JSON.parse(stdout())).toEqual([{ provider: 'deepseek', id: 'deepseek-chat' }]);
+    expect(JSON.parse(stdout()).result).toEqual([{ provider: 'deepseek', id: 'deepseek-chat' }]);
+  });
+
+  it('reaches the model catalog with the invocation deadline and exits 130', async () => {
+    const catalog: ProviderCatalog = {
+      providerId: 'deepseek',
+      async listModels(_credentials, options) {
+        await new Promise<never>((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => reject(new CancelledError('model discovery cancelled')),
+            { once: true },
+          );
+        });
+        throw new Error('unreachable');
+      },
+    };
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['models', '--provider', 'deepseek', '--timeout-ms', '10', '--json'],
+      io,
+      deps({
+        env: { DEEPSEEK_API_KEY: 'sk-test' },
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+        getCatalog: () => catalog,
+      }),
+    );
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('cancelled');
+  });
+
+  it('always live-fetches in hosted mode, ignoring a fresh cache', async () => {
+    writeModelCache(
+      { deepseek: { models: [{ provider: 'deepseek', id: 'deepseek-chat' }], fetchedAt: NOW } },
+      cachePath(),
+    );
+    const deepseek = makeCatalog('deepseek', {
+      models: [{ provider: 'deepseek', id: 'deepseek-future-model' }],
+    });
+    const { io, stdout } = capture();
+    const code = await run(
+      ['--hosted', 'models', '--provider', 'deepseek'],
+      io,
+      deps({
+        env: { DEEPSEEK_API_KEY: 'sk-test' },
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+        getCatalog: () => deepseek.catalog,
+      }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toContain('deepseek-future-model');
+    expect(deepseek.calls()).toBe(1);
+  });
+
+  it('does not fall back to cache on failure in hosted mode', async () => {
+    writeModelCache(
+      { deepseek: { models: [{ provider: 'deepseek', id: 'deepseek-chat' }], fetchedAt: NOW } },
+      cachePath(),
+    );
+    const deepseek = makeCatalog('deepseek', { error: new Error('network down') });
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['--hosted', 'models', '--provider', 'deepseek'],
+      io,
+      deps({
+        env: { DEEPSEEK_API_KEY: 'sk-test' },
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+        getCatalog: () => deepseek.catalog,
+      }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stderr()).toContain('failed to list models');
+    expect(stdout()).not.toContain('deepseek-chat');
+  });
+
+  it('never writes the cache in hosted mode', async () => {
+    const deepseek = makeCatalog('deepseek', {
+      models: [{ provider: 'deepseek', id: 'deepseek-chat' }],
+    });
+    const { io } = capture();
+    const code = await run(
+      ['--hosted', 'models', '--provider', 'deepseek'],
+      io,
+      deps({
+        env: { DEEPSEEK_API_KEY: 'sk-test' },
+        readConfig: () => ({}),
+        loadFile: () => ({}),
+        cachePath: cachePath(),
+        now: () => NOW,
+        getCatalog: () => deepseek.catalog,
+      }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(existsSync(cachePath())).toBe(false);
+  });
+
+  it('resolves hosted model config from process env only', async () => {
+    const deepseek = makeCatalog('deepseek', {
+      models: [{ provider: 'deepseek', id: 'deepseek-chat' }],
+    });
+    const { io, stdout } = capture();
+    const code = await run(
+      ['--hosted', 'models', '--provider', 'deepseek'],
+      io,
+      deps({
+        env: { DEEPSEEK_API_KEY: 'sk-env' },
+        readConfig: () => {
+          throw new Error('readConfig called');
+        },
+        loadFile: () => {
+          throw new Error('loadFile called');
+        },
+        cachePath: cachePath(),
+        now: () => NOW,
+        getCatalog: () => deepseek.catalog,
+      }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stdout()).toContain('deepseek-chat');
   });
 });

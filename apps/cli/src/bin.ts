@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+import { CancelledError } from '@owlieio/core';
 import { run } from './cli.js';
 import { colorize } from './style.js';
 
 async function main(): Promise<void> {
   const controller = new AbortController();
-  const abort = () => controller.abort();
+  // Abort with a typed reason so cooperative consumers (including
+  // `AbortSignal.throwIfAborted()`) surface cancellation rather than a bare
+  // `AbortError`, producing the structured cancellation record and exit 130.
+  const abort = () => controller.abort(new CancelledError('cancelled'));
   process.once('SIGINT', abort);
   process.once('SIGTERM', abort);
 
@@ -46,6 +50,8 @@ async function main(): Promise<void> {
         list: { signal: controller.signal },
         process: { signal: controller.signal },
         resolve: { signal: controller.signal },
+        models: { signal: controller.signal },
+        setup: { signal: controller.signal },
       },
     );
     process.exitCode = code;

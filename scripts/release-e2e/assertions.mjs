@@ -75,3 +75,21 @@ export function assertNoSecrets(text, secrets = []) {
   }
   return { ok: true, error: undefined };
 }
+
+/**
+ * Asserts that a parsed single-result JSON output is a versioned protocol
+ * envelope and returns its `result` payload. Consumers parse `--json` output
+ * through this seam rather than reading the command-specific shape directly.
+ */
+export function assertProtocolEnvelope(value) {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    typeof value.schemaVersion !== 'number' ||
+    typeof value.command !== 'string' ||
+    !('result' in value)
+  ) {
+    return { ok: false, value: undefined, error: 'missing versioned protocol envelope' };
+  }
+  return { ok: true, value: value.result, error: undefined };
+}

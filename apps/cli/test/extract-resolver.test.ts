@@ -68,7 +68,7 @@ describe('extract resolver-selection flags', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', APPLE_URL, '--podcast-apple', '--json'], io, deps());
     expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
+    const doc = JSON.parse(stdout()).result;
     expect(doc.canonicalUrl).toBe(MEDIA_URL);
     expect(doc.mediaType).toBe('transcript');
     expect(doc.metadata).toMatchObject({ title: 'Episode', resolvedFrom: 'apple', fake: true });
@@ -175,6 +175,26 @@ describe('extract resolver-selection flags', () => {
     });
     expect(code).toBe(ExitCode.Success);
     expect(updates).toContain('transcribing chunk 1/2');
+  });
+
+  it('stamps resolver identity and source identity from the supplied locator (not the signed media URL)', async () => {
+    const signed = 'https://cdn.example.com/episode.mp3?signature=topsecret&expires=1';
+    const clock = () => new Date('2026-09-21T12:00:00.000Z');
+    const { io, stdout } = capture();
+    const code = await run(['extract', APPLE_URL, '--podcast-apple', '--json'], io, {
+      extract: { fetcher: appleFetcher(signed), transcriber, cacheDir, clock },
+    });
+    expect(code).toBe(ExitCode.Success);
+    const doc = JSON.parse(stdout()).result;
+    expect(doc.provenance.resolverId).toBe('podcast-apple');
+    expect(doc.provenance.adapterId).toBe('podcast');
+    expect(doc.provenance.fetchedAt).toBe('2026-09-21T12:00:00.000Z');
+    expect(doc.provenance.sourceId).toBe(
+      'podcast:episode:https://podcasts.apple.com/us/podcast/example/id12345',
+    );
+    expect(doc.provenance.sourceId).not.toContain('cdn.example.com');
+    expect(doc.provenance.sourceId).not.toContain('signature');
+    expect(doc.provenance.canonicalUrl).not.toContain('signature');
   });
 
   it('rejects multiple resolver flags as a usage error', async () => {

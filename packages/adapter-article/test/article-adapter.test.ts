@@ -66,7 +66,7 @@ describe('ArticleAdapter.extract', () => {
     const document = await adapter.extract(item);
 
     expect(document).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'article:https://example.com/articles/useful-story',
       sourceType: 'article',
       canonicalUrl: 'https://example.com/articles/useful-story',
@@ -77,6 +77,12 @@ describe('ArticleAdapter.extract', () => {
       text: expect.stringContaining('This is a deliberately substantial first paragraph'),
     });
     expect(document.text).toContain('links & controls');
+    expect(document.provenance).toMatchObject({
+      sourceId: 'article:https://example.com/articles/useful-story',
+      canonicalUrl: 'https://example.com/articles/useful-story',
+      adapterId: 'article',
+    });
+    expect(document.provenance.contentFingerprint.algorithm).toBe('sha256');
   });
 
   it('uses the final post-redirect URL for the document identity', async () => {

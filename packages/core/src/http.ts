@@ -16,6 +16,46 @@ export interface HttpFetchPolicy {
   allowPrivateHosts?: boolean;
   /** Identifying User-Agent header value. */
   userAgent?: string;
+  /**
+   * Shared per-invocation download budget. Unlike `maxResponseBytes`, which
+   * caps a single response, this mutable budget is consumed across every fetch
+   * that shares the policy so the caller can bound total network download
+   * bytes for one invocation.
+   */
+  byteBudget?: HttpByteBudget;
+}
+
+/** A shared, per-invocation network download budget. */
+export interface HttpByteBudget {
+  /** Bytes still available in the budget. */
+  readonly remaining: number;
+  /**
+   * Records `bytes` of download; throws {@link ExtractionError} when the
+   * remaining budget is insufficient.
+   */
+  consume(bytes: number): void;
+}
+
+/**
+ * Creates a mutable byte budget of `maxBytes`. A single shared instance can be
+ * attached to every fetch policy in an invocation so the total downloaded
+ * bytes are bounded end to end.
+ */
+export function createHttpByteBudget(maxBytes: number): HttpByteBudget {
+  let remaining = maxBytes;
+  return {
+    get remaining(): number {
+      return remaining;
+    },
+    consume(bytes: number): void {
+      if (bytes > remaining) {
+        throw new ExtractionError(
+          `network download exceeded the ${maxBytes}-byte invocation budget`,
+        );
+      }
+      remaining -= bytes;
+    },
+  };
 }
 
 /** A bounded text response from an HTTP(S) URL. */
@@ -191,6 +231,7 @@ async function readBody(
   response: Response,
   maxBytes: number,
   signal: AbortSignal,
+  budget?: HttpByteBudget,
 ): Promise<string> {
   const body = response.body;
   if (!body) return '';
@@ -219,6 +260,7 @@ async function readBody(
         await reader.cancel();
         throw new ExtractionError(`response body exceeded ${maxBytes} bytes`);
       }
+      budget?.consume(value.byteLength);
       text += decoder.decode(value, { stream: true });
     }
     return text + decoder.decode();
@@ -232,6 +274,7 @@ async function writeBodyToFile(
   path: string,
   maxBytes: number,
   signal: AbortSignal,
+  budget?: HttpByteBudget,
 ): Promise<number> {
   const body = response.body;
   if (!body) return 0;
@@ -261,6 +304,7 @@ async function writeBodyToFile(
         await reader.cancel();
         throw new ExtractionError(`response body exceeded ${maxBytes} bytes`);
       }
+      budget?.consume(value.byteLength);
       await file.write(value);
     }
   } finally {
@@ -422,7 +466,8 @@ export class DefaultHttpFetcher implements HttpFetcher {
     const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const result = await this.exchange(
       url,
-      (response, signal) => writeBodyToFile(response, path, maxResponseBytes, signal),
+      (response, signal) =>
+        writeBodyToFile(response, path, maxResponseBytes, signal, options.policy?.byteBudget),
       options,
     );
     return { url: result.url, contentType: result.contentType, bytes: result.body };
@@ -432,7 +477,8 @@ export class DefaultHttpFetcher implements HttpFetcher {
     const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const result = await this.exchange(
       url,
-      (response, signal) => readBody(response, maxResponseBytes, signal),
+      (response, signal) =>
+        readBody(response, maxResponseBytes, signal, options.policy?.byteBudget),
       options,
     );
     return { url: result.url, contentType: result.contentType, text: result.body };

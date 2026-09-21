@@ -1,5 +1,5 @@
-import type { HttpFetcher } from '@owlieio/core';
-import { ConfigurationError } from '@owlieio/core';
+import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
+import { ConfigurationError, ValidationError } from '@owlieio/core';
 import type { PodcastAudioResolver } from '@owlieio/adapter-podcast';
 import {
   ApplePodcastsResolver,
@@ -10,6 +10,8 @@ import {
 /** Options passed to each resolver factory. */
 export interface ResolverFactoryOptions {
   fetcher: HttpFetcher;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  policy?: HttpFetchPolicy;
 }
 
 /**
@@ -39,12 +41,12 @@ export const PODCAST_RESOLVER_REGISTRY: readonly PodcastResolverRegistration[] =
   {
     name: 'podcast-apple',
     flag: '--podcast-apple',
-    create: ({ fetcher }) => new ApplePodcastsResolver({ fetcher }),
+    create: ({ fetcher, policy }) => new ApplePodcastsResolver({ fetcher, policy }),
   },
   {
     name: 'podcast-page',
     flag: '--podcast-page',
-    create: ({ fetcher }) => new GenericEpisodePageResolver({ fetcher }),
+    create: ({ fetcher, policy }) => new GenericEpisodePageResolver({ fetcher, policy }),
   },
 ];
 
@@ -59,8 +61,11 @@ export function resolverFlagForName(name: string): string | undefined {
 }
 
 /** Builds the ordered resolver instances used by automatic dispatch. */
-export function createPodcastResolvers(fetcher: HttpFetcher): readonly PodcastAudioResolver[] {
-  return PODCAST_RESOLVER_REGISTRY.map((entry) => entry.create({ fetcher }));
+export function createPodcastResolvers(
+  fetcher: HttpFetcher,
+  policy?: HttpFetchPolicy,
+): readonly PodcastAudioResolver[] {
+  return PODCAST_RESOLVER_REGISTRY.map((entry) => entry.create({ fetcher, policy }));
 }
 
 /** A validated media URL plus its source metadata, resolved without download or transcription. */
@@ -77,14 +82,17 @@ export interface ResolvePodcastAudioOptions {
   /** When set, only this resolver runs (authoritative selection). */
   resolverName?: string;
   signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  policy?: HttpFetchPolicy;
 }
 
 /**
  * Resolves a URL to a validated media URL through the podcast resolvers. With
  * a `resolverName`, only that resolver runs; without one, resolvers run in
  * registration order and the first recognizing resolver wins. Resolution never
- * downloads or transcribes media. Throws {@link ConfigurationError} when the
- * requested resolver is unknown or no resolver recognizes the URL.
+ * downloads or transcribes media. Throws {@link ValidationError} when an
+ * explicitly selected resolver does not recognize the URL, and
+ * {@link ConfigurationError} when no resolver recognizes it.
  */
 export async function resolvePodcastAudio(
   url: string,
@@ -97,7 +105,7 @@ export async function resolvePodcastAudio(
   if (options.resolverName !== undefined) {
     const entry = registry.find((candidate) => candidate.name === options.resolverName);
     if (!entry) {
-      throw new ConfigurationError(`unknown resolver "${options.resolverName}"`);
+      throw new ValidationError(`unknown resolver "${options.resolverName}"`);
     }
     entries = [entry];
   } else {
@@ -105,7 +113,7 @@ export async function resolvePodcastAudio(
   }
 
   for (const entry of entries) {
-    const resolver = entry.create({ fetcher });
+    const resolver = entry.create({ fetcher, policy: options.policy });
     if (!resolver.recognize({ url })) continue;
     const resolved = await resolver.resolve({ url }, { signal: options.signal });
     return { resolver: entry.name, mediaUrl: resolved.mediaUrl, metadata: resolved.metadata };
@@ -113,7 +121,7 @@ export async function resolvePodcastAudio(
 
   if (options.resolverName !== undefined) {
     const entry = entries[0];
-    throw new ConfigurationError(
+    throw new ValidationError(
       `resolver "${entry?.flag ?? options.resolverName}" does not recognize URL: ${url}`,
     );
   }

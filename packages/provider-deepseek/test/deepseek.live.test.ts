@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildProvenance } from '@owlieio/core';
 import { DeepSeekProcessor } from '@owlieio/provider-deepseek';
 
 /**
@@ -23,13 +24,20 @@ describe.skipIf(!liveEnabled)('deepseek live processing', () => {
     const processor = new DeepSeekProcessor({ apiKey });
     const result = await processor.process({
       document: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: 'live:input',
         sourceType: 'rss',
         canonicalUrl: '',
         mediaType: 'text',
         text: 'The sky is blue.',
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: 'live:input',
+          canonicalUrl: '',
+          adapterId: 'rss',
+          text: 'The sky is blue.',
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       },
       instruction: 'What color is the sky? Answer in one word.',
     });

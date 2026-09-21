@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentItem, ItemAdapter, NormalizedDocument } from '@owlieio/core';
-import { CancelledError, CaptionsUnavailableError } from '@owlieio/core';
+import { CancelledError, CaptionsUnavailableError, buildProvenance } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -39,13 +39,20 @@ function makeFakeAdapter(
         throw behavior.extractError;
       }
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'youtube',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'transcript',
         text: behavior.text ?? 'hello transcript',
         metadata: { videoId: 'test', isGenerated: false },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'fake-youtube',
+          text: behavior.text ?? 'hello transcript',
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       options?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;
@@ -70,7 +77,7 @@ describe('extract command', () => {
     const { io, stdout } = capture();
     const code = await run(['extract', URL, '--json'], io, deps(makeFakeAdapter()));
     expect(code).toBe(ExitCode.Success);
-    const doc = JSON.parse(stdout());
+    const doc = JSON.parse(stdout()).result;
     expect(doc.text).toBe('hello transcript');
     expect(doc.mediaType).toBe('transcript');
     expect(doc.id).toBe('youtube:video:test');
@@ -106,7 +113,7 @@ describe('extract command', () => {
     };
     const { io, stdout, stderr } = capture();
     const code = await run(['extract', URL, '--timeout-ms', '10'], io, deps(adapter));
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('extraction cancelled');
   });

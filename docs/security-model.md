@@ -29,6 +29,14 @@ and processing must be built.
 - **Safe RSS/Atom parsing** — use a parser with XML entity-expansion protection
   (no billion-laughs/XXE). Parser selection is content-aware, not
   extension-based (Reddit `.rss` returns Atom).
+- **Bounded one-hop feed discovery** — discovery from a supplied page fetches
+  only that page, accepts only declared `text/html` or `application/xhtml+xml`,
+  reads `<link rel="alternate">` elements with a constrained non-DOM tokenizer
+  (no browser, no JavaScript, no recursive crawling), and otherwise probes at
+  most six fixed same-origin conventional paths. Every fetch, candidate,
+  redirect, byte limit, timeout, and SSRF decision uses the safe fetch seam,
+  and probe candidates must pass the feed media-type and parser gates before
+  they are accepted.
 - **MIME-type validation** — verify declared content types before interpreting
   bodies.
 - **Safe HTML-to-text conversion** — strip scripts and dangerous markup when
@@ -54,6 +62,12 @@ and processing must be built.
   count, and path (no path traversal) if archives are ever supported.
 - **Cancellation and resource limits** — honor `AbortSignal` everywhere and
   bound CPU/memory for local transcription.
+- **Invocation-wide budgets** — one `--timeout-ms` deadline composes with
+  SIGINT/SIGTERM across listing, HTTP, extraction/transcription, feed batches,
+  and provider calls; `--max-network-bytes` bounds total downloads through the
+  core fetch seam and direct media; `--max-stdout-bytes` bounds output before
+  the protocol boundary. Expiry aborts work, cleans temp artifacts, and exits
+  130 with a structured cancellation record.
 
 ## Secrets and privacy
 

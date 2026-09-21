@@ -7,6 +7,7 @@ import {
   assertSafeResolvedHost,
   CancelledError,
   ConfigurationError,
+  createHttpByteBudget,
   DefaultHttpFetcher,
   ExtractionError,
   isBlockedHost,
@@ -232,6 +233,23 @@ describe('assertSafeResolvedHost', () => {
     await expect(assertSafeResolvedHost('missing.example.com', fail)).rejects.toThrow(
       ExtractionError,
     );
+  });
+});
+
+describe('createHttpByteBudget', () => {
+  it('consumes bytes and reports the remaining budget', () => {
+    const budget = createHttpByteBudget(10);
+    expect(budget.remaining).toBe(10);
+    budget.consume(4);
+    expect(budget.remaining).toBe(6);
+    budget.consume(6);
+    expect(budget.remaining).toBe(0);
+  });
+
+  it('throws when the remaining budget is insufficient', () => {
+    const budget = createHttpByteBudget(3);
+    expect(() => budget.consume(4)).toThrow(ExtractionError);
+    expect(budget.remaining).toBe(3);
   });
 });
 
@@ -778,6 +796,24 @@ describe('DefaultHttpFetcher', () => {
     await expect(
       fetcher.fetch('https://example.com/', { policy: { maxResponseBytes: 10 } }),
     ).rejects.toThrow(ExtractionError);
+  });
+
+  it('enforces a shared byte budget across multiple fetches', async () => {
+    const fetchFn: HttpFetchFn = async (input) => {
+      const url = String(input);
+      if (url === 'https://example.com/a') return ok('abc');
+      return ok('defgh');
+    };
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    const budget = createHttpByteBudget(5);
+
+    await expect(
+      fetcher.fetch('https://example.com/a', { policy: { byteBudget: budget } }),
+    ).resolves.toMatchObject({ text: 'abc' });
+    await expect(
+      fetcher.fetch('https://example.com/b', { policy: { byteBudget: budget } }),
+    ).rejects.toThrow(ExtractionError);
+    expect(budget.remaining).toBe(2);
   });
 
   it('cancels on timeout', async () => {

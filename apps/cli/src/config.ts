@@ -161,7 +161,7 @@ export function writeUserConfig(config: UserConfig, path: string = configFilePat
  * infers a provider from a model id.
  */
 export function resolveProvider(
-  options: { provider?: string; envFile?: string } = {},
+  options: { provider?: string; envFile?: string; hosted?: boolean } = {},
   env: Record<string, string | undefined> = process.env,
   loadFile: (path: string) => Record<string, string> = loadDotEnv,
   readUserConfigFn: () => UserConfig = readUserConfig,
@@ -170,6 +170,11 @@ export function resolveProvider(
   if (fromFlag) return fromFlag;
   const fromEnv = env['OWLIE_PROVIDER']?.trim();
   if (fromEnv) return fromEnv;
+  if (options.hosted) {
+    throw new ConfigurationError(
+      `no provider selected: pass --provider <provider> or set OWLIE_PROVIDER (known providers: ${PROVIDER_IDS.join(', ')})`,
+    );
+  }
   const merged: Record<string, string> = {};
   Object.assign(merged, loadFile('.env'));
   Object.assign(merged, loadFile('.env.local'));
@@ -191,20 +196,22 @@ export function resolveProvider(
  */
 export function resolveProviderSettings(
   provider: string,
-  options: { model?: string; envFile?: string } = {},
+  options: { model?: string; envFile?: string; hosted?: boolean } = {},
   env: Record<string, string | undefined> = process.env,
   loadFile: (path: string) => Record<string, string> = loadDotEnv,
   readUserConfigFn: () => UserConfig = readUserConfig,
 ): ProviderEnvConfig {
   const prefix = provider.toUpperCase();
-  const profile = readUserConfigFn().providers?.[provider] ?? {};
   const merged: Record<string, string> = {};
-  if (profile.model) merged[`${prefix}_MODEL`] = profile.model;
-  if (profile.apiKey) merged[`${prefix}_API_KEY`] = profile.apiKey;
-  if (profile.baseUrl) merged[`${prefix}_BASE_URL`] = profile.baseUrl;
-  Object.assign(merged, loadFile('.env'));
-  Object.assign(merged, loadFile('.env.local'));
-  if (options.envFile) Object.assign(merged, loadFile(options.envFile));
+  if (!options.hosted) {
+    const profile = readUserConfigFn().providers?.[provider] ?? {};
+    if (profile.model) merged[`${prefix}_MODEL`] = profile.model;
+    if (profile.apiKey) merged[`${prefix}_API_KEY`] = profile.apiKey;
+    if (profile.baseUrl) merged[`${prefix}_BASE_URL`] = profile.baseUrl;
+    Object.assign(merged, loadFile('.env'));
+    Object.assign(merged, loadFile('.env.local'));
+    if (options.envFile) Object.assign(merged, loadFile(options.envFile));
+  }
 
   const lookup = (name: string): string | undefined => env[name] ?? merged[name];
   return {

@@ -9,7 +9,7 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
-import { ExtractionError, ProcessingError } from '@owlieio/core';
+import { ExtractionError, ProcessingError, buildProvenance } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
@@ -17,6 +17,7 @@ import type { CliDeps, CliIo } from 'owlie';
 const FEED_URL = 'https://example.com/feed.xml';
 const YT_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const ARTICLE_URL = 'https://example.com/story-one';
+const PAGE_URL = 'https://example.com/';
 
 /** Sanitized RSS 2.0 fixture (no credentials, user data, or network content). */
 const RSS20 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -88,13 +89,20 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
           ? options.text(item.canonicalUrl)
           : (options.text ?? `${id} text`);
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: item.sourceType,
         canonicalUrl: item.canonicalUrl,
         mediaType: 'text',
         text,
         metadata: {},
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: id,
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       extractOptions?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;
@@ -132,6 +140,23 @@ function makeFeedAdapter(entries: { url: string; title?: string }[], listError?:
       return { collection, items, truncated: entries.length > options.limit };
     },
   };
+  return { adapter, calls };
+}
+
+/** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
+function makeDiscoveringFeedAdapter(
+  entries: { url: string; title?: string }[],
+  discoveredUrl: string,
+) {
+  const { adapter, calls } = makeFeedAdapter(entries);
+  (adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [
+    {
+      id: `rss:feed:${discoveredUrl}`,
+      sourceType: 'rss' as const,
+      canonicalUrl: discoveredUrl,
+      metadata: { format: 'rss' },
+    },
+  ];
   return { adapter, calls };
 }
 
@@ -376,6 +401,45 @@ describe('process --each (feed collection mode)', () => {
     expect(stderr()).toContain('feed');
   });
 
+  it('discovers a feed from a supplied page URL and processes each entry', async () => {
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeDiscoveringFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }], FEED_URL);
+    const { processor } = makeProcessor();
+
+    const { io, jsonl } = capture();
+    const code = await run(
+      ['process', PAGE_URL, '--each', '--prompt', 'Summarize'],
+      io,
+      feedDeps([youtube.adapter, article.adapter], feed.adapter, processor),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    const records = jsonl();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      item: { url: ARTICLE_URL, title: 'A story' },
+      document: { sourceType: 'article' },
+      result: { output: 'processed:article text' },
+    });
+  });
+
+  it('returns a usage error when discovery finds no feed for --each', async () => {
+    const article = makeItemAdapter('article');
+    const feed = makeDiscoveringFeedAdapter([], FEED_URL);
+    (feed.adapter as CollectionAdapter & { discover?: unknown }).discover = async () => [];
+    const { processor } = makeProcessor();
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['process', PAGE_URL, '--each', '--prompt', 'x'],
+      io,
+      feedDeps([article.adapter], feed.adapter, processor),
+    );
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('page that exposes one');
+  });
+
   it('maps a feed listing failure to exit 1', async () => {
     const article = makeItemAdapter('article');
     const feed = makeFeedAdapter([], new ExtractionError('feed unreadable'));
@@ -439,7 +503,7 @@ describe('process --each (feed collection mode)', () => {
     expect(requests.map((r) => r.document.canonicalUrl)).toEqual([YT_URL, ARTICLE_URL]);
   });
 
-  it('stops starting new items after cancellation and exits 1', async () => {
+  it('stops starting new items after cancellation and exits 130', async () => {
     const controller = new AbortController();
     let extractions = 0;
     const article = makeItemAdapter('article', { text: 'body' });
@@ -465,7 +529,7 @@ describe('process --each (feed collection mode)', () => {
         signal: controller.signal,
       },
     });
-    expect(code).toBe(ExitCode.Error);
+    expect(code).toBe(ExitCode.Cancelled);
     expect(extractions).toBe(1);
     expect(stderr()).toContain('cancelled');
   });

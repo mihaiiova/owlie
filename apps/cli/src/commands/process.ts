@@ -1,15 +1,16 @@
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { resolve } from 'node:path';
 import type {
   CollectionAdapter,
   ContentProcessor,
+  HttpFetchPolicy,
   ItemAdapter,
   NormalizedDocument,
   ProcessRequest,
-  ProgressSink,
 } from '@owlieio/core';
 import {
   assertNoUrlCredentials,
+  buildProvenance,
   CancelledError,
   ConfigurationError,
   OwlieError,
@@ -32,16 +33,29 @@ import {
 } from '../config.js';
 import type { ProviderEnvConfig, UserConfig } from '../config.js';
 import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
-import { extractLinkedItem, itemRef, toBatchError } from '../feed.js';
+import {
+  canDiscoverFeed,
+  discoverFeedUrl,
+  extractLinkedItem,
+  itemRef,
+  toBatchError,
+} from '../feed.js';
 import { extractWithFallback } from '../dispatch.js';
 import { parseCollectionLimit } from '../limits.js';
+import {
+  createCommandSpinner,
+  createProgressSink,
+  writeResultEnvelope,
+  writeStreamRecord,
+  writeTerminalRecord,
+  writeUsageError,
+} from '../protocol.js';
 import {
   assertKnownProvider,
   defaultItemAdapters,
   resolveModelReference,
   resolveProcessor,
 } from '../registry.js';
-import { Spinner } from '../spinner.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 
@@ -62,6 +76,10 @@ export interface ProcessDeps {
   feedAdapter?: CollectionAdapter;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
+  /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
+  clock?: () => Date;
 }
 
 async function readInputFile(path: string): Promise<string> {
@@ -75,34 +93,57 @@ async function readInputFile(path: string): Promise<string> {
   }
 }
 
-function textDocument(text: string, source: ProcessInputSource): NormalizedDocument {
+function textDocument(
+  text: string,
+  source: ProcessInputSource,
+  clock: () => Date,
+): NormalizedDocument {
+  // Local files use a normalized absolute-path identity (not a basename) so
+  // two files with the same name in different directories dedupe separately.
+  const sourceId = source.kind === 'stdin' ? 'local:stdin' : `local:file:${resolve(source.path)}`;
   return {
-    schemaVersion: 1,
-    id: source.kind === 'stdin' ? 'local:stdin' : `local:file:${basename(source.path)}`,
+    schemaVersion: 2,
+    id: sourceId,
     sourceType: 'local',
     canonicalUrl: '',
     mediaType: 'text',
     text,
     metadata: {},
+    provenance: buildProvenance({
+      sourceId,
+      canonicalUrl: '',
+      adapterId: 'local',
+      text,
+      fetchedAt: clock().toISOString(),
+    }),
   };
 }
 
-function parseDocument(json: string): NormalizedDocument {
+function parseDocument(json: string, clock: () => Date): NormalizedDocument {
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
   } catch (error) {
     throw new OwlieError('input is not valid JSON (--input-format json)', { cause: error });
   }
-  const doc = (parsed ?? {}) as Partial<NormalizedDocument>;
+  const doc = unwrapProtocolEnvelope(parsed);
   if (typeof doc.text !== 'string' || doc.text.trim() === '') {
     throw new OwlieError('JSON input is missing a non-empty "text" field');
   }
   if (!isSourceType(doc.sourceType)) {
     throw new OwlieError('JSON input has an invalid or missing "sourceType" field');
   }
+  const provenance =
+    doc.provenance ??
+    buildProvenance({
+      sourceId: doc.id ?? 'text:input',
+      canonicalUrl: doc.canonicalUrl ?? '',
+      adapterId: doc.sourceType,
+      text: doc.text,
+      fetchedAt: clock().toISOString(),
+    });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: doc.id ?? 'text:input',
     sourceType: doc.sourceType,
     canonicalUrl: doc.canonicalUrl ?? '',
@@ -112,15 +153,37 @@ function parseDocument(json: string): NormalizedDocument {
     publishedAt: doc.publishedAt,
     author: doc.author,
     metadata: doc.metadata ?? {},
+    provenance,
   };
+}
+
+/**
+ * Accepts either a raw `NormalizedDocument` or a versioned protocol envelope
+ * (`{ schemaVersion, command, result }`) whose `result` is a document. This
+ * keeps `owlie extract --json | owlie process --input-format json` working
+ * through the unified envelope.
+ */
+function unwrapProtocolEnvelope(value: unknown): Partial<NormalizedDocument> {
+  if (value !== null && typeof value === 'object') {
+    const candidate = value as { schemaVersion?: unknown; command?: unknown; result?: unknown };
+    if (
+      typeof candidate.schemaVersion === 'number' &&
+      typeof candidate.command === 'string' &&
+      'result' in candidate
+    ) {
+      return (candidate.result ?? {}) as Partial<NormalizedDocument>;
+    }
+  }
+  return (value ?? {}) as Partial<NormalizedDocument>;
 }
 
 async function readDocument(
   source: ProcessInputSource,
   inputFormat: 'text' | 'json' | undefined,
+  clock: () => Date,
 ): Promise<NormalizedDocument> {
   const raw = source.kind === 'stdin' ? source.content : await readInputFile(source.path);
-  return inputFormat === 'json' ? parseDocument(raw) : textDocument(raw, source);
+  return inputFormat === 'json' ? parseDocument(raw, clock) : textDocument(raw, source, clock);
 }
 
 function resolveConfiguredProcessor(
@@ -156,8 +219,8 @@ export interface ModelSelection {
  * silent precedence. Pure and injectable for deterministic tests.
  */
 export function resolveModelSelection(
-  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'>,
-  resolveProviderFn: (options: { provider?: string; envFile?: string }) => string,
+  options: Pick<CliOptions, 'model' | 'provider' | 'envFile'> & { hosted?: boolean },
+  resolveProviderFn: (options: { provider?: string; envFile?: string; hosted?: boolean }) => string,
 ): ModelSelection {
   const ref = options.model !== undefined ? resolveModelReference(options.model) : undefined;
   if (ref?.provider) {
@@ -176,7 +239,7 @@ export function resolveModelSelection(
 /** Resolves the active provider through the injected override or config/env. */
 function resolveProviderFallback(deps: ProcessDeps) {
   const readConfig = deps.readConfig ?? readUserConfig;
-  return (opts: { provider?: string; envFile?: string }) =>
+  return (opts: { provider?: string; envFile?: string; hosted?: boolean }) =>
     deps.provider ?? resolveProvider(opts, process.env, loadDotEnv, readConfig);
 }
 
@@ -204,7 +267,7 @@ function resolveProcessorForCommand(options: CliOptions, deps: ProcessDeps): Con
     deps.config ??
     resolveProviderSettings(
       provider,
-      { model, envFile: options.envFile },
+      { model, envFile: options.envFile, hosted: options.hosted },
       process.env,
       loadDotEnv,
       readConfig,
@@ -223,9 +286,10 @@ function resolveItemAdapters(
     deps.itemAdapters ??
     defaultItemAdapters({
       languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
+      proxy: options.hosted ? undefined : readConfig().proxy,
       cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
+      whisperModel: options.hosted ? undefined : readConfig().transcription?.model,
+      networkPolicy: deps.networkPolicy,
     })
   );
 }
@@ -241,21 +305,23 @@ async function runUrlProcessing(
 ): Promise<number> {
   const [, extra] = args;
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'process', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
   if (options.input !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with --input');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', 'cannot combine a URL with --input');
     return ExitCode.Usage;
   }
   if (!io.stdin.isTTY) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'cannot combine a URL with piped stdin');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', 'cannot combine a URL with piped stdin');
     return ExitCode.Usage;
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
   const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
 
   if (feedAdapter.recognize({ url })) {
     if (!options.quiet)
@@ -272,20 +338,19 @@ async function runUrlProcessing(
   // or model fails fast instead of after an expensive extraction.
   const processor = resolveProcessorForCommand(options, deps);
 
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.start(`extracting ${event.target}`);
-      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
-    },
-  };
+  const progress = createProgressSink(io, options, 'process', (event) => {
+    if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+    else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+  });
   const { document } = await extractWithFallback(
     itemAdapters,
     { url },
     {
       signal: deps.signal,
       progress,
+      clock: deps.clock,
       onFallback: () => {
-        if (!options.quiet) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
+        if (!options.quiet && !options.json) writeDiagnostic(io, 'info', ARTICLE_FALLBACK_NOTICE);
       },
     },
   );
@@ -298,7 +363,7 @@ async function runUrlProcessing(
   spinner.stop();
 
   if (options.json) {
-    io.stdout.write(JSON.stringify(result) + '\n');
+    writeResultEnvelope(io, 'process', result);
   } else {
     io.stdout.write(result.output + '\n');
   }
@@ -311,14 +376,7 @@ export async function runProcessCommand(
   options: CliOptions,
   deps: ProcessDeps = {},
 ): Promise<number> {
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     if (options.each) {
@@ -340,7 +398,11 @@ export async function runProcessCommand(
       stdin: stdinPiped ? { isTTY: false, content: stdinContent ?? '' } : undefined,
     });
 
-    const document = await readDocument(source, options.inputFormat);
+    const document = await readDocument(
+      source,
+      options.inputFormat,
+      deps.clock ?? (() => new Date()),
+    );
 
     const processor = resolveProcessorForCommand(options, deps);
 
@@ -350,7 +412,7 @@ export async function runProcessCommand(
     spinner.stop();
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(result) + '\n');
+      writeResultEnvelope(io, 'process', result);
     } else {
       io.stdout.write(result.output + '\n');
     }
@@ -363,7 +425,8 @@ export async function runProcessCommand(
         const pointer = modelsPointer(options, deps);
         if (pointer) message += `\n\n${pointer}`;
       }
-      writeDiagnostic(io, 'error', message);
+      if (options.json) writeTerminalRecord(io, 'process', error, message);
+      else writeDiagnostic(io, 'error', message);
     }
     return exitCodeForError(error);
   }
@@ -378,45 +441,60 @@ async function runFeedProcessing(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', '--each requires a feed URL');
+    if (!options.quiet) writeUsageError(io, options, 'process', '--each requires a feed URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'process', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
   if (options.input !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', '--each cannot be combined with --input');
+    if (!options.quiet)
+      writeUsageError(io, options, 'process', '--each cannot be combined with --input');
     return ExitCode.Usage;
   }
   if (!io.stdin.isTTY) {
     if (!options.quiet)
-      writeDiagnostic(io, 'warning', '--each cannot be combined with piped stdin');
+      writeUsageError(io, options, 'process', '--each cannot be combined with piped stdin');
     return ExitCode.Usage;
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
   const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter();
+  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
 
+  let feedUrl = url;
   if (!feedAdapter.recognize({ url })) {
-    if (!options.quiet)
-      writeDiagnostic(io, 'warning', `--each requires an RSS/Atom feed URL, received "${url}"`);
-    return ExitCode.Usage;
+    const discovered = canDiscoverFeed(feedAdapter)
+      ? await discoverFeedUrl(feedAdapter, url, deps.signal)
+      : undefined;
+    if (discovered === undefined) {
+      if (!options.quiet)
+        writeUsageError(
+          io,
+          options,
+          'process',
+          `--each requires an RSS/Atom feed URL or a page that exposes one, received "${url}"`,
+        );
+      return ExitCode.Usage;
+    }
+    feedUrl = discovered;
   }
 
   const processor = resolveProcessorForCommand(options, deps);
 
   const limit = parseCollectionLimit(options.limit);
   spinner.start('processing feed');
-  const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
+  const result = await listCollection(
+    feedAdapter,
+    { url: feedUrl },
+    { limit, signal: deps.signal },
+  );
 
   let failed = false;
-  const progress: ProgressSink = {
-    emit: (event) => {
-      if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
-    },
-  };
+  const progress = createProgressSink(io, options, 'process', (event) => {
+    if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
+  });
 
   for (const entry of result.items) {
     if (deps.signal?.aborted) throw new CancelledError('processing cancelled');
@@ -429,26 +507,23 @@ async function runFeedProcessing(
         itemAdapters,
         signal: deps.signal,
         progress,
+        clock: deps.clock,
       });
       try {
         const procResult = await processor.process(
           { document, instruction: options.prompt },
           { signal: deps.signal },
         );
-        io.stdout.write(JSON.stringify({ item: ref, document, result: procResult }) + '\n');
+        writeStreamRecord(io, 'process', { item: ref, document, result: procResult });
       } catch (error) {
         if (error instanceof CancelledError || deps.signal?.aborted) throw error;
         failed = true;
-        io.stdout.write(
-          JSON.stringify({ item: ref, error: toBatchError(error, 'processing') }) + '\n',
-        );
+        writeStreamRecord(io, 'process', { item: ref, error: toBatchError(error, 'processing') });
       }
     } catch (error) {
       if (error instanceof CancelledError || deps.signal?.aborted) throw error;
       failed = true;
-      io.stdout.write(
-        JSON.stringify({ item: ref, error: toBatchError(error, 'extraction') }) + '\n',
-      );
+      writeStreamRecord(io, 'process', { item: ref, error: toBatchError(error, 'extraction') });
     }
   }
 

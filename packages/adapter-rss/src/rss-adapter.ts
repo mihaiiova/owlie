@@ -21,6 +21,11 @@ import {
   type HttpFetchPolicy,
 } from '@owlieio/core';
 import { documentFromItem, entryToItem, isFeedUrl, normalizeFeedUrl, parseFeed } from './feed.js';
+import {
+  FeedDiscoveryService,
+  type FeedDiscovery,
+  type FeedDiscoveryOptions,
+} from './discovery.js';
 
 /** Options accepted by the {@link RssAdapter} constructor. */
 export interface RssAdapterOptions {
@@ -38,7 +43,7 @@ export interface RssAdapterOptions {
  * a `mediaType: 'text'` document, preferring item-carried text and only
  * re-fetching the feed as a fallback.
  */
-export class RssAdapter implements CollectionAdapter, ContentExtractor {
+export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDiscovery {
   static readonly id = 'rss';
   readonly id = RssAdapter.id;
   readonly sourceType = 'rss' as const;
@@ -97,7 +102,7 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   }
 
   async extract(item: ContentItem, options: ExtractionOptions = {}): Promise<NormalizedDocument> {
-    const carried = documentFromItem(item);
+    const carried = documentFromItem(item, { fetchedAt: options.fetchedAt });
     if (carried) return carried;
 
     const feedUrl = typeof item.metadata.feedUrl === 'string' ? item.metadata.feedUrl : undefined;
@@ -120,7 +125,9 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
       throw new ExtractionError(`entry ${entryId} not found in feed ${feedUrl}`);
     }
 
-    const document = documentFromItem(entryToItem(entry, feedUrl));
+    const document = documentFromItem(entryToItem(entry, feedUrl), {
+      fetchedAt: options.fetchedAt,
+    });
     if (!document) {
       throw new ExtractionError(`entry ${entryId} has no text content`);
     }
@@ -130,6 +137,16 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor {
   private effectivePolicy(): HttpFetchPolicy {
     if (this.timeoutMs === undefined) return this.policy ?? {};
     return { ...(this.policy ?? {}), timeoutMs: this.timeoutMs };
+  }
+
+  async discover(
+    locator: ContentLocator,
+    options: FeedDiscoveryOptions = {},
+  ): Promise<ContentCollection[]> {
+    return new FeedDiscoveryService({
+      fetcher: this.fetcher,
+      policy: this.effectivePolicy(),
+    }).discover(locator, options);
   }
 }
 

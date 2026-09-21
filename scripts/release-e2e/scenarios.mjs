@@ -9,6 +9,7 @@ import {
   assertExitCode,
   assertMatch,
   assertNoSecrets,
+  assertProtocolEnvelope,
   parseJson,
   parseJsonLines,
 } from './assertions.mjs';
@@ -33,7 +34,12 @@ export function toFailure(result, assertionErrors = []) {
   if (result.status === 0) {
     return { kind: 'assertion', message: assertionErrors.join('; ') };
   }
-  return { kind: 'exit', stderr: result.stderr, message: assertionErrors.join('; ') };
+  return {
+    kind: 'exit',
+    status: result.status,
+    stderr: result.stderr,
+    message: assertionErrors.join('; '),
+  };
 }
 
 /** Renders bounded, shape-based diagnostics for a failed attempt. */
@@ -119,7 +125,9 @@ function jsonAssert(parse, extraChecks) {
     if (!exit.ok) return exit;
     const parsed = parse(result.stdout);
     if (!parsed.ok) return { ok: false, errors: [parsed.error] };
-    const checks = extraChecks(parsed.value);
+    const envelope = assertProtocolEnvelope(parsed.value);
+    if (!envelope.ok) return { ok: false, errors: [envelope.error] };
+    const checks = extraChecks(envelope.value);
     if (checks.ok) return { ok: true, errors: [] };
     return { ok: false, errors: [checks.error] };
   };
@@ -174,6 +182,36 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       },
     },
     {
+      name: 'version --json',
+      allowProxyFallback: false,
+      run: () => spawn({ args: ['--version', '--json'], env: {}, timeoutMs: 30_000 }),
+      assert: jsonAssert(parseJson, (version) => {
+        if (!assertMatch(String(version), /^\d+\.\d+\.\d+$/).ok)
+          return { ok: false, error: 'version --json result is not a scalar version' };
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'capabilities',
+      allowProxyFallback: false,
+      run: () => spawn({ args: ['capabilities', '--json'], env: {}, timeoutMs: 30_000 }),
+      assert: jsonAssert(parseJson, (report) => {
+        if (!assertMatch(String(report?.version), /^\d+\.\d+\.\d+$/).ok)
+          return { ok: false, error: 'capabilities missing artifact version' };
+        if (report?.protocolSchemaVersion !== 1)
+          return { ok: false, error: 'capabilities missing protocolSchemaVersion' };
+        if (report?.documentSchemaVersion !== 2)
+          return { ok: false, error: 'capabilities missing documentSchemaVersion' };
+        if (!Array.isArray(report?.adapters) || !report.adapters.includes('youtube'))
+          return { ok: false, error: 'capabilities missing adapter catalog' };
+        if (!Array.isArray(report?.providers) || !report.providers.includes('deepseek'))
+          return { ok: false, error: 'capabilities missing provider catalog' };
+        if (!Array.isArray(report?.resolvers) || !report.resolvers.includes('podcast-apple'))
+          return { ok: false, error: 'capabilities missing resolver catalog' };
+        return { ok: true };
+      }),
+    },
+    {
       name: 'doctor',
       allowProxyFallback: false,
       run: () =>
@@ -184,13 +222,19 @@ export function buildScenarios(ctx, spawn, spawnTty) {
         const parsed = parseJson(result.stdout);
         if (!parsed.ok) errors.push(parsed.error);
         else {
-          if (!parsed.value.adapters?.includes('youtube'))
-            errors.push('doctor missing youtube adapter');
-          if (!parsed.value.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
-          if (!parsed.value.adapters?.includes('article'))
-            errors.push('doctor missing article adapter');
-          if (!parsed.value.providers?.some((provider) => provider.id === 'deepseek'))
-            errors.push('doctor missing deepseek provider');
+          const envelope = assertProtocolEnvelope(parsed.value);
+          if (!envelope.ok) {
+            errors.push(envelope.error);
+          } else {
+            const report = envelope.value;
+            if (!report.adapters?.includes('youtube'))
+              errors.push('doctor missing youtube adapter');
+            if (!report.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
+            if (!report.adapters?.includes('article'))
+              errors.push('doctor missing article adapter');
+            if (!report.providers?.some((provider) => provider.id === 'deepseek'))
+              errors.push('doctor missing deepseek provider');
+          }
         }
         if (!assertNoSecrets(result.stdout, secrets).ok) errors.push('doctor leaked a secret');
         return { ok: errors.length === 0, errors };
@@ -237,15 +281,46 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       }),
     },
     {
-      name: 'extract article',
+      name: 'list discovered feed',
       allowProxyFallback: false,
-      run: () => spawn({ args: ['extract', articleUrl, '--json'], env: {}, timeoutMs: 60_000 }),
-      assert: jsonAssert(parseJson, (doc) => {
-        if (doc.sourceType !== 'article') return { ok: false, error: 'wrong sourceType' };
-        if (doc.mediaType !== 'text') return { ok: false, error: 'wrong mediaType' };
-        if (typeof doc.text !== 'string' || !doc.text.includes(corpus.marker)) {
-          return { ok: false, error: 'article text missing marker' };
+      run: () =>
+        spawn({ args: ['list', articleUrl, '--limit', '2', '--json'], env: {}, timeoutMs: 60_000 }),
+      assert: jsonAssert(parseJson, (envelope) => {
+        if (!Array.isArray(envelope.items) || envelope.items.length !== corpus.entryCount) {
+          return {
+            ok: false,
+            error: `expected ${corpus.entryCount} items, got ${envelope.items?.length}`,
+          };
         }
+        if (envelope.items[0]?.canonicalUrl !== articleUrl) {
+          return { ok: false, error: 'first item does not link the article' };
+        }
+        if (envelope.truncated !== false)
+          return { ok: false, error: 'feed unexpectedly truncated' };
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'extract discovered feed',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['extract', articleUrl, '--limit', '2', '--json'],
+          env: {},
+          timeoutMs: 60_000,
+        }),
+      assert: jsonAssert(parseJson, (envelope) => {
+        if (!Array.isArray(envelope.items) || envelope.items.length !== corpus.entryCount) {
+          return { ok: false, error: `expected ${corpus.entryCount} items` };
+        }
+        const doc = envelope.items[0]?.document;
+        if (doc?.sourceType !== 'article')
+          return { ok: false, error: 'linked item not extracted as article' };
+        if (typeof doc.text !== 'string' || !doc.text.includes(corpus.marker)) {
+          return { ok: false, error: 'linked article text missing marker' };
+        }
+        if (envelope.truncated !== false)
+          return { ok: false, error: 'feed unexpectedly truncated' };
         return { ok: true };
       }),
     },
@@ -315,7 +390,7 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       name: 'extract → process pipeline',
       allowProxyFallback: false,
       run: () => {
-        const extracted = spawn({ args: ['extract', articleUrl], env: {}, timeoutMs: 60_000 });
+        const extracted = spawn({ args: ['extract', youtubeUrl], env: {}, timeoutMs: 60_000 });
         if (extracted.status !== 0) return extracted;
         return spawn({
           args: ['process', '--prompt', 'Reply with exactly: OK', '--json'],
@@ -378,6 +453,72 @@ export function buildScenarios(ctx, spawn, spawnTty) {
           return { ok: false, errors: ['process output leaked a secret'] };
         }
         return { ok: true, errors: [] };
+      },
+    },
+    {
+      name: 'process --each discovered feed',
+      allowProxyFallback: false,
+      run: () =>
+        spawnTty({
+          args: [
+            'process',
+            articleUrl,
+            '--each',
+            '--limit',
+            '2',
+            '--prompt',
+            'Reply with exactly: OK',
+            '--quiet',
+          ],
+          env: {
+            OWLIE_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: apiKey,
+            DEEPSEEK_MODEL: 'deepseek-chat',
+          },
+          timeoutMs: 120_000,
+        }),
+      assert: (result) => {
+        if (!assertExitCode(result, 0).ok) return assertExitCode(result, 0);
+        const parsed = parseJsonLines(result.stdout);
+        if (!parsed.ok) return { ok: false, errors: [parsed.error] };
+        if (parsed.records.length !== corpus.entryCount) {
+          return {
+            ok: false,
+            errors: [`expected ${corpus.entryCount} records, got ${parsed.records.length}`],
+          };
+        }
+        const record = parsed.records[0];
+        if (record?.item?.url !== articleUrl)
+          return { ok: false, errors: ['record item missing article url'] };
+        if (record?.error) return { ok: false, errors: [`record failed: ${record.error.message}`] };
+        if (!assertMatch(record?.result?.output, /OK/i).ok) {
+          return { ok: false, errors: ['record output missing OK marker'] };
+        }
+        if (!assertNoSecrets(result.stdout, secrets).ok) {
+          return { ok: false, errors: ['process output leaked a secret'] };
+        }
+        return { ok: true, errors: [] };
+      },
+    },
+    {
+      name: 'deadline cancellation',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['list', feedUrl, '--timeout-ms', '1', '--json'],
+          env: {},
+          timeoutMs: 30_000,
+        }),
+      assert: (result) => {
+        const errors = [];
+        if (!assertExitCode(result, 130).ok) errors.push(assertExitCode(result, 130).error);
+        const parsed = parseJsonLines(result.stderr);
+        if (!parsed.ok) {
+          errors.push(parsed.error);
+        } else if (!parsed.records.some((record) => record.kind === 'cancelled')) {
+          errors.push('missing cancelled terminal record');
+        }
+        return { ok: errors.length === 0, errors };
       },
     },
   ];

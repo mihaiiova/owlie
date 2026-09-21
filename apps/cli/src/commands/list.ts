@@ -3,6 +3,7 @@ import type {
   CollectionListResult,
   ContentCollection,
   ContentItem,
+  HttpFetchPolicy,
 } from '@owlieio/core';
 import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
@@ -10,15 +11,22 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
-import { Spinner } from '../spinner.js';
+import { resolveFeedCollectionUrl } from '../feed.js';
+import {
+  createCommandSpinner,
+  writeCommandError,
+  writeResultEnvelope,
+  writeUsageError,
+} from '../protocol.js';
 import type { SpinnerLike } from '../spinner.js';
-import { writeDiagnostic } from '../style.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
 export interface ListDeps {
   adapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
+  /** Invocation-wide network fetch policy (max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /** A safe, HTML-free summary of one listed item. */
@@ -114,43 +122,34 @@ export async function runListCommand(
 ): Promise<number> {
   const [url, extra] = args;
   if (url === undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', 'list requires a URL');
+    if (!options.quiet) writeUsageError(io, options, 'list', 'list requires a URL');
     return ExitCode.Usage;
   }
   if (extra !== undefined) {
-    if (!options.quiet) writeDiagnostic(io, 'warning', `unexpected argument "${extra}"`);
+    if (!options.quiet) writeUsageError(io, options, 'list', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
   }
 
-  const adapter = deps.adapter ?? new RssAdapter();
-  const spinner =
-    deps.spinner ??
-    new Spinner({
-      write: (text) => {
-        if (!options.quiet) io.stderr.write(text);
-      },
-      tty: io.stderr.isTTY,
-    });
+  const adapter = deps.adapter ?? new RssAdapter({ policy: deps.networkPolicy });
+  const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     const limit = parseListLimit(options.limit);
     spinner.start('listing feed');
-    const result = await listCollection(adapter, { url }, { limit, signal: deps.signal });
+    const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
+    const result = await listCollection(adapter, { url: feedUrl }, { limit, signal: deps.signal });
     const envelope = buildEnvelope(result);
     spinner.stop();
 
     if (options.json) {
-      io.stdout.write(JSON.stringify(envelope) + '\n');
+      writeResultEnvelope(io, 'list', envelope);
     } else {
       io.stdout.write(formatListSummary(envelope));
     }
     return ExitCode.Success;
   } catch (error) {
     spinner.stop();
-    if (!options.quiet) {
-      const message = error instanceof Error ? error.message : String(error);
-      writeDiagnostic(io, 'error', message);
-    }
+    writeCommandError(io, options, 'list', error);
     return exitCodeForError(error);
   }
 }

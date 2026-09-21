@@ -14,12 +14,32 @@ export {
 export type { SpinnerLike, SpinnerOptions } from './spinner.js';
 export { colorize, writeDiagnostic } from './style.js';
 export type { Severity } from './style.js';
+export {
+  USAGE_ERROR_CODE,
+  createCommandSpinner,
+  createProgressSink,
+  redactUrl,
+  redactUrls,
+  writeCancelledRecord,
+  writeCommandError,
+  writeErrorRecord,
+  writeProgressRecord,
+  writeResultEnvelope,
+  writeStreamRecord,
+  writeTerminalRecord,
+  writeUsageError,
+} from './protocol.js';
 export type { DoctorDeps } from './commands/doctor.js';
 export { runAuthCommand } from './commands/auth.js';
 export type { AuthDeps } from './commands/auth.js';
 export { runModelsCommand } from './commands/models.js';
 export type { ModelsDeps } from './commands/models.js';
 export { extractWithFallback, selectItemAdapter } from './dispatch.js';
+export { finalizeDocument, ARTICLE_FALLBACK_WARNING } from './provenance.js';
+export type { FinalizeDocumentInput } from './provenance.js';
+export { buildCapabilities, runCapabilitiesCommand } from './capabilities.js';
+export { COMMAND_IDS } from './commands/catalog.js';
+export type { CapabilitiesReport } from './capabilities.js';
 export { parseCollectionLimit } from './limits.js';
 export { parseLanguages } from './commands/extract.js';
 export type { ExtractDeps } from './commands/extract.js';

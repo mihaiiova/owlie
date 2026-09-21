@@ -51,9 +51,49 @@ export interface ContentItem {
   metadata: Record<string, unknown>;
 }
 
+export const NORMALIZED_DOCUMENT_SCHEMA_VERSION = 2 as const;
+
+/** The literal values {@link NORMALIZED_DOCUMENT_SCHEMA_VERSION} may take. */
+export type NormalizedDocumentSchemaVersion = typeof NORMALIZED_DOCUMENT_SCHEMA_VERSION;
+
+/** A deterministic SHA-256 content fingerprint of normalized document text. */
+export interface ContentFingerprint {
+  algorithm: 'sha256';
+  digest: string;
+}
+
+/** A structured, machine-readable extraction warning with a stable code. */
+export interface ExtractionWarning {
+  code: string;
+  message: string;
+}
+
+/**
+ * First-class extraction provenance attached to every v2
+ * {@link NormalizedDocument}. It records the stable source identity, canonical
+ * URL, producing adapter, optional resolver, CLI-boundary timestamp, language,
+ * deterministic content fingerprint, and structured warnings. Values must not
+ * expose credentials, URL userinfo, query strings, or fragments.
+ */
+export interface DocumentProvenance {
+  /** Stable idempotency identity, distinct from the text fingerprint. */
+  sourceId: string;
+  canonicalUrl: string;
+  /** The adapter that produced the document. */
+  adapterId: string;
+  /** The selected audio resolver, when resolver extraction produced it. */
+  resolverId?: string;
+  /** ISO-8601 UTC extraction timestamp stamped once at the CLI boundary. */
+  fetchedAt: string;
+  /** Normalized transcript language when available. */
+  language?: string;
+  contentFingerprint: ContentFingerprint;
+  warnings: ExtractionWarning[];
+}
+
 /** A source-agnostic, normalized representation of extracted content. */
 export interface NormalizedDocument {
-  schemaVersion: 1;
+  schemaVersion: NormalizedDocumentSchemaVersion;
   id: string;
   sourceType: SourceType;
   canonicalUrl: string;
@@ -63,6 +103,7 @@ export interface NormalizedDocument {
   publishedAt?: string;
   author?: string;
   metadata: Record<string, unknown>;
+  provenance: DocumentProvenance;
 }
 
 /** A request to process a normalized document with an LLM. */

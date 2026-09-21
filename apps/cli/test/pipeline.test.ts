@@ -6,6 +6,7 @@ import type {
   NormalizedDocument,
   ProcessRequest,
 } from '@owlieio/core';
+import { buildProvenance } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliIo } from 'owlie';
 
@@ -38,13 +39,20 @@ function makeFakeAdapter(text = 'the transcript text'): ItemAdapter {
     async extract(item: ContentItem, options) {
       options?.progress?.emit({ type: 'started', target: item.id });
       const document: NormalizedDocument = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: item.id,
         sourceType: 'youtube',
         canonicalUrl: item.canonicalUrl,
         mediaType: 'transcript',
         text,
         metadata: { videoId: 'test', isGenerated: false },
+        provenance: buildProvenance({
+          sourceId: item.id,
+          canonicalUrl: item.canonicalUrl,
+          adapterId: 'youtube',
+          text,
+          fetchedAt: '2026-09-21T00:00:00.000Z',
+        }),
       };
       options?.progress?.emit({ type: 'completed', target: item.id, result: document });
       return document;
@@ -97,7 +105,7 @@ describe('extract | process pipeline', () => {
     expect(extractCode).toBe(ExitCode.Success);
     const docJson = extractRun.stdout();
     const emitted = JSON.parse(docJson);
-    expect(emitted.id).toBe('youtube:video:test');
+    expect(emitted.result.id).toBe('youtube:video:test');
 
     const { processor, requests } = makeFakeProcessor();
     const processRun = makeIo(docJson);
@@ -111,7 +119,7 @@ describe('extract | process pipeline', () => {
     expect(requests[0]?.document.mediaType).toBe('transcript');
     expect(requests[0]?.document.metadata).toMatchObject({ videoId: 'test', isGenerated: false });
 
-    const result = JSON.parse(processRun.stdout());
+    const result = JSON.parse(processRun.stdout()).result;
     expect(result.format).toBe('text');
     expect(result.metadata.model).toBe('deepseek-chat');
   });

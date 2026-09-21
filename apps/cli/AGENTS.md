@@ -8,8 +8,10 @@ applies first; this file adds CLI-specific guidance.
 The CLI owns terminal behavior, environment-file loading, and local
 configuration. It bundles `@owlieio/core`, adapters, and providers into one
 self-contained published `owlie` package — it never owns content logic itself.
-When adding an adapter or provider, register it in `src/registry.ts` and add it
-to this package's `devDependencies`.
+It also owns the global `--hosted` deterministic mode (flags and process
+environment only; no dotenv, saved configuration, or model-cache fallback, and
+`auth`/`setup` are rejected). When adding an adapter or provider, register it
+in `src/registry.ts` and add it to this package's `devDependencies`.
 
 ## Hard rules
 
@@ -35,8 +37,9 @@ to this package's `devDependencies`.
 
 ## Exit codes
 
-`0` success, `1` error, `2` usage error, `3` not implemented. Translate thrown
-typed errors with `exitCodeForError` in `src/io.ts`.
+`0` success, `1` error, `2` usage error, `3` not implemented, `130` cancelled
+(SIGINT/SIGTERM or an expired invocation deadline). Translate thrown typed
+errors with `exitCodeForError` in `src/io.ts`; `CancelledError` maps to 130.
 
 ## Testing
 

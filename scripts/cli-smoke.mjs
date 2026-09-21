@@ -27,6 +27,22 @@ const checks = [
     stderr: null,
   },
   {
+    name: '--version --json',
+    args: ['--version', '--json'],
+    status: 0,
+    stdout:
+      /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"version"[\s\S]*"result"\s*:\s*"\d+\.\d+\.\d+"/,
+    stderr: null,
+  },
+  {
+    name: 'capabilities --json',
+    args: ['capabilities', '--json'],
+    status: 0,
+    stdout:
+      /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"capabilities"[\s\S]*"documentSchemaVersion"\s*:\s*2[\s\S]*"adapters"[\s\S]*"providers"[\s\S]*"resolvers"/,
+    stderr: null,
+  },
+  {
     name: 'doctor',
     args: ['doctor'],
     status: 0,
@@ -41,11 +57,11 @@ const checks = [
     stderr: /requires a URL/i,
   },
   {
-    name: 'list rejects a non-feed URL',
-    args: ['list', 'https://example.com'],
+    name: 'list rejects an undiscoverable URL',
+    args: ['list', 'ftp://example.com'],
     status: 1,
     stdout: null,
-    stderr: /not a recognized RSS\/Atom feed URL/i,
+    stderr: /no RSS\/Atom feed discoverable/i,
   },
   {
     name: 'extract rejects an invalid URL',

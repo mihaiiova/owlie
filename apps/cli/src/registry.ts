@@ -1,4 +1,9 @@
-import type { ContentProcessor, ItemAdapter, ProviderCatalog } from '@owlieio/core';
+import type {
+  ContentProcessor,
+  HttpFetchPolicy,
+  ItemAdapter,
+  ProviderCatalog,
+} from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -37,6 +42,7 @@ export function defaultItemAdapters(
     cacheDir?: string;
     whisperModel?: string;
     mediaMaxBytes?: number;
+    networkPolicy?: HttpFetchPolicy;
   } = {},
 ): ItemAdapter[] {
   const podcastFetcher = new DefaultHttpFetcher();
@@ -46,13 +52,13 @@ export function defaultItemAdapters(
       fetcher: podcastFetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
       cacheDir: options.cacheDir ?? '.owlie-cache',
-      mediaFetchPolicy:
-        options.mediaMaxBytes === undefined
-          ? undefined
-          : { maxResponseBytes: options.mediaMaxBytes },
-      resolvers: createPodcastResolvers(podcastFetcher),
+      mediaFetchPolicy: {
+        ...(options.networkPolicy ?? {}),
+        ...(options.mediaMaxBytes === undefined ? {} : { maxResponseBytes: options.mediaMaxBytes }),
+      },
+      resolvers: createPodcastResolvers(podcastFetcher, options.networkPolicy),
     }),
-    new ArticleAdapter(),
+    new ArticleAdapter({ policy: options.networkPolicy }),
   ];
 }
 

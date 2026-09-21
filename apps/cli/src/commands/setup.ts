@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline/promises';
 import type { TranscriptProxy } from '@owlieio/adapter-youtube';
-import type { ModelInfo } from '@owlieio/core';
+import type { HttpFetchPolicy, ModelInfo } from '@owlieio/core';
+import { CancelledError } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -25,8 +26,11 @@ export interface SetupDeps {
   ) => Promise<string>;
   listModels?: (
     provider: ProviderInfo,
-    options: { apiKey: string; baseUrl?: string },
+    options: { apiKey: string; baseUrl?: string; signal?: AbortSignal; policy?: HttpFetchPolicy },
   ) => Promise<ModelInfo[]>;
+  signal?: AbortSignal;
+  /** Invocation-wide network fetch policy (deadline + max download bytes). */
+  networkPolicy?: HttpFetchPolicy;
 }
 
 /** Top-level `owlie setup` sections (future sections append here). */
@@ -112,10 +116,10 @@ export async function runSetupCommand(
   const listModels =
     deps.listModels ??
     ((provider, options) =>
-      getProviderCatalog(provider.id).listModels({
-        apiKey: options.apiKey,
-        baseUrl: options.baseUrl,
-      }));
+      getProviderCatalog(provider.id).listModels(
+        { apiKey: options.apiKey, baseUrl: options.baseUrl },
+        { signal: options.signal, policy: options.policy },
+      ));
   const toolAvailable = deps.toolAvailable ?? defaultToolAvailable;
 
   const existing = readConfig();
@@ -154,8 +158,11 @@ export async function runSetupCommand(
         modelInfos = await listModels(provider, {
           baseUrl: existingProfile.baseUrl ?? provider.baseUrl,
           apiKey,
+          signal: deps.signal,
+          policy: deps.networkPolicy,
         });
       } catch (error) {
+        if (error instanceof CancelledError || deps.signal?.aborted) throw error;
         if (!options.quiet) {
           const message = error instanceof Error ? error.message : String(error);
           writeDiagnostic(io, 'error', `failed to list models for "${providerId}": ${message}`);
