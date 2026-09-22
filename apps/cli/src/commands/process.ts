@@ -492,14 +492,17 @@ async function runFeedProcessing(
   );
 
   let failed = false;
-  const progress = createProgressSink(io, options, 'process', (event) => {
-    if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
-  });
 
-  for (const entry of result.items) {
+  for (const [index, entry] of result.items.entries()) {
     if (deps.signal?.aborted) throw new CancelledError('processing cancelled');
+    const position = index + 1;
     const entryUrl = entry.canonicalUrl;
     const ref = itemRef(entryUrl, entry.title);
+    const progress = createProgressSink(io, options, 'process', (event) => {
+      if (event.type === 'started')
+        spinner.update?.(`extracting [${position}/${limit}] ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+    });
     try {
       const { document } = await extractLinkedItem({
         url: entryUrl,
@@ -510,6 +513,7 @@ async function runFeedProcessing(
         clock: deps.clock,
       });
       try {
+        spinner.update?.(LLM_WAIT_NOTICE);
         const procResult = await processor.process(
           { document, instruction: options.prompt },
           { signal: deps.signal },

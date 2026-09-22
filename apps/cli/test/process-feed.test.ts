@@ -63,6 +63,8 @@ interface FakeItemOptions {
   recognize?: (url: string) => boolean;
   text?: string | ((url: string) => string);
   extractError?: (url: string) => unknown;
+  /** A `progress` event message emitted during extraction (whisper-style). */
+  progressMessage?: string;
 }
 
 function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
@@ -82,6 +84,15 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
     },
     async extract(item: ContentItem, extractOptions) {
       extractOptions?.progress?.emit({ type: 'started', target: item.id });
+      if (options.progressMessage) {
+        extractOptions?.progress?.emit({
+          type: 'progress',
+          target: item.id,
+          current: 1,
+          total: 1,
+          message: options.progressMessage,
+        });
+      }
       const error = options.extractError ? options.extractError(item.canonicalUrl) : undefined;
       if (error) throw error;
       const text =
@@ -532,5 +543,78 @@ describe('process --each (feed collection mode)', () => {
     expect(code).toBe(ExitCode.Cancelled);
     expect(extractions).toBe(1);
     expect(stderr()).toContain('cancelled');
+  });
+
+  it('shows per-item position and switches to waiting for llm response before each item', async () => {
+    const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeFeedAdapter([
+      { url: YT_URL, title: 'A video' },
+      { url: ARTICLE_URL, title: 'A story' },
+    ]);
+    const { processor } = makeProcessor();
+
+    const starts: string[] = [];
+    const updates: string[] = [];
+    const { io } = capture();
+    const code = await run(
+      ['process', FEED_URL, '--each', '--prompt', 'Summarize', '--limit', '2'],
+      io,
+      feedDeps([youtube.adapter, article.adapter], feed.adapter, processor, {
+        spinner: {
+          start: (message) => starts.push(message),
+          update: (message) => updates.push(message),
+          stop: () => {},
+        },
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(starts).toEqual(['processing feed']);
+    expect(updates).toEqual([
+      'extracting [1/2] youtube:https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      'waiting for llm response',
+      'extracting [2/2] article:https://example.com/story-one',
+      'waiting for llm response',
+    ]);
+  });
+
+  it('forwards per-item progress events to the spinner', async () => {
+    const article = makeItemAdapter('article', { progressMessage: 'transcribing 50%' });
+    const feed = makeFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }]);
+    const { processor } = makeProcessor();
+
+    const updates: string[] = [];
+    const { io } = capture();
+    const code = await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x'],
+      io,
+      feedDeps([article.adapter], feed.adapter, processor, {
+        spinner: {
+          start: () => {},
+          update: (message) => updates.push(message),
+          stop: () => {},
+        },
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(updates).toContain('transcribing 50%');
+  });
+
+  it('writes clean plain progress lines without carriage returns when not a TTY', async () => {
+    const article = makeItemAdapter('article');
+    const feed = makeFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }]);
+    const { processor } = makeProcessor();
+    const { io, stderr } = capture();
+    const code = await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--limit', '1'],
+      io,
+      feedDeps([article.adapter], feed.adapter, processor),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stderr()).toContain('extracting [1/1]');
+    expect(stderr()).toContain('waiting for llm response');
+    expect(stderr()).not.toContain('\r');
   });
 });
