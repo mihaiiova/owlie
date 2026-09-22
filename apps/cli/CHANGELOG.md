@@ -1,6 +1,6 @@
 # @owlieio/owlie
 
-## Unreleased
+## 0.5.1
 
 ### Patch Changes
 

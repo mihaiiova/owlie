@@ -20,19 +20,19 @@
 
 ## Scores
 
-| Dimension | Score |
-| --- | --- |
-| Friction | 0.4 |
-| Repetition | 0.7 |
-| Missing capability | 0.2 |
-| Knowledge gap | 0.3 |
-| Fragility | 0.8 |
+| Dimension          | Score |
+| ------------------ | ----- |
+| Friction           | 0.4   |
+| Repetition         | 0.7   |
+| Missing capability | 0.2   |
+| Knowledge gap      | 0.3   |
+| Fragility          | 0.8   |
 
 ## Suggestions
 
-| # | Category | Suggestion | Score | Accepted? |
-| --- | --- | --- | --- | --- |
-| 1 | organization | Restore the configured DeepSeek reviewer model or deliberately update the project override. This is the existing pending suggestion from the two prior reviews; it was not reopened during this release-focused session. | 0.8 | Pending |
+| #   | Category     | Suggestion                                                                                                                                                                                                               | Score | Accepted? |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | --------- |
+| 1   | organization | Restore the configured DeepSeek reviewer model or deliberately update the project override. This is the existing pending suggestion from the two prior reviews; it was not reopened during this release-focused session. | 0.8   | Pending   |
 
 ## Changes Made
 
