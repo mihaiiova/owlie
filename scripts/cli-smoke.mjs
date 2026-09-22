@@ -23,7 +23,7 @@ const checks = [
     name: '--version',
     args: ['--version'],
     status: 0,
-    stdout: /owlie\s+\d+\.\d+\.\d+/,
+    stdout: /owlie\s+\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/,
     stderr: null,
   },
   {
@@ -31,7 +31,7 @@ const checks = [
     args: ['--version', '--json'],
     status: 0,
     stdout:
-      /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"version"[\s\S]*"result"\s*:\s*"\d+\.\d+\.\d+"/,
+      /"schemaVersion"\s*:\s*1[\s\S]*"command"\s*:\s*"version"[\s\S]*"result"\s*:\s*"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?"/,
     stderr: null,
   },
   {

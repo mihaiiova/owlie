@@ -338,13 +338,16 @@ async function runFeedExtraction(
 
   const items: ExtractBatchItem[] = [];
   let failed = false;
-  const progress = createProgressSink(io, options, 'extract', (event) => {
-    if (event.type === 'started') spinner.update?.(`extracting ${event.target}`);
-  });
 
-  for (const entry of result.items) {
+  for (const [index, entry] of result.items.entries()) {
     if (deps.signal?.aborted) throw new CancelledError('extraction cancelled');
+    const position = index + 1;
     const entryUrl = entry.canonicalUrl;
+    const progress = createProgressSink(io, options, 'extract', (event) => {
+      if (event.type === 'started')
+        spinner.update?.(`extracting [${position}/${limit}] ${event.target}`);
+      else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
+    });
     try {
       const outcome = await extractLinkedItem({
         url: entryUrl,

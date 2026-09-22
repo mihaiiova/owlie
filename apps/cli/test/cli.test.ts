@@ -113,7 +113,7 @@ describe('--version', () => {
     const { io, stdout, stderr } = capture();
     const code = await run(['--version'], io);
     expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toMatch(/^owlie \d+\.\d+\.\d+\n$/);
+    expect(stdout()).toMatch(/^owlie \d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\n$/);
     expect(stdout()).toContain(VERSION);
     expect(stderr()).toBe('');
   });

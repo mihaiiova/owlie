@@ -53,6 +53,8 @@ interface FakeItemOptions {
   text?: string | ((url: string) => string);
   resolveError?: unknown;
   extractError?: (url: string) => unknown;
+  /** A `progress` event message emitted during extraction (whisper-style). */
+  progressMessage?: string;
 }
 
 function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
@@ -73,6 +75,15 @@ function makeItemAdapter(id: string, options: FakeItemOptions = {}) {
     },
     async extract(item: ContentItem, extractOptions) {
       extractOptions?.progress?.emit({ type: 'started', target: item.id });
+      if (options.progressMessage) {
+        extractOptions?.progress?.emit({
+          type: 'progress',
+          target: item.id,
+          current: 1,
+          total: 1,
+          message: options.progressMessage,
+        });
+      }
       const error = options.extractError ? options.extractError(item.canonicalUrl) : undefined;
       if (error) throw error;
       const text =
@@ -139,8 +150,12 @@ function makeFeedAdapter(entries: FakeFeedEntry[], listError?: unknown) {
   return { adapter, calls };
 }
 
-function itemDeps(adapters: ItemAdapter[], feedAdapter?: CollectionAdapter): CliDeps {
-  return { extract: { itemAdapters: adapters, feedAdapter } };
+function itemDeps(
+  adapters: ItemAdapter[],
+  feedAdapter?: CollectionAdapter,
+  extra: Partial<CliDeps['extract']> = {},
+): CliDeps {
+  return { extract: { itemAdapters: adapters, feedAdapter, ...extra } };
 }
 
 /** Wraps {@link makeFeedAdapter} with a `discover` capability returning one feed. */
@@ -370,6 +385,52 @@ describe('extract — feed batch', () => {
     expect(extractions).toBe(1);
     expect(stdout()).toBe('');
     expect(stderr()).toContain('cancelled');
+  });
+
+  it('shows per-item position and forwards progress events to the spinner', async () => {
+    const article = makeItemAdapter('article', { progressMessage: 'transcribing 50%' });
+    const feed = makeFeedAdapter([
+      { url: ARTICLE_URL, title: 'First' },
+      { url: 'https://example.com/story-two', title: 'Second' },
+    ]);
+
+    const starts: string[] = [];
+    const updates: string[] = [];
+    const { io } = capture();
+    const code = await run(
+      ['extract', FEED_URL, '--limit', '2'],
+      io,
+      itemDeps([article.adapter], feed.adapter, {
+        spinner: {
+          start: (message) => starts.push(message),
+          update: (message) => updates.push(message),
+          stop: () => {},
+        },
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(starts).toEqual(['extracting feed']);
+    expect(updates).toEqual([
+      'extracting [1/2] article:https://example.com/story-one',
+      'transcribing 50%',
+      'extracting [2/2] article:https://example.com/story-two',
+      'transcribing 50%',
+    ]);
+  });
+
+  it('writes clean plain progress lines without carriage returns when not a TTY', async () => {
+    const article = makeItemAdapter('article');
+    const feed = makeFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }]);
+    const { io, stderr } = capture();
+    const code = await run(
+      ['extract', FEED_URL, '--limit', '1'],
+      io,
+      itemDeps([article.adapter], feed.adapter),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(stderr()).toContain('extracting [1/1]');
+    expect(stderr()).not.toContain('\r');
   });
 
   it('extracts a real RSS feed end-to-end through RssAdapter with injected item extractors', async () => {
