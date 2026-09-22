@@ -419,6 +419,34 @@ describe('extract — feed batch', () => {
     ]);
   });
 
+  it('uses the actual batch size as the position denominator when fewer than the limit', async () => {
+    const article = makeItemAdapter('article');
+    const feed = makeFeedAdapter([
+      { url: ARTICLE_URL, title: 'First' },
+      { url: 'https://example.com/story-two', title: 'Second' },
+    ]);
+
+    const updates: string[] = [];
+    const { io } = capture();
+    const code = await run(
+      ['extract', FEED_URL, '--limit', '10'],
+      io,
+      itemDeps([article.adapter], feed.adapter, {
+        spinner: {
+          start: () => {},
+          update: (message) => updates.push(message),
+          stop: () => {},
+        },
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(updates).toEqual([
+      'extracting [1/2] article:https://example.com/story-one',
+      'extracting [2/2] article:https://example.com/story-two',
+    ]);
+  });
+
   it('writes clean plain progress lines without carriage returns when not a TTY', async () => {
     const article = makeItemAdapter('article');
     const feed = makeFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }]);
