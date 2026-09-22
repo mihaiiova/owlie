@@ -500,7 +500,7 @@ async function runFeedProcessing(
     const ref = itemRef(entryUrl, entry.title);
     const progress = createProgressSink(io, options, 'process', (event) => {
       if (event.type === 'started')
-        spinner.update?.(`extracting [${position}/${limit}] ${event.target}`);
+        spinner.update?.(`extracting [${position}/${result.items.length}] ${event.target}`);
       else if (event.type === 'progress' && event.message) spinner.update?.(event.message);
     });
     try {

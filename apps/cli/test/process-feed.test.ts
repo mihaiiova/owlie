@@ -579,6 +579,37 @@ describe('process --each (feed collection mode)', () => {
     ]);
   });
 
+  it('uses the actual batch size as the position denominator when fewer than the limit', async () => {
+    const article = makeItemAdapter('article', { recognize: (url) => url.startsWith('https://') });
+    const feed = makeFeedAdapter([
+      { url: ARTICLE_URL, title: 'First' },
+      { url: 'https://example.com/story-two', title: 'Second' },
+    ]);
+    const { processor } = makeProcessor();
+
+    const updates: string[] = [];
+    const { io } = capture();
+    const code = await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--limit', '10'],
+      io,
+      feedDeps([article.adapter], feed.adapter, processor, {
+        spinner: {
+          start: () => {},
+          update: (message) => updates.push(message),
+          stop: () => {},
+        },
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Success);
+    expect(updates).toEqual([
+      'extracting [1/2] article:https://example.com/story-one',
+      'waiting for llm response',
+      'extracting [2/2] article:https://example.com/story-two',
+      'waiting for llm response',
+    ]);
+  });
+
   it('forwards per-item progress events to the spinner', async () => {
     const article = makeItemAdapter('article', { progressMessage: 'transcribing 50%' });
     const feed = makeFeedAdapter([{ url: ARTICLE_URL, title: 'A story' }]);
