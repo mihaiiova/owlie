@@ -18,19 +18,19 @@
 
 ## Scores
 
-| Dimension | Score |
-| --- | --- |
-| Friction | 0.5 |
-| Repetition | 0.4 |
-| Missing capability | 0.2 |
-| Knowledge gap | 0.7 |
-| Fragility | 0.8 |
+| Dimension          | Score |
+| ------------------ | ----- |
+| Friction           | 0.5   |
+| Repetition         | 0.4   |
+| Missing capability | 0.2   |
+| Knowledge gap      | 0.7   |
+| Fragility          | 0.8   |
 
 ## Suggestions
 
-| # | Category | Suggestion | Score | Accepted? |
-| --- | --- | --- | --- | --- |
-| 1 | organization | Diagnose why the configured DeepSeek subagent models are absent from this session's active Pi model registry, then restore their availability or update the project configuration deliberately. | 0.8 | Pending — user reports DeepSeek should not fail and did not approve a configuration change. |
+| #   | Category     | Suggestion                                                                                                                                                                                      | Score | Accepted?                                                                                   |
+| --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
+| 1   | organization | Diagnose why the configured DeepSeek subagent models are absent from this session's active Pi model registry, then restore their availability or update the project configuration deliberately. | 0.8   | Pending — user reports DeepSeek should not fail and did not approve a configuration change. |
 
 ## Changes Made
 

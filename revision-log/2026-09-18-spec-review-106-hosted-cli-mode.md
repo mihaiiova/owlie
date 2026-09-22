@@ -17,19 +17,19 @@
 
 ## Scores
 
-| Dimension | Score |
-|-----------|-------|
-| Friction | 0.3 |
-| Repetition | 0.2 |
-| Missing capability | 0.1 |
-| Knowledge gap | 0.3 |
-| Fragility | 0.5 |
+| Dimension          | Score |
+| ------------------ | ----- |
+| Friction           | 0.3   |
+| Repetition         | 0.2   |
+| Missing capability | 0.1   |
+| Knowledge gap      | 0.3   |
+| Fragility          | 0.5   |
 
 ## Suggestions
 
-| # | Category | Suggestion | Score | Accepted? |
-|---|----------|------------|-------|-----------|
-| — | — | No suggestion crossed the 0.6 threshold | — | — |
+| #   | Category | Suggestion                              | Score | Accepted? |
+| --- | -------- | --------------------------------------- | ----- | --------- |
+| —   | —        | No suggestion crossed the 0.6 threshold | —     | —         |
 
 ## Changes Made
 

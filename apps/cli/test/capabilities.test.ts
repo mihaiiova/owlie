@@ -24,7 +24,7 @@ describe('capabilities command', () => {
     expect(envelope.command).toBe('capabilities');
 
     const report = envelope.result;
-    expect(report.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(report.version).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
     expect(report.protocolSchemaVersion).toBe(1);
     expect(report.documentSchemaVersion).toBe(2);
     expect(report.commands).toEqual(COMMAND_IDS);
@@ -65,13 +65,13 @@ describe('--version --json', () => {
     const envelope = JSON.parse(stdout());
     expect(envelope.schemaVersion).toBe(1);
     expect(envelope.command).toBe('version');
-    expect(envelope.result).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(envelope.result).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   });
 
   it('preserves the existing plain --version output', async () => {
     const { io, stdout } = capture();
     const code = await run(['--version'], io, {});
     expect(code).toBe(ExitCode.Success);
-    expect(stdout()).toMatch(/^owlie \d+\.\d+\.\d+\n$/);
+    expect(stdout()).toMatch(/^owlie \d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\n$/);
   });
 });
