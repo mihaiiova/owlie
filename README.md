@@ -2,14 +2,15 @@
 
 [![codecov](https://codecov.io/gh/mihaiiova/owlie-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie-cli)
 
-Local-first content extraction and processing, as a command-line tool.
+An open-source, general-purpose web content extractor.
 
-Owlie CLI turns sources like YouTube videos, podcast episodes, Reddit posts, and
-RSS/Atom entries into normalized text that can be searched, transcribed, and
-processed with an LLM — entirely on your machine.
+Give Owlie a URL (an article, a video, a podcast episode, a feed, or a
+discussion) and it returns normalized, provenance-stamped content that people
+and programs can search, store, or process with an LLM of their choice. It runs
+on your own machine or inside another product as a subprocess.
 
-> **Status: functional core (v0.1 milestone complete).** The v0.1 milestone is
-> shipped (latest release v0.4.0) and covers: `owlie extract` (YouTube
+> **Status: functional core (v0.1 milestone complete).** Release history is in
+> the [changelog](CHANGELOG.md). The v0.1 milestone covers: `owlie extract` (YouTube
 > transcripts, local podcast transcription, and bounded feed batches — from a
 > feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
 > audio media URLs), `owlie list` and
@@ -19,6 +20,10 @@ process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
 > adapter). The repository compiles, lints,
 > and tests cleanly. See [Product scope](docs/product-scope.md) for what works
 > and what does not.
+>
+> Single-page article extraction through `owlie extract` is not available yet
+> (an HTML page URL goes to feed discovery); use `owlie process URL` for an
+> article until spec #118 lands.
 
 ## Quick start
 
@@ -304,24 +309,25 @@ Owlie CLI does not provide:
   supplied page is bounded and one-hop, not a crawl)
 - telemetry
 
-Those responsibilities — where they exist at all — belong to the private,
-hosted `owlie-app`.
+Those responsibilities, where they exist at all, belong to the products that
+use Owlie.
 
-## Relationship with `owlie-app`
+## Using Owlie from another product
 
-`owlie-app` is the private hosted product. It owns the web UI, auth, billing,
-Postgres, job queues, monitoring, notifications, storage, analytics, admin, and
-deployment.
-
-`owlie-cli` owns the reusable content functionality. `owlie-app` consumes it by
-running the published `owlie` command as a subprocess (typically in a
-container) — it does not import `owlie-cli` packages as libraries:
+Owlie is built for two audiences: people running it at a terminal, and products
+that run the published `owlie` command as a subprocess (typically in a
+container). Every product integrates through the same public contract: the
+`--hosted` mode, the versioned `--json` protocol, invocation-wide job controls,
+and `owlie capabilities`. See
+[Integrating Owlie as a subprocess](docs/cli-contract.md#integrating-owlie-as-a-subprocess).
 
 ```text
-owlie-app  →  runs `owlie` CLI (container/subprocess)
+consuming product  →  runs `owlie` CLI (container/subprocess)
 ```
 
-`owlie-cli` never imports from `owlie-app`. See
+A consuming product owns its own UI, users, billing, persistence, scheduling,
+monitoring, storage, and deployment. The private `owlie-app` is the first such
+product; others may follow. Owlie never imports from a consuming product. See
 [docs/repository-boundaries.md](docs/repository-boundaries.md).
 
 ## Repository map

@@ -1,5 +1,10 @@
 # Migration playbook
 
+This playbook is specific to porting capabilities out of the private
+`owlie-app`, the first product that uses Owlie. Ported behaviour must be
+generalised: it lands in `owlie-cli` only in a form that makes sense for any
+consumer (ADR 0034), with app-specific policy left behind in `owlie-app`.
+
 Porting a capability from `owlie-app` into `owlie-cli` follows these steps.
 
 1. **Select one narrow capability.** Pick a single, well-bounded behavior

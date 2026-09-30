@@ -30,4 +30,4 @@ interpolation, secret redaction, and more.
 
 - Missing features (use the issue tracker instead).
 - Issues in dependencies that are not reachable from Owlie CLI.
-- Vulnerabilities in the private `owlie-app`.
+- Vulnerabilities in products that use Owlie, such as the private `owlie-app`.

@@ -1,4 +1,4 @@
-const HELP = `owlie — local-first content extraction and processing
+const HELP = `owlie — general-purpose web content extractor
 
 Usage:
   owlie <command> [options]
