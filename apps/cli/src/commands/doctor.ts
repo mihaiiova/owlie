@@ -16,6 +16,8 @@ import type { UserConfig } from '../config.js';
 import { resolveCredentialSource } from '../auth.js';
 import type { CredentialSource } from '../auth.js';
 import { ADAPTER_IDS, PROVIDER_IDS } from '../registry.js';
+import { proxyReport, resolveProxy } from '../proxy.js';
+import type { ProxyReport } from '../proxy.js';
 
 /** Injectable system probes so tests can run `doctor` without spawning. */
 export interface DoctorDeps {
@@ -75,6 +77,29 @@ export interface DoctorReport {
   configDirectory: { path: string; writable: boolean };
   cacheDirectory: { path: string; writable: boolean };
   transcription: TranscriptionReport;
+  /** Extraction proxy mode and source (never its host or credentials). */
+  proxy: DoctorProxyReport;
+}
+
+/** The proxy summary, or why the proxy settings are unusable. */
+export type DoctorProxyReport = ProxyReport | { mode: 'invalid'; source: null; error: string };
+
+function proxyDoctorReport(
+  env: Record<string, string | undefined>,
+  readConfig: () => UserConfig,
+  loadFile: (path: string) => Record<string, string>,
+  envFile: string | undefined,
+  hosted: boolean,
+): DoctorProxyReport {
+  try {
+    return proxyReport(resolveProxy({ envFile, hosted }, env, loadFile, readConfig));
+  } catch (error) {
+    return {
+      mode: 'invalid',
+      source: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function providerReports(
@@ -128,7 +153,14 @@ async function collectDoctorReport(
       ffprobe: ffprobe ? 'detected' : 'not detected',
       model: config.transcription?.model ? 'set' : 'not set',
     },
+    proxy: proxyDoctorReport(deps.env, readConfig, deps.loadFile ?? loadDotEnv, envFile, hosted),
   };
+}
+
+function formatProxy(proxy: DoctorProxyReport): string {
+  if (proxy.mode === 'invalid') return `invalid (${proxy.error})`;
+  if (proxy.mode === 'none') return 'none';
+  return `${proxy.mode} (${proxy.source})`;
 }
 
 function formatDoctorReport(report: DoctorReport): string {
@@ -150,6 +182,7 @@ function formatDoctorReport(report: DoctorReport): string {
     `  Transcription: whisper ${report.transcription.whisper}, ffmpeg ${report.transcription.ffmpeg}, ffprobe ${report.transcription.ffprobe}, model ${report.transcription.model}`,
     `  Config directory: ${report.configDirectory.path} (${report.configDirectory.writable ? 'writable' : 'not writable'})`,
     `  Cache directory: ${report.cacheDirectory.path} (${report.cacheDirectory.writable ? 'writable' : 'not writable'})`,
+    `  Extraction proxy: ${formatProxy(report.proxy)}`,
   );
   return lines.join('\n') + '\n';
 }

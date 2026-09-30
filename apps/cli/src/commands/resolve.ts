@@ -1,5 +1,5 @@
 import type { HttpFetcher, HttpFetchPolicy } from '@owlieio/core';
-import { ConfigurationError, DefaultHttpFetcher, assertNoUrlCredentials } from '@owlieio/core';
+import { ConfigurationError, assertNoUrlCredentials } from '@owlieio/core';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -12,6 +12,8 @@ import {
 import { resolvePodcastAudio } from '../resolvers.js';
 import type { PodcastResolverRegistration } from '../resolvers.js';
 import { writeDiagnostic } from '../style.js';
+import { extractionNetwork } from '../proxy.js';
+import type { ExtractionNetworkDeps } from '../proxy.js';
 
 /** Injectable seams for `owlie resolve` (tests substitute an offline fetcher). */
 export interface ResolveDeps {
@@ -20,6 +22,8 @@ export interface ResolveDeps {
   signal?: AbortSignal;
   /** Invocation-wide network fetch policy (max download bytes). */
   networkPolicy?: HttpFetchPolicy;
+  /** Proxy resolution inputs and fetcher factory for the default fetcher. */
+  network?: ExtractionNetworkDeps;
 }
 
 /**
@@ -44,9 +48,9 @@ export async function runResolveCommand(
     return ExitCode.Usage;
   }
 
-  const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
   try {
     assertNoUrlCredentials(url);
+    const fetcher = deps.fetcher ?? extractionNetwork(options, deps.network).fetcher;
     const resolved = await resolvePodcastAudio(url, {
       fetcher,
       registry: deps.registry,

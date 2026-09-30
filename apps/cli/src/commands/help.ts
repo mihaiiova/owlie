@@ -114,7 +114,9 @@ const AUTH_HELP =
 const SETUP_HELP =
   'owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]\n\n' +
   'Configure your LLM provider, model, API key, and (optionally) a proxy for\n' +
-  'YouTube transcript fetching, interactively. The model list is fetched live\n' +
+  'all extraction traffic (pages, feeds, media, YouTube), interactively. The\n' +
+  'OWLIE_PROXY_URL or OWLIE_WEBSHARE_PROXY_USERNAME/PASSWORD variables override\n' +
+  'the saved proxy. The model list is fetched live\n' +
   'from the chosen provider (no fallback or cache), and choices are persisted\n' +
   'per provider for future commands.';
 

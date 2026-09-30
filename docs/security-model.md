@@ -13,7 +13,12 @@ and processing must be built.
   `allowPrivateHosts` opts into private/local ranges only, not a blanket bypass.
   Hostnames are resolved to their IP address(es) and validated on every redirect
   hop (best-effort: a DNS record can still change between the check and the
-  connect).
+  connect). With an extraction proxy configured, the same check runs locally on
+  the destination before each request is handed to the proxy, and the proxy
+  then resolves the destination again, which widens the same best-effort window.
+  The proxy's own host is operator configuration and is not subject to the
+  destination check. Proxy credentials are secrets: they are never written to
+  output, errors, or `doctor`.
 - **Redirect limits** — cap redirects and validate each hop against the same
   destination policy.
 - **Request timeouts** — enforce connect and total read timeouts on every
