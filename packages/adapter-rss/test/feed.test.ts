@@ -348,3 +348,24 @@ describe('parseFeed — decoded media and image URLs', () => {
     expect(atom.entries[0]!.metadata.enclosures).toEqual([{ url: 'https://ex.com/e.mp3?a=1&b=2' }]);
   });
 });
+
+describe('parseFeed — decoded Atom links (#121)', () => {
+  it('decodes entities in entry, self, and alternate link hrefs', async () => {
+    const feed = await parseFeed(
+      '<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title>' +
+        '<link rel="self" href="https://ex.com/feed?a=1&amp;b=2"/>' +
+        '<link rel="alternate" href="https://ex.com/?x=1&amp;y=2"/>' +
+        '<entry><id>kept</id><link href="https://ex.com/e?x=1&amp;y=2"/></entry>' +
+        '<entry><title>No id</title><link rel="alternate" href="https://ex.com/n?p=1&amp;q=2"/></entry>' +
+        '</feed>',
+    );
+    expect(feed.canonicalUrl).toBe('https://ex.com/feed?a=1&b=2');
+    expect(feed.metadata.siteUrl).toBe('https://ex.com/?x=1&y=2');
+    expect(feed.entries[0]!).toMatchObject({ id: 'kept', url: 'https://ex.com/e?x=1&y=2' });
+    expect(feed.entries[1]!).toMatchObject({
+      id: 'https://ex.com/n?p=1&q=2',
+      url: 'https://ex.com/n?p=1&q=2',
+      metadata: { entryIdSource: 'link' },
+    });
+  });
+});
