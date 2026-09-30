@@ -14,7 +14,8 @@ provider, and the CLI — never the other way around.
 1. **No provider-specific types.** Nothing here may import or re-export types
    from OpenAI, Whisper, RSS libraries, or other providers/SDKs.
 2. **No OpenAI model names, pricing, credits, or hosted tiers.** Those belong to
-   `provider-openai` and `owlie-app`, respectively.
+   `provider-openai` and to consuming products (such as `owlie-app`),
+   respectively.
 3. **No environment-variable loading.** Configuration arrives as explicit
    objects. Only the `owlie` CLI loads environment files.
 4. **No adapter/provider network clients.** Core is pure contracts and helpers,

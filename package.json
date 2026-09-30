@@ -2,7 +2,7 @@
   "name": "owlie-cli",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first content extraction and processing CLI (monorepo)",
+  "description": "General-purpose web content extractor: URLs in, normalized content out (monorepo)",
   "type": "module",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.16.0",

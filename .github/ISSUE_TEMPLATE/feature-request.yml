@@ -6,9 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Owlie CLI is the open-source, local-first core. Hosted features
-        (auth, billing, scheduling, monitoring, cloud storage) belong to the
-        private `owlie-app`, not here.
+        Owlie CLI is an open-source, general-purpose web content extractor.
+        Proposals should make sense for any user or consuming product.
+        Product features (auth, billing, scheduling, monitoring, cloud
+        storage) belong to the products that use Owlie (such as `owlie-app`),
+        not here.
   - type: textarea
     id: problem
     attributes:

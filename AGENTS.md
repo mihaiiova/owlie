@@ -5,9 +5,16 @@ Coding agents must read this file before modifying the repository. Nested
 
 ## 1. Repository purpose
 
-Owlie CLI is an open-source, local-first content extraction and processing
-tool. It turns sources (YouTube, podcasts, Reddit, RSS/Atom) into normalized
-text that can be searched, transcribed, and processed with an LLM — locally.
+Owlie CLI is an open-source, general-purpose web content extractor. Given a
+URL (an article, a video, a podcast episode, a feed, or a discussion), it
+returns normalized, provenance-stamped content for people and programs, and can
+process that content with an LLM the user chooses. It runs locally or as a
+subprocess inside a consuming product (ADR 0034).
+
+Design every capability for any consumer. A feature must make sense for a
+product other than `owlie-app`; consumer-specific policy (identity and
+de-duplication rules, retries, pricing, storage, scheduling) stays in the
+consumer.
 
 ## 2. Current implementation status
 
@@ -84,8 +91,8 @@ coding-agent harness.
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific
 resolution other than Apple Podcasts and podcast feed discovery, generic webpage crawling, collection search,
 `process --each` for non-feed collections, `owlie run`,
-scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
-integration, Owlie user authentication,
+scheduling/monitoring/cron, local database or persistent jobs, consumer-specific
+integration code, Owlie user authentication,
 billing/credits/analytics/notifications/hosted storage, and automatic
 publishing or deployment. Deferred scaffold packages are not deleted, but
 documentation must not imply they are functional.
@@ -99,22 +106,28 @@ serialization, and reusable adapters/providers.
 
 Explicit non-goals for v1: source monitoring, scheduling, cron, daemons, a
 local database, persistent job records, Reddit OAuth/credentials/comments/HTML
-scraping, following external links from RSS entries, generic webpage
-extraction, automatic publishing, and Windows support guarantees.
+scraping, following external links from RSS entries, crawling,
+browser/JavaScript-rendered pages, logged-in or paywalled pages, automatic
+publishing, and Windows support guarantees. Extracting a supplied web page URL
+is in scope.
 
-## 4. Boundary with `owlie-app`
+## 4. Boundary with consuming products
 
-`owlie-app` is the private hosted product (UI, auth, billing, Postgres, job
-queues, monitoring, schedules, notifications, storage, analytics, admin,
-deployment). `owlie-cli` owns the reusable content functionality. `owlie-app`
-consumes it by running the published `owlie` command as a subprocess (typically
-in a container) — it does not import `owlie-cli` packages as libraries:
+`owlie-cli` owns the reusable content functionality. Consuming products run the
+published `owlie` command as a subprocess (typically in a container) through
+the public contract in `docs/cli-contract.md`. They do not import `owlie-cli`
+packages as libraries:
 
 ```text
-owlie-app → runs `owlie` CLI (container/subprocess)
+consuming product → runs `owlie` CLI (container/subprocess)
 ```
 
-Never import files or packages from `owlie-app`. Never introduce hosted
+A consuming product owns its UI, auth, billing, persistence, job queues,
+monitoring, schedules, notifications, storage, analytics, admin, and
+deployment. The private `owlie-app` is the first consuming product; others may
+follow.
+
+Never import files or packages from a consuming product. Never introduce hosted
 concepts (user IDs, billing, Stripe, Better Auth, Hono routes, Postgres,
 Railway, R2, PostHog, Resend, hosted feed/playback state, cron) into this
 repository.

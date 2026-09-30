@@ -39,8 +39,9 @@ issue ──► branch ──► implement (test-first) ──► pnpm check ─
   label `bug`).
 - Feature requests use `.github/ISSUE_TEMPLATE/feature-request.yml` (title
   prefix `feat:`, label `enhancement`).
-- Both templates steer contributors away from hosted `owlie-app` concepts
-  (auth, billing, scheduling, databases, cloud).
+- Both templates steer contributors away from consuming-product concepts
+  (auth, billing, scheduling, databases, cloud) and toward capabilities that
+  make sense for any consumer (ADR 0034).
 - The `good first issue` and `help wanted` labels mark small, well-scoped tasks
   so new contributors have a clear on-ramp.
 
@@ -169,8 +170,9 @@ pnpm changeset
 ## 6. Review and merge
 
 - Reviewers check: correctness, tests, documentation/ADR consistency,
-  dependency-direction rules, no credentials, no hosted `owlie-app` concepts,
-  no unrelated changes bundled in the branch.
+  dependency-direction rules, no credentials, no consuming-product concepts,
+  general usefulness beyond a single consumer, no unrelated changes bundled in
+  the branch.
 - Recommended branch protection (GitHub settings, not in-repo — see
   [Maintainer responsibilities](#maintainer-responsibilities-out-of-band)):
   - Require a pull request before merging; disallow direct pushes to `main`.

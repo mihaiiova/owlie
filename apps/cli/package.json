@@ -1,7 +1,17 @@
 {
   "name": "@owlieio/owlie",
   "version": "0.5.2-dev",
-  "description": "Local-first content extraction and processing CLI",
+  "description": "General-purpose web content extractor: URLs in, normalized content out",
+  "keywords": [
+    "web-content-extraction",
+    "article-extraction",
+    "transcripts",
+    "youtube",
+    "podcast",
+    "rss",
+    "cli",
+    "llm"
+  ],
   "type": "module",
   "license": "Apache-2.0",
   "publishConfig": {

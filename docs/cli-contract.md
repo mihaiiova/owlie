@@ -221,6 +221,30 @@ combined), the saved user configuration, and model-cache fallback
 before any prompt or state write. Non-hosted behavior and precedence are
 unchanged.
 
+## Integrating Owlie as a subprocess
+
+Any product can use Owlie as its extractor by running the published `owlie`
+command. The contract is the same for every consumer (ADR 0034):
+
+1. **Install a pinned version** of `@owlieio/owlie` and run its bin with Node
+   directly (not through `npx`).
+2. **Check compatibility at startup** with `owlie capabilities --json`: accept
+   work only when `protocolSchemaVersion` and `documentSchemaVersion` are the
+   versions your parser supports and the `adapters` you rely on are listed.
+3. **Invoke with `--hosted --json`** plus explicit job controls
+   (`--timeout-ms`, `--max-network-bytes`, `--max-stdout-bytes`), for example
+   `owlie --hosted extract URL --json --timeout-ms 60000`.
+4. **Pass configuration through the process environment only**, as an
+   allowlist: the variables Owlie documents (provider keys for `process`) and
+   nothing else from your own environment.
+5. **Read results from stdout** (one envelope, or JSONL for `process --each`)
+   and **progress, errors, and cancellation from stderr** JSONL records. Map
+   the documented [error codes](#json-subprocess-protocol) and exit codes to
+   your own retry policy; Owlie does not retry on your behalf.
+6. **Use `provenance`** (`sourceId`, `canonicalUrl`, `contentFingerprint`) for
+   your own persistence and de-duplication. Identity and de-duplication policy
+   belong to the consumer.
+
 ## Exit codes
 
 | Code | Meaning         |

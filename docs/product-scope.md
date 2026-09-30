@@ -1,7 +1,15 @@
 # Product scope
 
-This document separates what exists now, what the v0.1 milestone will deliver,
-what is deferred, and what belongs to the hosted product.
+Owlie CLI is an open-source, general-purpose web content extractor: given a
+URL (an article, a video, a podcast episode, a feed, or a discussion), it
+returns normalized, provenance-stamped content for people and programs, and can
+process it with an LLM. This document separates what exists now, what the v0.1
+milestone delivers, what is deferred, and what belongs to consuming products.
+
+Single-page article extraction through `owlie extract` is not available yet:
+today a page URL that is not a video or podcast episode goes to feed discovery,
+and only `owlie process URL` reaches the article adapter. Spec #118 adds direct
+article extraction.
 
 ## Scaffold scope (current)
 
@@ -89,9 +97,10 @@ other commands do not use `jsonl`.
   in bounded one hop.
 - Automatic package publishing and Windows support guarantees.
 
-## Hosted-app responsibilities (`owlie-app`)
+## Consumer responsibilities
 
-The web UI, authentication and users, billing and credits, Postgres
-persistence, hosted job queues and workers, source monitoring and schedules,
-notifications, hosted media storage and delivery, analytics, administrative
-functionality, and cloud deployment. None of these appear in `owlie-cli`.
+Products that run Owlie (the private `owlie-app` is the first) own the web UI,
+authentication and users, billing and credits, persistence, job queues and
+workers, source monitoring and schedules, notifications, media storage and
+delivery, analytics, administrative functionality, and cloud deployment. None
+of these appear in `owlie-cli`.

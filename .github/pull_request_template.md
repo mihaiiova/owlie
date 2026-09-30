@@ -15,8 +15,9 @@
 ## Scope confirmation
 
 - [ ] This change stays within the documented v1 boundaries
-- [ ] This change does not pull hosted `owlie-app` concepts (auth, billing,
-      scheduling, databases, cloud) into `owlie-cli`
+- [ ] This change does not pull consuming-product concepts (auth, billing,
+      scheduling, databases, cloud; e.g. from `owlie-app`) into `owlie-cli`
+- [ ] Any new capability makes sense for consumers other than `owlie-app`
 
 ## How to verify
 
