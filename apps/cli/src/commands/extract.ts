@@ -14,6 +14,7 @@ import {
   DefaultHttpFetcher,
   listCollection,
   NotHandledError,
+  resolveItem,
 } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -23,8 +24,15 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
-import { extractWithFallback } from '../dispatch.js';
-import { extractLinkedItem, itemRef, resolveFeedCollectionUrl, toBatchError } from '../feed.js';
+import { canClassifyPage, extractWithFallback } from '../dispatch.js';
+import type { PageClassifier } from '../dispatch.js';
+import {
+  discoverFeedUrlFromResponse,
+  extractLinkedItem,
+  itemRef,
+  resolveFeedCollectionUrl,
+  toBatchError,
+} from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
 import { resolvePodcastAudio } from '../resolvers.js';
@@ -150,9 +158,45 @@ export async function runExtractCommand(
       networkPolicy: deps.networkPolicy,
     });
   const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
+
+  if (options.page === 'article') {
+    const specializedMatch = itemAdapters.some(
+      (adapter) => adapter.sourceType === 'youtube' && adapter.recognize({ url }),
+    );
+    if (specializedMatch || feedAdapter.recognize({ url })) {
+      const kind = specializedMatch ? 'a YouTube URL' : 'a direct feed URL';
+      if (!options.quiet) {
+        writeUsageError(io, options, 'extract', `--article cannot be used with ${kind}`);
+      }
+      return ExitCode.Usage;
+    }
+  }
+
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
+    if (options.page === 'article') {
+      return await runDirectExtraction(
+        url,
+        io,
+        articleAdapters(itemAdapters),
+        spinner,
+        options,
+        deps,
+      );
+    }
+    if (options.page === 'feed') {
+      const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
+      return await runFeedExtraction(
+        feedUrl,
+        io,
+        itemAdapters,
+        feedAdapter,
+        spinner,
+        options,
+        deps,
+      );
+    }
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
@@ -182,12 +226,21 @@ function isNoAdapterConfigurationError(error: unknown): boolean {
   );
 }
 
+/** The article adapter alone, for `--article`. */
+function articleAdapters(itemAdapters: readonly ItemAdapter[]): ItemAdapter[] {
+  const article = itemAdapters.filter((adapter) => adapter.sourceType === 'article');
+  if (article.length === 0) {
+    throw new ConfigurationError('article extraction is not available');
+  }
+  return article;
+}
+
 /**
  * Routes a non-feed URL through the specialized item adapters (YouTube,
- * podcast). When none handles it — the article adapter is no longer a
- * top-level fallback for `extract` — the command attempts bounded collection
- * discovery instead and fails with a clear discovery error when no feed is
- * found.
+ * podcast). When none handles it, the page is classified from one fetch: an
+ * article page is extracted as a single document, and any other page goes to
+ * bounded feed discovery using the same fetched response. A page that is
+ * neither fails with one error naming both paths.
  */
 async function runDirectOrDiscoveredExtraction(
   url: string,
@@ -199,14 +252,53 @@ async function runDirectOrDiscoveredExtraction(
   deps: ExtractDeps,
 ): Promise<number> {
   const specialized = itemAdapters.filter((adapter) => adapter.sourceType !== 'article');
+  let deferred: NotHandledError | undefined;
   try {
     return await runDirectExtraction(url, io, specialized, spinner, options, deps);
   } catch (error) {
-    if (!(error instanceof NotHandledError) && !isNoAdapterConfigurationError(error)) {
-      throw error;
-    }
+    if (error instanceof NotHandledError) deferred = error;
+    else if (!isNoAdapterConfigurationError(error)) throw error;
+  }
+
+  const classifier = itemAdapters.find(
+    (adapter): adapter is PageClassifier =>
+      adapter.sourceType === 'article' && canClassifyPage(adapter) && adapter.recognize({ url }),
+  );
+  if (classifier === undefined) {
     const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
     return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+  }
+
+  const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
+  const progress = createProgressSink(io, options, 'extract', (event) => {
+    if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+  });
+  const item = await resolveItem(classifier, { url }, { signal: deps.signal });
+  const page = await classifier.classify(item, {
+    signal: deps.signal,
+    progress,
+    fetchedAt,
+    ...(deferred?.deferredResponse ? { response: deferred.deferredResponse } : {}),
+  });
+  if (page.isArticle && page.document !== undefined) {
+    const document = finalizeDocument(page.document, { adapterId: classifier.id, fetchedAt });
+    spinner.stop();
+    writeDocument(io, options, document);
+    return ExitCode.Success;
+  }
+
+  const feedUrl = await discoverFeedUrlFromResponse(feedAdapter, page.response, deps.signal);
+  if (feedUrl === undefined) {
+    throw new ConfigurationError(`no article content or RSS/Atom feed found at ${url}`);
+  }
+  return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+}
+
+function writeDocument(io: CliIo, options: CliOptions, document: NormalizedDocument): void {
+  if (options.json) {
+    writeResultEnvelope(io, 'extract', document);
+  } else {
+    io.stdout.write(document.text + '\n');
   }
 }
 
@@ -233,12 +325,7 @@ async function runDirectExtraction(
     },
   );
   spinner.stop();
-
-  if (options.json) {
-    writeResultEnvelope(io, 'extract', document);
-  } else {
-    io.stdout.write(document.text + '\n');
-  }
+  writeDocument(io, options, document);
   return ExitCode.Success;
 }
 

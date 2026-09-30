@@ -2,6 +2,7 @@ import type {
   CollectionAdapter,
   ContentCollection,
   ContentLocator,
+  HttpTextResponse,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
@@ -74,6 +75,37 @@ export interface FeedDiscoveryCapable extends CollectionAdapter {
 /** Whether an adapter can discover a feed from a supplied page. */
 export function canDiscoverFeed(adapter: CollectionAdapter): adapter is FeedDiscoveryCapable {
   return typeof (adapter as Partial<FeedDiscoveryCapable>).discover === 'function';
+}
+
+/** A discovery-capable adapter that can also read an already fetched page. */
+export interface ResponseFeedDiscoveryCapable extends FeedDiscoveryCapable {
+  discoverFromResponse(
+    response: HttpTextResponse,
+    options?: { signal?: AbortSignal },
+  ): Promise<ContentCollection[]>;
+}
+
+/**
+ * Discovers the top-ranked feed URL from an already fetched page, without
+ * fetching it again when the adapter supports that; otherwise it falls back to
+ * page-URL discovery. `undefined` when no feed is discoverable.
+ */
+export async function discoverFeedUrlFromResponse(
+  adapter: CollectionAdapter,
+  response: HttpTextResponse,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  if (
+    typeof (adapter as Partial<ResponseFeedDiscoveryCapable>).discoverFromResponse === 'function'
+  ) {
+    const discovered = await (adapter as ResponseFeedDiscoveryCapable).discoverFromResponse(
+      response,
+      { signal },
+    );
+    return discovered[0]?.canonicalUrl;
+  }
+  if (!canDiscoverFeed(adapter)) return undefined;
+  return discoverFeedUrl(adapter, response.url, signal);
 }
 
 /** Discovers the top-ranked feed URL, or `undefined` when none is discoverable. */

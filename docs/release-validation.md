@@ -29,7 +29,8 @@ The scenario inventory lives in `scripts/release-e2e/scenarios.mjs`:
 | setup (proxy none)             | `owlie setup` via a pseudo-terminal                                          | none                                      |
 | list                           | `owlie list <feed> --limit 2 --json`                                         | Pages feed                                |
 | list discovered feed           | `owlie list <article> --limit 2 --json`                                      | Pages article → feed                      |
-| extract discovered feed        | `owlie extract <article> --limit 2 --json`                                   | Pages article → feed + article            |
+| extract article                | `owlie extract <article> --article --json`                                   | Pages article                             |
+| extract discovered feed        | `owlie extract <article> --feed --limit 2 --json`                            | Pages article → feed + article            |
 | extract youtube                | `owlie extract <youtube> --json`                                             | YouTube                                   |
 | extract feed                   | `owlie extract <feed> --limit 2 --json`                                      | Pages feed + article                      |
 | process file                   | `owlie process <file> --prompt "Reply with exactly: OK" --json`              | DeepSeek                                  |

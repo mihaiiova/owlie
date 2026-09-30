@@ -92,9 +92,12 @@ entry point (`apps/cli/src/bin.ts`) translates failures into exit codes.
 
 For `extract`, the CLI dispatches a direct URL through an ordered item-adapter
 registry — specialized adapters first (YouTube, then podcast media, Apple
-Podcasts episodes, and server-rendered episode pages with declarative audio), then the article adapter
-for remaining safe HTTP(S) URLs. A recognized RSS/Atom
-feed instead enters a bounded linked-item batch extraction that writes a single
+Podcasts episodes, and server-rendered episode pages with declarative audio).
+A remaining safe HTTP(S) page is classified by the article adapter from one
+fetch (reusing the page an episode-page resolver already fetched): an article
+page becomes a single document, and any other page goes to bounded feed
+discovery with the same response (ADR 0035). A recognized RSS/Atom feed
+instead enters a bounded linked-item batch extraction that writes a single
 JSON envelope of per-item documents or structured errors.
 
 ## Integration by consuming products

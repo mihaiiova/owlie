@@ -275,3 +275,66 @@ describe('RssAdapter.discover', () => {
     expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/atom.xml']);
   });
 });
+
+describe('FeedDiscoveryService.discoverFromResponse', () => {
+  it('reads declared links from a supplied page without fetching it again', async () => {
+    const calls: { url: string }[] = [];
+    const service = new FeedDiscoveryService({ fetcher: fakeFetcher({}, calls) });
+    const result = await service.discoverFromResponse({
+      url: 'https://example.com/post',
+      contentType: 'text/html',
+      text: '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
+    });
+    expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/feed.xml']);
+    expect(calls).toEqual([]);
+  });
+
+  it('probes conventional paths relative to the supplied page when nothing is declared', async () => {
+    const calls: { url: string }[] = [];
+    const fetcher = fakeFetcher(
+      {
+        'https://example.com/feed': {
+          url: 'https://example.com/feed',
+          contentType: 'application/rss+xml',
+          text: RSS_XML,
+        },
+      },
+      calls,
+    );
+    const result = await new FeedDiscoveryService({ fetcher }).discoverFromResponse({
+      url: 'https://example.com/post',
+      contentType: 'text/html',
+      text: '<p>no links</p>',
+    });
+    expect(result.map((c) => c.canonicalUrl)).toContain('https://example.com/feed');
+    expect(calls.map((c) => c.url)).not.toContain('https://example.com/post');
+  });
+
+  it('returns no candidates for a non-HTML or unsafe supplied page', async () => {
+    const service = new FeedDiscoveryService({ fetcher: fakeFetcher({}) });
+    expect(
+      await service.discoverFromResponse({
+        url: 'https://example.com/data',
+        contentType: 'application/json',
+        text: '{}',
+      }),
+    ).toEqual([]);
+    expect(
+      await service.discoverFromResponse({
+        url: 'https://localhost/',
+        contentType: 'text/html',
+        text: '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
+      }),
+    ).toEqual([]);
+  });
+
+  it('is exposed through RssAdapter', async () => {
+    const adapter = new RssAdapter({ fetcher: fakeFetcher({}) });
+    const result = await adapter.discoverFromResponse({
+      url: 'https://example.com/',
+      contentType: 'text/html',
+      text: '<link rel="alternate" type="application/atom+xml" href="/atom.xml">',
+    });
+    expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/atom.xml']);
+  });
+});

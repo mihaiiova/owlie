@@ -3,6 +3,7 @@ import type {
   ContentLocator,
   HttpFetcher,
   HttpFetchPolicy,
+  HttpTextResponse,
 } from '@owlieio/core';
 import {
   DefaultHttpFetcher,
@@ -40,6 +41,11 @@ export interface FeedDiscoveryOptions {
 /** A collection adapter that can also discover feeds from supplied pages. */
 export interface FeedDiscovery {
   discover(locator: ContentLocator, options?: FeedDiscoveryOptions): Promise<ContentCollection[]>;
+  /** Discovers feeds from a page the caller has already safely fetched. */
+  discoverFromResponse(
+    response: HttpTextResponse,
+    options?: FeedDiscoveryOptions,
+  ): Promise<ContentCollection[]>;
 }
 
 /**
@@ -185,6 +191,23 @@ export class FeedDiscoveryService implements FeedDiscovery {
       signal: options.signal,
       policy: this.policy,
     });
+    return this.discoverFromResponse(response, options);
+  }
+
+  /**
+   * Discovers feeds from a page already fetched through a safe fetch seam, so a
+   * caller that has the page (for example after classifying it) does not fetch
+   * it again. Probes are resolved against the page's final URL.
+   */
+  async discoverFromResponse(
+    response: HttpTextResponse,
+    options: FeedDiscoveryOptions = {},
+  ): Promise<ContentCollection[]> {
+    try {
+      assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+    } catch {
+      return [];
+    }
     if (!isHtmlContentType(response.contentType)) {
       return [];
     }

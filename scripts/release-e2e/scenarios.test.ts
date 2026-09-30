@@ -244,6 +244,7 @@ describe('buildScenarios', () => {
       'setup (proxy none)',
       'list',
       'list discovered feed',
+      'extract article',
       'extract discovered feed',
       'extract youtube',
       'extract feed',

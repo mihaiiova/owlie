@@ -64,7 +64,7 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie list FEED_URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
@@ -78,17 +78,29 @@ owlie capabilities [--json]
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
   to the YouTube adapter; podcast direct-audio URLs, Apple Podcasts episode
   URLs, and safe server-rendered episode pages with declarative audio metadata
-  to the podcast adapter. A remaining safe HTTP(S) URL is then a feed-discovery
-  candidate: the command fetches the supplied page (HTML/XHTML only), reads
-  eligible `<link rel="alternate">` elements, and otherwise probes the six
-  fixed same-origin conventional paths, then runs the bounded linked-item
-  batch on the top-ranked discovered feed. A page URL with no discoverable
-  feed is a clear error (it is not reinterpreted as an article). Apple episodes
+  to the podcast adapter. A remaining safe HTTP(S) URL is a page: the article
+  adapter classifies it from one fetch (reusing the page an episode-page
+  resolver already fetched). The page is an **article** when it declares
+  `og:type` `article` or a JSON-LD `@type` of `Article`, `NewsArticle`,
+  `BlogPosting`, `Report`, `ScholarlyArticle`, or `TechArticle` (including in
+  `@graph`) and yields readable text, or when it declares no `og:type` and its
+  readable text is at least 500 characters. An article page is written as a
+  single `NormalizedDocument` (`adapterId: "article"`, no `ARTICLE_FALLBACK`
+  warning). Any other page is a feed-discovery candidate using the same
+  response: eligible `<link rel="alternate">` elements, otherwise the six
+  fixed same-origin conventional paths, then the bounded linked-item batch on
+  the top-ranked discovered feed. A page that is neither is one
+  `CONFIGURATION_ERROR` naming both paths (ADR 0035).
+  `--article` extracts the page as an article (an `EXTRACTION_ERROR` when it
+  has no readable body) and `--feed` runs feed discovery only; both are
+  authoritative with no fallback, exclude each other and the podcast resolver
+  flags, and `--article` with a YouTube or direct feed URL is a usage error
+  (exit code 2). Apple episodes
   resolve through Apple's public lookup API, with a matching RSS enclosure
   fallback. Other episode pages use JSON-LD, declared oEmbed,
   `<audio>`/`<source>`, or RSS/Atom enclosure signals; they never execute
-  JavaScript, and a safe episode-page URL with no discoverable audio is treated
-  as a feed-discovery candidate rather than article text.
+  JavaScript, and a safe episode-page URL with no discoverable audio is classified as a
+  page (article or feed-discovery candidate) as described above.
   It writes transcript text, or a feed batch JSON envelope for a feed/page
   URL, or a JSON `NormalizedDocument` with `--json` for a direct item.
   `--language LANG` sets a comma-separated language priority list for YouTube
