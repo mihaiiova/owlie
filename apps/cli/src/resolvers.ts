@@ -115,7 +115,10 @@ export async function resolvePodcastAudio(
   for (const entry of entries) {
     const resolver = entry.create({ fetcher, policy: options.policy });
     if (!resolver.recognize({ url })) continue;
-    const resolved = await resolver.resolve({ url }, { signal: options.signal });
+    const resolved = await resolver.resolve(
+      { url },
+      { signal: options.signal, authoritative: options.resolverName !== undefined },
+    );
     return { resolver: entry.name, mediaUrl: resolved.mediaUrl, metadata: resolved.metadata };
   }
 

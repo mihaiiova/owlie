@@ -6,4 +6,8 @@ export {
   PodcastAdapter,
   recognizePodcastUrl,
 } from './podcast.js';
-export type { GenericEpisodePageResolverOptions, PodcastAudioResolver } from './podcast.js';
+export type {
+  GenericEpisodePageResolverOptions,
+  PodcastAudioResolver,
+  PodcastResolveOptions,
+} from './podcast.js';

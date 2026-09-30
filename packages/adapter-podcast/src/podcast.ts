@@ -21,6 +21,7 @@ import {
   isHtmlContentType,
   isJsonContentType,
   NotHandledError,
+  declaredArticleSignal,
 } from '@owlieio/core';
 import { parseFeed } from '@owlieio/adapter-rss';
 import type { FeedEnclosure } from '@owlieio/adapter-rss';
@@ -33,8 +34,18 @@ export interface PodcastAudioResolver {
   recognize(locator: ContentLocator): boolean;
   resolve(
     locator: ContentLocator,
-    options?: { signal?: AbortSignal },
+    options?: PodcastResolveOptions,
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }>;
+}
+
+/** Options for {@link PodcastAudioResolver.resolve}. */
+export interface PodcastResolveOptions {
+  signal?: AbortSignal;
+  /**
+   * The caller explicitly selected this resolver (for example `--podcast-page`),
+   * asserting the URL is an episode; resolvers then skip heuristic deferrals.
+   */
+  authoritative?: boolean;
 }
 
 /** Direct-media foundation resolver; future episode-page resolvers share this seam. */
@@ -83,7 +94,7 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
 
   async resolve(
     locator: ContentLocator,
-    options: { signal?: AbortSignal } = {},
+    options: PodcastResolveOptions = {},
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }> {
     if (!this.recognize(locator))
       throw new ConfigurationError(`not a recognized podcast episode URL: ${locator.url}`);
@@ -99,9 +110,18 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
         { deferredResponse: page },
       );
     }
-    const resolved =
+    // Strong signals declare the page itself as audio and always win. Weak
+    // signals (players, enclosures, the page's feed entry) only count when the
+    // page does not declare itself an article, unless selection is explicit.
+    let resolved =
       resolveJsonLdAudio(page.text, page.url) ??
-      (await this.resolveOembedAudio(page.text, page.url, options.signal)) ??
+      (await this.resolveOembedAudio(page.text, page.url, options.signal));
+    if (!resolved && !options.authoritative && declaresArticle(page.text)) {
+      throw new NotHandledError(`page at ${page.url} declares an article, not an episode`, {
+        deferredResponse: page,
+      });
+    }
+    resolved ??=
       resolveAudioElement(page.text, page.url) ??
       (await this.resolveFeedAudio(page.text, page.url, options.signal));
     if (!resolved)
@@ -145,7 +165,9 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       if (!isAudioOembedType(record.type)) return undefined;
       if (typeof record.url !== 'string') return undefined;
       const mediaUrl = safeResolveUrl(record.url, response.url);
-      return mediaUrl ? { mediaUrl, title: stringValue(record.title) } : undefined;
+      // Only audio counts: an `audio` type, or a media URL with an audio extension.
+      const audio = String(record.type).toLowerCase() === 'audio' || isAudioMedia(record.url);
+      return mediaUrl && audio ? { mediaUrl, title: stringValue(record.title) } : undefined;
     } catch {
       return undefined;
     }
@@ -286,12 +308,17 @@ function feedEntryAudio(
   return mediaUrl ? { mediaUrl, title: entry?.title } : undefined;
 }
 
+function declaresArticle(html: string): boolean {
+  const signal = declaredArticleSignal(html);
+  return signal === 'og-article' || signal === 'json-ld-article';
+}
+
 function isAudioType(type: string | undefined): boolean {
   return type?.trim().toLowerCase().startsWith('audio/') ?? false;
 }
 
 /** Audio by declared type, or by file extension when no type is declared. */
-function isAudioMedia(url: string, type: string | undefined): boolean {
+function isAudioMedia(url: string, type?: string): boolean {
   if (type !== undefined && type.trim() !== '') return isAudioType(type);
   try {
     const path = new URL(url, 'https://base.invalid/').pathname.toLowerCase();
