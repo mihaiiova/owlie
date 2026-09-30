@@ -54,6 +54,8 @@ export interface CliOptions {
   maxStdoutBytes?: string;
   /** Stable name of the selected audio resolver (from a resolver-selection flag). */
   resolver?: string;
+  /** Forced page handling for `extract` (`--article` or `--feed`). */
+  page?: 'article' | 'feed';
 }
 
 export interface CliDeps {
@@ -190,6 +192,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--hosted':
         options.hosted = true;
         break;
+      case '--article':
+      case '--feed': {
+        const page = arg === '--article' ? 'article' : 'feed';
+        if (options.page !== undefined && options.page !== page) {
+          usageError = 'cannot combine "--article" and "--feed"';
+        } else {
+          options.page = page;
+        }
+        break;
+      }
       default: {
         if (KNOWN_VALUE_FLAGS.includes(arg)) {
           const next = argv[i + 1];
@@ -206,6 +218,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
         }
       }
     }
+  }
+
+  if (usageError === undefined && options.page !== undefined && options.resolver !== undefined) {
+    const resolverFlag = resolverFlagForName(options.resolver) ?? options.resolver;
+    usageError = `cannot combine "--${options.page}" and "${resolverFlag}"`;
   }
 
   return { args, options, helpRequested, versionRequested, usageError };

@@ -117,6 +117,88 @@ const ARTICLE_EXTRACTOR_ALLOWED_TAGS = [
   'wbr',
 ];
 
+/**
+ * Minimum readable text length for an undeclared page to count as an article.
+ * Pages that declare an article type (`og:type`, JSON-LD) need no minimum.
+ */
+export const MIN_READABLE_ARTICLE_CHARS = 500;
+
+/** JSON-LD `@type` values that declare a page to be an article. */
+const ARTICLE_JSON_LD_TYPES = new Set([
+  'article',
+  'newsarticle',
+  'blogposting',
+  'report',
+  'scholarlyarticle',
+  'techarticle',
+]);
+
+/** How a page declares its own type. */
+export type DeclaredArticleSignal = 'og-article' | 'json-ld-article' | 'og-non-article' | 'none';
+
+/** Why a page was, or was not, classified as an article. */
+export type ArticlePageSignal = DeclaredArticleSignal | 'readable-body';
+
+/** The result of {@link ArticleAdapter.classify}. */
+export interface ArticlePageClassification {
+  isArticle: boolean;
+  signal: ArticlePageSignal;
+  /** The fetched page, reusable by other consumers such as feed discovery. */
+  response: HttpTextResponse;
+  /** The extracted document whenever the page yielded readable text. */
+  document?: NormalizedDocument;
+}
+
+function metaAttributes(tag: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const match of tag.matchAll(/([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    attrs[match[1]!.toLowerCase()] = match[2] ?? match[3] ?? '';
+  }
+  return attrs;
+}
+
+function ogType(html: string): string | undefined {
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const attrs = metaAttributes(match[0]);
+    if (attrs.property?.toLowerCase() === 'og:type' && attrs.content !== undefined) {
+      return attrs.content.trim().toLowerCase();
+    }
+  }
+  return undefined;
+}
+
+function hasArticleJsonLdType(node: unknown, depth = 0): boolean {
+  if (depth > 8 || node === null || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some((entry) => hasArticleJsonLdType(entry, depth + 1));
+  const record = node as Record<string, unknown>;
+  const types = Array.isArray(record['@type']) ? record['@type'] : [record['@type']];
+  if (
+    types.some((type) => typeof type === 'string' && ARTICLE_JSON_LD_TYPES.has(type.toLowerCase()))
+  )
+    return true;
+  return hasArticleJsonLdType(record['@graph'], depth + 1);
+}
+
+/**
+ * Reads how a page declares itself: `og:type` first, then JSON-LD `@type`
+ * (including `@graph` and `@type` arrays). Pure; malformed JSON-LD blocks are
+ * skipped.
+ */
+export function declaredArticleSignal(html: string): DeclaredArticleSignal {
+  const og = ogType(html);
+  if (og === 'article') return 'og-article';
+  for (const script of html.matchAll(
+    /<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script\s*>/gi,
+  )) {
+    try {
+      if (hasArticleJsonLdType(JSON.parse(script[2] ?? ''))) return 'json-ld-article';
+    } catch {
+      // A malformed publisher block must not prevent later declarations.
+    }
+  }
+  return og === undefined ? 'none' : 'og-non-article';
+}
+
 function plainText(html: string): string {
   return decodeHTML(html)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
@@ -218,6 +300,56 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
     } catch (error) {
       this.emitFailure(target, options, error);
     }
+  }
+
+  /**
+   * Decides whether a page is an article, from one fetched response (the
+   * supplied `response`, or a single fetch of the item URL). A page that
+   * declares an article type (`og:type`, JSON-LD) is an article when it yields
+   * readable text; an undeclared page is one when its readable text reaches
+   * {@link MIN_READABLE_ARTICLE_CHARS}; a page whose `og:type` declares another
+   * type is not. The response is returned so a caller can reuse it.
+   */
+  async classify(
+    item: ContentItem,
+    options: ExtractionOptions & { response?: HttpTextResponse } = {},
+  ): Promise<ArticlePageClassification> {
+    if (options.signal?.aborted) throw new CancelledError('article classification cancelled');
+    const response =
+      options.response ??
+      (await this.fetcher.fetch(item.canonicalUrl, {
+        signal: options.signal,
+        policy: this.policy,
+      }));
+    assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+    if (!isHtmlContentType(response.contentType)) {
+      return { isArticle: false, signal: 'none', response };
+    }
+
+    const declared = declaredArticleSignal(response.text);
+    let document: NormalizedDocument | undefined;
+    try {
+      document = await this.extractFromResponse(response, options);
+    } catch (error) {
+      if (error instanceof CancelledError || options.signal?.aborted) throw error;
+      if (!(error instanceof ExtractionError)) throw error;
+    }
+
+    let signal: ArticlePageSignal = declared;
+    let isArticle = false;
+    if (document !== undefined) {
+      if (declared === 'og-article' || declared === 'json-ld-article') {
+        isArticle = true;
+      } else if (declared === 'none' && document.text.length >= MIN_READABLE_ARTICLE_CHARS) {
+        isArticle = true;
+        signal = 'readable-body';
+      }
+    }
+    if (isArticle) {
+      options.progress?.emit({ type: 'started', target: item.id });
+      options.progress?.emit({ type: 'completed', target: item.id, result: document! });
+    }
+    return { isArticle, signal, response, ...(document ? { document } : {}) };
   }
 
   private async extractFromResponse(

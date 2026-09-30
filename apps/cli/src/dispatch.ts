@@ -2,7 +2,9 @@ import type {
   ContentItem,
   ContentLocator,
   DeferredResponseItemAdapter,
+  ExtractionOptions,
   ExtractionWarning,
+  HttpTextResponse,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
@@ -38,6 +40,26 @@ function canConsumeDeferredResponse(
   return typeof (adapter as unknown as DeferredResponseItemAdapter).extractDeferred === 'function';
 }
 
+/** What an article page classifier reports for one fetched page. */
+export interface PageClassification {
+  isArticle: boolean;
+  response: HttpTextResponse;
+  document?: NormalizedDocument;
+}
+
+/** An item adapter that can decide whether a fetched page is an article. */
+export interface PageClassifier extends ItemAdapter {
+  classify(
+    item: ContentItem,
+    options?: ExtractionOptions & { response?: HttpTextResponse },
+  ): Promise<PageClassification>;
+}
+
+/** Whether an item adapter can classify pages (the article adapter can). */
+export function canClassifyPage(adapter: ItemAdapter): adapter is PageClassifier {
+  return typeof (adapter as Partial<PageClassifier>).classify === 'function';
+}
+
 /**
  * Resolves and extracts a locator by trying each recognizing adapter in order.
  * An adapter that recognizes the locator's shape but cannot actually handle it
@@ -45,7 +67,9 @@ function canConsumeDeferredResponse(
  * a generic episode page with no audio enclosure falls back to the article
  * adapter). When the deferral carries an already safe-fetched response and the
  * next adapter can consume it, that response is reused instead of re-fetching.
- * Every other error propagates.
+ * When that next adapter classifies pages, a page classified as an article
+ * carries no `ARTICLE_FALLBACK` warning; the warning marks article text taken
+ * from a page that is not one. Every other error propagates.
  */
 export async function extractWithFallback(
   adapters: readonly ItemAdapter[],
@@ -61,6 +85,28 @@ export async function extractWithFallback(
   for (const adapter of candidates) {
     try {
       const item = await resolveItem(adapter, locator, { signal: options.signal });
+      if (deferred !== undefined && canClassifyPage(adapter)) {
+        const page = await adapter.classify(item, {
+          signal: options.signal,
+          progress: options.progress,
+          fetchedAt,
+          ...(deferred.deferredResponse ? { response: deferred.deferredResponse } : {}),
+        });
+        if (page.document !== undefined) {
+          if (!page.isArticle) {
+            options.progress?.emit({ type: 'started', target: item.id });
+            options.progress?.emit({ type: 'completed', target: item.id, result: page.document });
+          }
+          return {
+            item,
+            document: finalizeDocument(page.document, {
+              adapterId: adapter.id,
+              fetchedAt,
+              warnings: page.isArticle ? [] : fallbackWarnings,
+            }),
+          };
+        }
+      }
       const document = await (deferred?.deferredResponse && canConsumeDeferredResponse(adapter)
         ? adapter.extractDeferred(item, deferred.deferredResponse, {
             signal: options.signal,

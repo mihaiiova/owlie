@@ -3,8 +3,21 @@ import { ArticleAdapter } from '@owlieio/adapter-article';
 import { CancelledError, ExtractionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
-import { CLEAN_ARTICLE, MAIN_WRAPPED_ARTICLE, MALFORMED_ARTICLE } from './fixtures.js';
-import { normalizeDate } from '../src/article.js';
+import {
+  CLEAN_ARTICLE,
+  JSON_LD_GRAPH_ARTICLE,
+  MAIN_WRAPPED_ARTICLE,
+  MALFORMED_ARTICLE,
+  MALFORMED_JSON_LD_ARTICLE,
+  NO_ARTICLE,
+  UNDECLARED_LONG_ARTICLE,
+  WEBSITE_HOMEPAGE,
+} from './fixtures.js';
+import {
+  declaredArticleSignal,
+  MIN_READABLE_ARTICLE_CHARS,
+  normalizeDate,
+} from '../src/article.js';
 
 const fetcher: HttpFetcher = {
   async fetch() {
@@ -301,4 +314,116 @@ describe('ArticleAdapter.extractDeferred', () => {
 
 itemAdapterContract('article', () => new ArticleAdapter({ fetcher }), {
   url: 'https://example.com/articles/useful-story',
+});
+
+function htmlResponse(text: string, contentType = 'text/html; charset=utf-8') {
+  return { url: 'https://example.com/articles/page', contentType, text };
+}
+
+describe('declaredArticleSignal', () => {
+  it('reads og:type article regardless of attribute order', () => {
+    expect(declaredArticleSignal(MAIN_WRAPPED_ARTICLE)).toBe('og-article');
+    expect(declaredArticleSignal('<meta content="Article" property="og:type">')).toBe('og-article');
+  });
+
+  it('reads JSON-LD article types, including @graph and @type arrays', () => {
+    expect(declaredArticleSignal(JSON_LD_GRAPH_ARTICLE)).toBe('json-ld-article');
+  });
+
+  it('skips malformed JSON-LD blocks and keeps reading later ones', () => {
+    expect(declaredArticleSignal(MALFORMED_JSON_LD_ARTICLE)).toBe('json-ld-article');
+  });
+
+  it('reports a declared non-article og:type', () => {
+    expect(declaredArticleSignal(WEBSITE_HOMEPAGE)).toBe('og-non-article');
+  });
+
+  it('reports none when the page declares nothing', () => {
+    expect(declaredArticleSignal(CLEAN_ARTICLE)).toBe('none');
+  });
+});
+
+describe('ArticleAdapter.classify', () => {
+  const item = {
+    id: 'article:https://example.com/articles/page',
+    sourceType: 'article' as const,
+    canonicalUrl: 'https://example.com/articles/page',
+    metadata: {},
+  };
+
+  it('classifies a declared article and returns its document', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, { response: htmlResponse(JSON_LD_GRAPH_ARTICLE) });
+    expect(result.isArticle).toBe(true);
+    expect(result.signal).toBe('json-ld-article');
+    expect(result.document?.text).toContain('A short but real news story');
+  });
+
+  it('classifies an undeclared page by a readable body of at least the minimum length', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, {
+      response: htmlResponse(UNDECLARED_LONG_ARTICLE),
+    });
+    expect(result.isArticle).toBe(true);
+    expect(result.signal).toBe('readable-body');
+    expect(result.document!.text.length).toBeGreaterThanOrEqual(MIN_READABLE_ARTICLE_CHARS);
+  });
+
+  it('does not classify an undeclared page with a short readable body', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, { response: htmlResponse(CLEAN_ARTICLE) });
+    expect(result.isArticle).toBe(false);
+    expect(result.signal).toBe('none');
+    expect(result.document?.text).toContain('deliberately substantial first paragraph');
+  });
+
+  it('does not use the readable body when og:type declares a non-article', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, { response: htmlResponse(WEBSITE_HOMEPAGE) });
+    expect(result.isArticle).toBe(false);
+    expect(result.signal).toBe('og-non-article');
+  });
+
+  it('does not classify a page with no readable content', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, { response: htmlResponse(NO_ARTICLE) });
+    expect(result.isArticle).toBe(false);
+    expect(result.document).toBeUndefined();
+  });
+
+  it('does not classify a non-HTML response', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const result = await adapter.classify(item, {
+      response: htmlResponse(JSON_LD_GRAPH_ARTICLE, 'application/json'),
+    });
+    expect(result.isArticle).toBe(false);
+    expect(result.document).toBeUndefined();
+  });
+
+  it('fetches the page once when no response is supplied and returns it', async () => {
+    let calls = 0;
+    const counting: HttpFetcher = {
+      async fetch(url) {
+        calls++;
+        return { url, contentType: 'text/html', text: JSON_LD_GRAPH_ARTICLE };
+      },
+    };
+    const adapter = new ArticleAdapter({ fetcher: counting });
+    const result = await adapter.classify(item);
+    expect(calls).toBe(1);
+    expect(result.response.text).toBe(JSON_LD_GRAPH_ARTICLE);
+    expect(result.isArticle).toBe(true);
+  });
+
+  it('propagates cancellation', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      adapter.classify(item, {
+        response: htmlResponse(JSON_LD_GRAPH_ARTICLE),
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(CancelledError);
+  });
 });
