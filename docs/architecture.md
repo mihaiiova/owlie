@@ -34,8 +34,9 @@ Consuming products (the private `owlie-app` is the first) do not import
 - `@owlieio/core` has no Owlie dependencies; its safe-HTTP implementation uses
   the generic `ipaddr.js` parser for canonical destination classification.
 - Adapters depend only on `@owlieio/core` (Reddit reuses
-  `@owlieio/adapter-rss` parsing; `adapter-podcast` reuses it solely for the
-  Apple Podcasts enclosure fallback).
+  `@owlieio/adapter-rss` parsing; `adapter-podcast` reuses it solely to select
+  the matching episode's enclosure from a feed, for the Apple Podcasts and
+  episode-page fallbacks).
 - Providers depend only on `@owlieio/core`.
 - `@owlieio/testing` depends only on `@owlieio/core`.
 - `owlie` bundles core, adapters, and providers into one self-contained build.

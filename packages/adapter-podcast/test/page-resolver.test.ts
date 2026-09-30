@@ -111,7 +111,11 @@ describe('GenericEpisodePageResolver', () => {
       fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
         'https://publisher.example/feed.xml': {
           contentType: 'application/rss+xml',
-          text: '<rss><channel><item><enclosure url="https://cdn.example.com/episode.mp3" /></item></channel></rss>',
+          text:
+            '<rss version="2.0"><channel><title>Show</title>' +
+            '<item><title>Other</title><link>https://publisher.example/episodes/two</link><enclosure url="https://cdn.example.com/two.mp3" type="audio/mpeg" /></item>' +
+            '<item><title>One</title><link>https://publisher.example/episodes/one/</link><enclosure url="https://cdn.example.com/episode.mp3" /></item>' +
+            '</channel></rss>',
         },
       }),
     });
@@ -120,7 +124,7 @@ describe('GenericEpisodePageResolver', () => {
       resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
     ).resolves.toEqual({
       mediaUrl: 'https://cdn.example.com/episode.mp3',
-      metadata: { resolvedFrom: 'page' },
+      metadata: { title: 'One', resolvedFrom: 'page' },
     });
   });
 
@@ -217,5 +221,67 @@ describe('GenericEpisodePageResolver', () => {
         { signal: controller.signal },
       ),
     ).rejects.toThrow('podcast episode resolution cancelled');
+  });
+});
+
+describe('GenericEpisodePageResolver — audio signals only (#120)', () => {
+  const PAGE = 'https://publisher.example/';
+
+  it.each([
+    ['a <video> source', '<video controls><source src="/clip.mp4" type="video/mp4"></video>'],
+    ['a <video src>', '<video src="/clip.mp4"></video>'],
+    ['a <picture> source', '<picture><source srcset="/a.webp" type="image/webp"></picture>'],
+    ['a video enclosure link', '<link rel="enclosure" href="/clip.mp4" type="video/mp4">'],
+    ['an untyped non-audio enclosure', '<enclosure url="/document.pdf">'],
+  ])('ignores %s', async (_label, html) => {
+    const resolver = new GenericEpisodePageResolver({ fetcher: pageFetcher(html) });
+    await expect(resolver.resolve({ url: PAGE })).rejects.toBeInstanceOf(NotHandledError);
+  });
+
+  it.each([
+    ['an <audio> source', '<audio controls><source src="/ep.mp3"></audio>'],
+    ['a standalone audio-typed source', '<source src="/ep.mp3" type="audio/mpeg">'],
+    ['an audio enclosure link', '<link rel="enclosure" href="/ep.mp3" type="audio/mpeg">'],
+    ['an untyped enclosure with an audio extension', '<enclosure url="/ep.m4a">'],
+  ])('accepts %s', async (_label, html) => {
+    const resolver = new GenericEpisodePageResolver({ fetcher: pageFetcher(html) });
+    const resolved = await resolver.resolve({ url: PAGE });
+    expect(resolved.mediaUrl).toMatch(/^https:\/\/publisher\.example\/ep\.(mp3|m4a)$/);
+  });
+
+  it('does not take an unrelated episode from the site feed', async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
+        'https://publisher.example/feed.xml': {
+          contentType: 'application/rss+xml',
+          text:
+            '<rss version="2.0"><channel><title>News</title>' +
+            '<item><title>Latest episode</title><link>https://publisher.example/episodes/latest</link>' +
+            '<enclosure url="https://cdn.example.com/latest.mp3" type="audio/mpeg"/></item>' +
+            '</channel></rss>',
+        },
+      }),
+    });
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/news/an-article' }),
+    ).rejects.toBeInstanceOf(NotHandledError);
+  });
+
+  it("ignores a matching feed entry's video enclosure", async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
+        'https://publisher.example/feed.xml': {
+          contentType: 'application/rss+xml',
+          text:
+            '<rss version="2.0"><channel><title>Blog</title>' +
+            '<item><title>Clip</title><link>https://publisher.example/posts/clip</link>' +
+            '<enclosure url="https://cdn.example.com/clip.mp4" type="video/mp4"/></item>' +
+            '</channel></rss>',
+        },
+      }),
+    });
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/posts/clip' }),
+    ).rejects.toBeInstanceOf(NotHandledError);
   });
 });

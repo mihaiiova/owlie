@@ -167,7 +167,8 @@ owlie (published)    → bundles core, adapters, providers (owns terminal/env/co
 
 Documented exceptions: `adapter-reddit` may reuse public RSS/Atom parsing from
 `adapter-rss`; `adapter-podcast` may reuse it solely to select the matching
-Apple Podcasts RSS enclosure. Source-specific URL normalization and metadata
+episode's enclosure from a feed (the Apple Podcasts fallback and the
+episode-page feed fallback). Source-specific URL normalization and metadata
 interpretation stay in the consuming adapter. Do not create a generic `utils`
 package. `pnpm check:deps` enforces these rules automatically.
 
