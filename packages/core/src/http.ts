@@ -245,7 +245,9 @@ async function readBody(
   });
   const onAbort = () => {
     rejectAbort?.(new CancelledError('fetch timed out or was cancelled'));
-    void reader.cancel();
+    // The body may already be errored by the same abort; cancel() then rejects
+    // with that reason, which must not escape as an unhandled rejection.
+    reader.cancel().catch(() => undefined);
   };
   signal.addEventListener('abort', onAbort, { once: true });
 
@@ -286,7 +288,9 @@ async function writeBodyToFile(
   });
   const onAbort = () => {
     rejectAbort?.(new CancelledError('fetch timed out or was cancelled'));
-    void reader.cancel();
+    // The body may already be errored by the same abort; cancel() then rejects
+    // with that reason, which must not escape as an unhandled rejection.
+    reader.cancel().catch(() => undefined);
   };
   signal.addEventListener('abort', onAbort, { once: true });
   let total = 0;

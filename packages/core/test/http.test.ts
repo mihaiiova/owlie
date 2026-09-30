@@ -505,6 +505,66 @@ describe('DefaultHttpFetcher', () => {
     });
   });
 
+  describe('abort of a body that errors like real fetch (#120)', () => {
+    /** A body that delivers one chunk, then errors with the abort reason, as fetch bodies do. */
+    const abortingFetch: HttpFetchFn = async (_input, init) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1, 2, 3]));
+            init?.signal?.addEventListener('abort', () => controller.error(init.signal!.reason), {
+              once: true,
+            });
+          },
+        }),
+      );
+
+    async function tempFile(): Promise<{ dir: string; path: string }> {
+      const dir = await mkdtemp(join(tmpdir(), 'owlie-http-abort-'));
+      return { dir, path: join(dir, 'body.bin') };
+    }
+
+    async function withUnhandledRejections(run: () => Promise<void>): Promise<unknown[]> {
+      const unhandled: unknown[] = [];
+      const listener = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', listener);
+      try {
+        await run();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      } finally {
+        process.off('unhandledRejection', listener);
+      }
+      return unhandled;
+    }
+
+    it('fetchToFile times out with CancelledError and no unhandled rejection', async () => {
+      const { dir, path } = await tempFile();
+      try {
+        const fetcher = new DefaultHttpFetcher(abortingFetch, publicResolver);
+        const unhandled = await withUnhandledRejections(async () => {
+          await expect(
+            fetcher.fetchToFile('https://example.com/a.bin', path, { policy: { timeoutMs: 20 } }),
+          ).rejects.toThrow(CancelledError);
+        });
+        expect(unhandled).toEqual([]);
+        await expect(readFile(path)).rejects.toThrow();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('fetch is cancelled externally with no unhandled rejection', async () => {
+      const fetcher = new DefaultHttpFetcher(abortingFetch, publicResolver);
+      const controller = new AbortController();
+      const unhandled = await withUnhandledRejections(async () => {
+        const promise = fetcher.fetch('https://example.com/a', { signal: controller.signal });
+        setTimeout(() => controller.abort(), 10);
+        await expect(promise).rejects.toThrow(CancelledError);
+      });
+      expect(unhandled).toEqual([]);
+    });
+  });
+
   it('returns the response body and sends an identifying User-Agent', async () => {
     const calls: Array<{ url: string; headers: Record<string, string> }> = [];
     const fetchFn: HttpFetchFn = async (input, init) => {
