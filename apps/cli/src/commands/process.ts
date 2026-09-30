@@ -36,6 +36,7 @@ import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
 import {
   canDiscoverFeed,
   discoverFeedUrl,
+  feedLocator,
   extractLinkedItem,
   itemRef,
   toBatchError,
@@ -495,11 +496,10 @@ async function runFeedProcessing(
 
   const limit = parseCollectionLimit(options.limit);
   spinner.start('processing feed');
-  const result = await listCollection(
-    feedAdapter,
-    { url: feedUrl },
-    { limit, signal: deps.signal },
-  );
+  const result = await listCollection(feedAdapter, feedLocator(feedUrl), {
+    limit,
+    signal: deps.signal,
+  });
 
   let failed = false;
 

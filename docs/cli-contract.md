@@ -143,6 +143,10 @@ owlie capabilities [--json]
   [output formats](output-formats.md#feed-listings)). `--limit N` bounds the
   listing (default 10, maximum 500); invalid or oversized limits fail with a
   clear error. Raw entry HTML is never written to stdout.
+  A feed is accepted whatever its URL shape: a discovered feed (such as
+  `/atom/everything/`) and a supplied URL that itself serves a feed media type
+  whose body parses as RSS or Atom (such as `/?feed=rss2`) are both listed.
+  The same applies to feed batches in `extract` and `process --each`.
 - `process` reads exactly one input — a positional http(s) URL, a positional
   file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
   (exit code 2). A URL is extracted first through the universal

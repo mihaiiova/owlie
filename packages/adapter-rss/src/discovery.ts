@@ -197,7 +197,9 @@ export class FeedDiscoveryService implements FeedDiscovery {
   /**
    * Discovers feeds from a page already fetched through a safe fetch seam, so a
    * caller that has the page (for example after classifying it) does not fetch
-   * it again. Probes are resolved against the page's final URL.
+   * it again. Probes are resolved against the page's final URL. A supplied
+   * response that is itself a feed (a feed media type whose body parses as
+   * RSS or Atom) is returned as the only candidate, whatever its URL shape.
    */
   async discoverFromResponse(
     response: HttpTextResponse,
@@ -209,7 +211,7 @@ export class FeedDiscoveryService implements FeedDiscovery {
       return [];
     }
     if (!isHtmlContentType(response.contentType)) {
-      return [];
+      return this.selfAsFeed(response);
     }
 
     const declared = this.declaredCandidates(response.text, response.url);
@@ -217,6 +219,16 @@ export class FeedDiscoveryService implements FeedDiscovery {
 
     const probed = await this.probeCandidates(response.url, options.signal);
     return this.toCollections(probed);
+  }
+
+  private async selfAsFeed(response: HttpTextResponse): Promise<ContentCollection[]> {
+    if (!isFeedContentType(response.contentType)) return [];
+    try {
+      const feed = await parseFeed(response.text);
+      return this.toCollections([{ url: response.url, format: feed.format }]);
+    } catch {
+      return [];
+    }
   }
 
   private declaredCandidates(html: string, baseUrl: string): FeedCandidate[] {

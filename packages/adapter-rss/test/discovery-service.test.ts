@@ -338,3 +338,49 @@ describe('FeedDiscoveryService.discoverFromResponse', () => {
     expect(result.map((c) => c.canonicalUrl)).toEqual(['https://example.com/atom.xml']);
   });
 });
+
+describe('FeedDiscoveryService — supplied URL is itself a feed (#119)', () => {
+  it('returns the supplied URL when it serves a feed at a non-feed-shaped path', async () => {
+    const calls: { url: string }[] = [];
+    const fetcher = fakeFetcher(
+      {
+        'https://example.com/atom/everything/': {
+          url: 'https://example.com/atom/everything/',
+          contentType: 'application/atom+xml; charset=utf-8',
+          text: '<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title></feed>',
+        },
+      },
+      calls,
+    );
+    const result = await new FeedDiscoveryService({ fetcher }).discover({
+      url: 'https://example.com/atom/everything/',
+    });
+    expect(result).toEqual([
+      {
+        id: 'rss:feed:https://example.com/atom/everything/',
+        sourceType: 'rss',
+        canonicalUrl: 'https://example.com/atom/everything/',
+        metadata: { format: 'atom' },
+      },
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('accepts a generic XML type only when the body parses as a feed', async () => {
+    const service = new FeedDiscoveryService({ fetcher: fakeFetcher({}) });
+    const feed = await service.discoverFromResponse({
+      url: 'https://example.com/?feed=rss2',
+      contentType: 'text/xml',
+      text: RSS_XML,
+    });
+    expect(feed.map((c) => c.canonicalUrl)).toEqual(['https://example.com/?feed=rss2']);
+
+    expect(
+      await service.discoverFromResponse({
+        url: 'https://example.com/sitemap.xml',
+        contentType: 'application/xml',
+        text: '<urlset><url><loc>https://example.com/</loc></url></urlset>',
+      }),
+    ).toEqual([]);
+  });
+});
