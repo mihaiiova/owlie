@@ -28,6 +28,7 @@ import type { PageClassifier } from '../dispatch.js';
 import {
   discoverFeedUrlFromResponse,
   extractLinkedItem,
+  feedLocator,
   itemRef,
   resolveFeedCollectionUrl,
   toBatchError,
@@ -437,7 +438,10 @@ async function runFeedExtraction(
 ): Promise<number> {
   const limit = parseCollectionLimit(options.limit);
   spinner.start('extracting feed');
-  const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
+  const result = await listCollection(feedAdapter, feedLocator(url), {
+    limit,
+    signal: deps.signal,
+  });
 
   const items: ExtractBatchItem[] = [];
   let failed = false;

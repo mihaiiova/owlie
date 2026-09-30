@@ -109,6 +109,15 @@ export function toBatchError<S extends 'extraction' | 'processing'>(
   return { code, message, stage };
 }
 
+/**
+ * The locator for a URL already known to be a feed (recognized, discovered, or
+ * served as one). The `feed` hint lets the feed adapter accept it whatever its
+ * URL shape, instead of re-recognizing it by path suffix.
+ */
+export function feedLocator(url: string): ContentLocator {
+  return { url, hint: 'feed' };
+}
+
 /** A collection adapter that may also discover feeds from supplied pages. */
 export interface FeedDiscoveryCapable extends CollectionAdapter {
   discover(
