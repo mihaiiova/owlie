@@ -1,6 +1,7 @@
 import type {
   CollectionAdapter,
   ContentCollection,
+  ContentItem,
   ContentLocator,
   HttpTextResponse,
   ItemAdapter,
@@ -9,6 +10,29 @@ import type {
 } from '@owlieio/core';
 import { assertNoUrlCredentials, ConfigurationError, OwlieError } from '@owlieio/core';
 import { extractWithFallback } from './dispatch.js';
+
+/**
+ * Item metadata keys safe to expose in listings and batch records: identity
+ * and typed media facts only, never feed-provided HTML or internal fields.
+ */
+export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
+  'entryId',
+  'entryIdSource',
+  'enclosures',
+  'media',
+  'enclosureUrl',
+  'duration',
+  'categories',
+];
+
+/** The allowlisted, HTML-free metadata of a listed item. */
+export function listedItemMetadata(item: ContentItem): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {};
+  for (const key of LISTED_ITEM_METADATA_KEYS) {
+    if (item.metadata[key] !== undefined) metadata[key] = item.metadata[key];
+  }
+  return metadata;
+}
 
 /** A successfully extracted linked item, keyed by its URL and title. */
 export interface LinkedItemResult {
@@ -25,6 +49,8 @@ export interface LinkedItemResult {
 export async function extractLinkedItem(opts: {
   url: string;
   title?: string;
+  /** The listed feed entry; its metadata is carried as `metadata.feedEntry`. */
+  entry?: ContentItem;
   itemAdapters: readonly ItemAdapter[];
   signal?: AbortSignal;
   progress?: ProgressSink;
@@ -40,7 +66,26 @@ export async function extractLinkedItem(opts: {
       clock: opts.clock,
     },
   );
-  return { url: opts.url, ...(opts.title !== undefined ? { title: opts.title } : {}), document };
+  const withEntry: NormalizedDocument =
+    opts.entry === undefined
+      ? document
+      : {
+          ...document,
+          metadata: {
+            ...document.metadata,
+            feedEntry: {
+              ...listedItemMetadata(opts.entry),
+              ...(opts.entry.publishedAt !== undefined
+                ? { publishedAt: opts.entry.publishedAt }
+                : {}),
+            },
+          },
+        };
+  return {
+    url: opts.url,
+    ...(opts.title !== undefined ? { title: opts.title } : {}),
+    document: withEntry,
+  };
 }
 
 /** A `{ url, title }` reference; title is omitted when absent. */

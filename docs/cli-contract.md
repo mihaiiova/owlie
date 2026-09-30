@@ -139,7 +139,8 @@ owlie capabilities [--json]
 - `list` resolves an RSS/Atom feed URL (or discovers one from a supplied HTML
   page URL) and writes a bounded, line-oriented
   summary of its entries to stdout, or a single JSON envelope with `--json`
-  (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
+  (collection metadata, item metadata, and `truncated`; see
+  [output formats](output-formats.md#feed-listings)). `--limit N` bounds the
   listing (default 10, maximum 500); invalid or oversized limits fail with a
   clear error. Raw entry HTML is never written to stdout.
 - `process` reads exactly one input — a positional http(s) URL, a positional

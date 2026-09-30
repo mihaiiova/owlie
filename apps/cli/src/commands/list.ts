@@ -11,7 +11,7 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
-import { resolveFeedCollectionUrl } from '../feed.js';
+import { listedItemMetadata, resolveFeedCollectionUrl } from '../feed.js';
 import {
   createCommandSpinner,
   writeCommandError,
@@ -43,6 +43,8 @@ export interface ListItemSummary {
   description?: string;
   publishedAt?: string;
   author?: string;
+  /** Allowlisted identity and media facts (entry id and its source, enclosures, media). */
+  metadata?: Record<string, unknown>;
 }
 
 /** A safe, HTML-free summary of the listed collection. */
@@ -96,6 +98,8 @@ export function summarizeItem(item: ContentItem): ListItemSummary {
   if (item.description) summary.description = item.description;
   if (item.publishedAt) summary.publishedAt = item.publishedAt;
   if (item.author) summary.author = item.author;
+  const metadata = listedItemMetadata(item);
+  if (Object.keys(metadata).length > 0) summary.metadata = metadata;
   return summary;
 }
 

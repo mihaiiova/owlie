@@ -43,6 +43,35 @@ formats directly.
   response.
 - Results go to stdout; diagnostics and progress go to stderr.
 
+## Feed listings
+
+`owlie list --json` writes `{ collection, items, truncated }` under the
+versioned envelope. Entries stay in feed document order; consumers sort.
+
+- `collection.title` and `collection.metadata`: `format` (`"rss"` or
+  `"atom"`), and when the feed declares them `description`, `siteUrl` (the
+  channel or feed `link`), and `imageUrl`. Atom feeds also keep `subtitle`.
+- Each item has `id` (`rss:entry:<entryId>`), `canonicalUrl` (the entry link
+  exactly as the feed gives it, with no tracking-parameter removal; consumers
+  apply their own canonical form), and when present `title`, `description`
+  (HTML-stripped), `publishedAt`, and `author`.
+- `item.metadata` carries only identity and media facts, never feed HTML:
+  - `entryId` and `entryIdSource`: `"guid"` (RSS 2.0), `"atom-id"`,
+    `"rdf-about"` (RSS 1.0), `"link"`, or `"fallback"` (a stable hash when the
+    entry has none of those). Entry ids are unchanged by this field.
+  - `enclosures`: `[{ url, type?, length? }]` from RSS `<enclosure>` and Atom
+    `link rel="enclosure"`; `type` is lowercased and `length` is a
+    non-negative integer or omitted.
+  - `media`: `[{ url, type?, medium? }]` from `media:content`, kept separate
+    because it often holds images or thumbnails.
+  - `enclosureUrl` (**deprecated**): the first enclosure URL, else the first
+    `media:content` URL. Use `enclosures` instead.
+  - `duration` and `categories` when the feed declares them.
+
+The feed batch of `owlie extract` and the records of `process --each` carry the
+same allowlisted entry metadata, plus `publishedAt`, on each document as
+`metadata.feedEntry`.
+
 ## Files and cache
 
 Temporary downloads and intermediate artifacts will eventually use

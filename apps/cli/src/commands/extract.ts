@@ -455,6 +455,7 @@ async function runFeedExtraction(
       const outcome = await extractLinkedItem({
         url: entryUrl,
         title: entry.title,
+        entry,
         itemAdapters,
         signal: deps.signal,
         progress,
