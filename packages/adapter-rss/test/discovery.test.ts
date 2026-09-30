@@ -205,3 +205,13 @@ describe('PROBE_PATHS', () => {
     ]);
   });
 });
+
+describe('extractFeedLinks — decoded hrefs (#121)', () => {
+  it('decodes entities in declared feed link hrefs', () => {
+    expect(
+      extractFeedLinks(
+        '<link rel="alternate" type="application/rss+xml" href="/?feed=rss2&amp;cat=1">',
+      ),
+    ).toEqual([{ href: '/?feed=rss2&cat=1', format: 'rss' }]);
+  });
+});

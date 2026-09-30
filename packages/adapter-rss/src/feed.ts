@@ -258,8 +258,8 @@ function parseAtom(doc: Record<string, unknown>): ParsedFeed {
 function atomLink(link: unknown, rel?: string): string | undefined {
   for (const item of toArray<unknown>(link)) {
     if (!isRecord(item)) continue;
-    const href = item['@_href'];
-    if (typeof href !== 'string') continue;
+    const href = attribute(item, 'href');
+    if (href === undefined) continue;
     if (rel === undefined) return href;
     const itemRel = item['@_rel'];
     if (itemRel === rel) return href;

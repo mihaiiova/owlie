@@ -12,7 +12,7 @@ import {
   isHtmlContentType,
   mediaTypeOf,
 } from '@owlieio/core';
-import { parseFeed, type FeedFormat } from './feed.js';
+import { decodeXmlEntities, parseFeed, type FeedFormat } from './feed.js';
 
 /** The fixed conventional-path probes, in the agreed order. */
 export const PROBE_PATHS: readonly string[] = [
@@ -81,7 +81,9 @@ function linkAttributes(tag: string): Record<string, string> {
   for (const match of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) {
     const name = match[1];
     const value = match[2] ?? match[3] ?? match[4];
-    if (name !== undefined && value !== undefined) result[name.toLowerCase()] = value;
+    if (name !== undefined && value !== undefined) {
+      result[name.toLowerCase()] = decodeXmlEntities(value);
+    }
   }
   return result;
 }
