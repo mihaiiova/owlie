@@ -20,6 +20,10 @@ process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
 > adapter). The repository compiles, lints,
 > and tests cleanly. See [Product scope](docs/product-scope.md) for what works
 > and what does not.
+>
+> Single-page article extraction through `owlie extract` is not available yet
+> (an HTML page URL goes to feed discovery); use `owlie process URL` for an
+> article until spec #118 lands.
 
 ## Quick start
 
