@@ -517,6 +517,7 @@ async function runFeedProcessing(
       const { document } = await extractLinkedItem({
         url: entryUrl,
         title: entry.title,
+        entry,
         itemAdapters,
         signal: deps.signal,
         progress,

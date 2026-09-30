@@ -84,7 +84,16 @@ describe('RssAdapter.list', () => {
     const collection = await resolveCollection(adapter);
     const result = await adapter.list(collection, { limit: 1 });
 
-    expect(result.collection).toBe(collection);
+    expect(result.collection).toEqual({
+      ...collection,
+      title: 'Example Channel',
+      metadata: {
+        format: 'rss',
+        description: 'A sample feed',
+        siteUrl: 'https://example.com/',
+        imageUrl: 'https://example.com/logo.png',
+      },
+    });
     expect(result.items).toHaveLength(1);
     expect(result.items[0]!.id).toBe('rss:entry:post-1');
     expect(result.truncated).toBe(true);

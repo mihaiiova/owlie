@@ -96,7 +96,11 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDisc
       .slice(0, options.limit)
       .map((entry) => entryToItem(entry, collection.canonicalUrl));
     return {
-      collection,
+      collection: {
+        ...collection,
+        ...(feed.title !== undefined ? { title: feed.title } : {}),
+        metadata: { ...collection.metadata, ...feed.metadata, format: feed.format },
+      },
       items,
       truncated: feed.entries.length > options.limit,
     };

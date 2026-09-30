@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeXmlEntities,
   detectFeedFormat,
+  entryToItem,
   htmlToText,
   isFeedUrl,
   normalizeFeedUrl,
@@ -220,5 +221,130 @@ describe('RssAdapter', () => {
     await expect(adapter.resolve({ url: 'not a url', hint: 'rss' })).rejects.toThrow(
       ConfigurationError,
     );
+  });
+});
+
+describe('parseFeed — listing metadata (#116)', () => {
+  it('exposes RSS 2.0 feed metadata', async () => {
+    const feed = await parseFeed(RSS20);
+    expect(feed.metadata).toMatchObject({
+      description: 'A sample feed',
+      siteUrl: 'https://example.com/',
+      imageUrl: 'https://example.com/logo.png',
+    });
+  });
+
+  it('exposes Atom feed metadata, keeping subtitle', async () => {
+    const feed = await parseFeed(ATOM);
+    expect(feed.metadata).toMatchObject({
+      description: 'Subtitle text',
+      subtitle: 'Subtitle text',
+      siteUrl: 'https://example.com/',
+    });
+  });
+
+  it('records where each entry id came from without changing the ids', async () => {
+    const rss = await parseFeed(RSS20);
+    expect(rss.entries.map((entry) => [entry.id, entry.metadata.entryIdSource])).toEqual([
+      ['post-1', 'guid'],
+      ['https://example.com/2', 'link'],
+    ]);
+
+    const atom = await parseFeed(ATOM);
+    expect(atom.entries[0]!.metadata.entryIdSource).toBe('atom-id');
+
+    const rdf = await parseFeed(RSS10);
+    expect(rdf.entries[0]!.id).toBe('https://example.com/1');
+    expect(rdf.entries[0]!.metadata.entryIdSource).toBe('rdf-about');
+
+    const hashed = await parseFeed(
+      '<rss version="2.0"><channel><title>t</title><item><title>X</title><description>d</description></item></channel></rss>',
+    );
+    expect(hashed.entries[0]!.metadata.entryIdSource).toBe('fallback');
+
+    const atomLinkOnly = await parseFeed(
+      '<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title><entry><title>E</title><link href="https://example.com/e"/></entry></feed>',
+    );
+    expect(atomLinkOnly.entries[0]!.metadata.entryIdSource).toBe('link');
+  });
+
+  it('types enclosures and keeps media:content separate', async () => {
+    const feed =
+      await parseFeed(`<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>t</title>
+      <item><title>Mixed</title><link>https://example.com/a</link><guid>a</guid>
+        <media:content url="https://example.com/thumb.jpg" type="image/jpeg" medium="image"/>
+        <enclosure url="https://example.com/ep.mp3" type="Audio/MPEG" length="5000"/>
+        <enclosure url="https://example.com/ep.m4a" type="audio/mp4" length="bad"/>
+      </item>
+      <item><title>Image only</title><link>https://example.com/b</link><guid>b</guid>
+        <media:content url="https://example.com/pic.png" medium="image"/>
+      </item>
+    </channel></rss>`);
+    const [mixed, imageOnly] = feed.entries;
+    expect(mixed!.metadata.enclosures).toEqual([
+      { url: 'https://example.com/ep.mp3', type: 'audio/mpeg', length: 5000 },
+      { url: 'https://example.com/ep.m4a', type: 'audio/mp4' },
+    ]);
+    expect(mixed!.metadata.media).toEqual([
+      { url: 'https://example.com/thumb.jpg', type: 'image/jpeg', medium: 'image' },
+    ]);
+    expect(mixed!.metadata.enclosureUrl).toBe('https://example.com/ep.mp3');
+
+    expect(imageOnly!.metadata.enclosures).toBeUndefined();
+    expect(imageOnly!.metadata.media).toEqual([
+      { url: 'https://example.com/pic.png', medium: 'image' },
+    ]);
+    expect(imageOnly!.metadata.enclosureUrl).toBe('https://example.com/pic.png');
+  });
+
+  it('types Atom enclosure links', async () => {
+    const feed = await parseFeed(
+      '<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title><entry><id>x</id><title>E</title>' +
+        '<link rel="alternate" href="https://example.com/e"/>' +
+        '<link rel="enclosure" href="https://example.com/e.mp3" type="audio/mpeg" length="42"/></entry></feed>',
+    );
+    expect(feed.entries[0]!.metadata.enclosures).toEqual([
+      { url: 'https://example.com/e.mp3', type: 'audio/mpeg', length: 42 },
+    ]);
+  });
+
+  it('carries entry metadata onto listed items', async () => {
+    const feed = await parseFeed(RSS20);
+    const item = entryToItem(feed.entries[0]!, 'https://example.com/feed.xml');
+    expect(item.metadata).toMatchObject({
+      entryId: 'post-1',
+      entryIdSource: 'guid',
+      enclosureUrl: 'https://example.com/audio.mp3',
+      enclosures: [{ url: 'https://example.com/audio.mp3', type: 'audio/mpeg', length: 1234 }],
+      duration: '45:00',
+      categories: ['tech'],
+    });
+  });
+});
+
+describe('parseFeed — decoded media and image URLs', () => {
+  it('decodes entities in enclosure, media, and image URLs', async () => {
+    const rss =
+      await parseFeed(`<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>t</title>
+      <itunes:image href="https://ex.com/cover.jpg?w=1&amp;h=1"/>
+      <item><guid>a</guid><link>https://ex.com/a</link>
+        <enclosure url="https://ex.com/e.mp3?a=1&amp;b=2" type="audio/mpeg"/>
+        <media:content url="https://ex.com/t.jpg?x=1&amp;y=2" medium="image"/>
+      </item></channel></rss>`);
+    expect(rss.metadata.imageUrl).toBe('https://ex.com/cover.jpg?w=1&h=1');
+    expect(rss.entries[0]!.metadata.enclosures).toEqual([
+      { url: 'https://ex.com/e.mp3?a=1&b=2', type: 'audio/mpeg' },
+    ]);
+    expect(rss.entries[0]!.metadata.media).toEqual([
+      { url: 'https://ex.com/t.jpg?x=1&y=2', medium: 'image' },
+    ]);
+    expect(rss.entries[0]!.metadata.enclosureUrl).toBe('https://ex.com/e.mp3?a=1&b=2');
+
+    const atom = await parseFeed(
+      '<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title><icon>https://ex.com/i.png?w=1&amp;h=1</icon>' +
+        '<entry><id>x</id><link rel="enclosure" href="https://ex.com/e.mp3?a=1&amp;b=2"/></entry></feed>',
+    );
+    expect(atom.metadata.imageUrl).toBe('https://ex.com/i.png?w=1&h=1');
+    expect(atom.entries[0]!.metadata.enclosures).toEqual([{ url: 'https://ex.com/e.mp3?a=1&b=2' }]);
   });
 });
