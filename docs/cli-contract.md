@@ -99,10 +99,17 @@ owlie capabilities [--json]
   flags, and `--article` with a YouTube or direct feed URL is a usage error
   (exit code 2). Apple episodes
   resolve through Apple's public lookup API, with a matching RSS enclosure
-  fallback. Other episode pages use JSON-LD, declared oEmbed,
-  `<audio>`/`<source>`, or RSS/Atom enclosure signals; they never execute
-  JavaScript, and a safe episode-page URL with no discoverable audio is classified as a
-  page (article or feed-discovery candidate) as described above.
+  fallback. Other episode pages use audio signals only; they never execute
+  JavaScript (ADR 0037). Strong signals (JSON-LD `PodcastEpisode`,
+  `AudioObject`, or `MusicRecording` with a media URL, or an oEmbed resolving
+  to audio) always make the page an episode. Weak signals (`<audio>`, a
+  `<source>` inside it or with an audio type, an audio enclosure, or the page's
+  own feed entry's audio enclosure) count only when the page does not declare
+  itself an article (`og:type` article or a JSON-LD article type). A declared
+  article with only weak signals, and any page with no audio, is classified as
+  a page (article or feed-discovery candidate) as described above, reusing the
+  fetched page. `--podcast-page` is authoritative and resolves weak signals
+  even on a declared article.
   It writes transcript text, or a feed batch JSON envelope for a feed/page
   URL, or a JSON `NormalizedDocument` with `--json` for a direct item.
   `--language LANG` sets a comma-separated language priority list for YouTube
