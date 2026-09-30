@@ -172,6 +172,11 @@ owlie extract "https://www.youtube.com/watch?v=..." --quiet
 # environment only (no .env, saved profile, or model-cache fallback).
 owlie --hosted process transcript.txt --prompt "Summarize this"
 owlie --hosted doctor --json   # reports configurationSource: hosted
+
+# Send all extraction traffic (pages, feeds, media, YouTube) through a proxy.
+# Set a proxy URL or a Webshare pair, never both; hosted mode reads process env.
+OWLIE_PROXY_URL="socks5://user:pass@proxy.example:1080" owlie --hosted extract URL --json
+OWLIE_WEBSHARE_PROXY_USERNAME=… OWLIE_WEBSHARE_PROXY_PASSWORD=… owlie --hosted extract URL --json
 ```
 
 ## Global options

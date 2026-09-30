@@ -11,7 +11,6 @@ import {
   assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
-  DefaultHttpFetcher,
   listCollection,
   NotHandledError,
   resolveItem,
@@ -50,6 +49,8 @@ import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 import { parsePositiveIntegerFlag } from '../invocation.js';
+import { lazyExtractionNetwork } from '../proxy.js';
+import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 
 export interface ExtractDeps {
   /** Ordered item adapters for direct-URL dispatch (specialized first). */
@@ -69,6 +70,8 @@ export interface ExtractDeps {
   networkPolicy?: HttpFetchPolicy;
   /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
   clock?: () => Date;
+  /** Proxy resolution inputs and fetcher factory for the default adapters. */
+  network?: ExtractionNetworkDeps;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -134,6 +137,7 @@ export async function runExtractCommand(
   const readConfig: () => UserConfig = options.hosted
     ? () => ({})
     : (deps.readConfig ?? readUserConfig);
+  const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
 
   if (options.resolver !== undefined) {
     return runResolverExtraction(
@@ -144,20 +148,31 @@ export async function runExtractCommand(
       options.resolver,
       readConfig,
       maxMediaBytes,
+      network,
     );
   }
 
-  const itemAdapters =
-    deps.itemAdapters ??
-    defaultItemAdapters({
-      languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
-      cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
-      mediaMaxBytes: maxMediaBytes,
-      networkPolicy: deps.networkPolicy,
-    });
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
+  let itemAdapters: readonly ItemAdapter[];
+  let feedAdapter: CollectionAdapter;
+  try {
+    itemAdapters =
+      deps.itemAdapters ??
+      defaultItemAdapters({
+        languages: parseLanguages(options.language),
+        fetcher: network().fetcher,
+        youtube: network().youtube,
+        cacheDir: cacheDir(),
+        whisperModel: readConfig().transcription?.model,
+        mediaMaxBytes: maxMediaBytes,
+        networkPolicy: deps.networkPolicy,
+      });
+    feedAdapter =
+      deps.feedAdapter ??
+      new RssAdapter({ fetcher: network().fetcher, policy: deps.networkPolicy });
+  } catch (error) {
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
 
   if (options.page === 'article') {
     const specializedMatch = itemAdapters.some(
@@ -343,15 +358,16 @@ async function runResolverExtraction(
   resolverName: string,
   readConfig: () => UserConfig,
   maxMediaBytes: number | undefined,
+  network: () => ExtractionNetwork,
 ): Promise<number> {
-  const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
-  const transcriber =
-    deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
-  const workCacheDir = deps.cacheDir ?? cacheDir();
   const spinner = createCommandSpinner(io, options, deps.spinner);
   const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
 
   try {
+    const fetcher = deps.fetcher ?? network().fetcher;
+    const transcriber =
+      deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
+    const workCacheDir = deps.cacheDir ?? cacheDir();
     assertNoUrlCredentials(url);
     const resolved = await resolvePodcastAudio(url, {
       fetcher,

@@ -21,12 +21,17 @@ import {
 import type { SpinnerLike } from '../spinner.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
+import { extractionNetwork } from '../proxy.js';
+import type { ExtractionNetworkDeps } from '../proxy.js';
+
 export interface ListDeps {
   adapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
   networkPolicy?: HttpFetchPolicy;
+  /** Proxy resolution inputs and fetcher factory for the default adapter. */
+  network?: ExtractionNetworkDeps;
 }
 
 /** A safe, HTML-free summary of one listed item. */
@@ -130,10 +135,15 @@ export async function runListCommand(
     return ExitCode.Usage;
   }
 
-  const adapter = deps.adapter ?? new RssAdapter({ policy: deps.networkPolicy });
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
+    const adapter =
+      deps.adapter ??
+      new RssAdapter({
+        fetcher: extractionNetwork(options, deps.network).fetcher,
+        policy: deps.networkPolicy,
+      });
     const limit = parseListLimit(options.limit);
     spinner.start('listing feed');
     const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);

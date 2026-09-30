@@ -40,7 +40,10 @@ emits the versioned envelope). Extraction documents carry a first-class v2
 warnings; ADR 0032). A global
 `--hosted` flag makes any command deterministic for a hosted subprocess:
 flags and injected process environment only, with no dotenv, saved user
-configuration, or model-cache fallback, and `auth`/`setup` rejected. `--json`
+configuration, or model-cache fallback, and `auth`/`setup` rejected. One
+extraction proxy (`OWLIE_PROXY_URL` or the `OWLIE_WEBSHARE_PROXY_*` pair, or
+the saved `proxy` locally) carries all extraction traffic, never provider
+calls (ADR 0036). `--json`
 is a unified, versioned subprocess protocol (`{ schemaVersion, command, result }`
 envelopes on stdout, versioned JSONL progress and terminal error/cancellation
 records on stderr; ADR 0030). Every networked command also accepts an

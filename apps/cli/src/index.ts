@@ -64,6 +64,26 @@ export {
   writeUserConfig,
 } from './config.js';
 export type { ProviderEnvConfig, ProviderProfile, UserConfig } from './config.js';
+export {
+  PROXY_URL_ENV,
+  WEBSHARE_PASSWORD_ENV,
+  WEBSHARE_USERNAME_ENV,
+  extractionNetwork,
+  lazyExtractionNetwork,
+  proxiedFetch,
+  proxyReport,
+  proxyUrl,
+  resolveProxy,
+} from './proxy.js';
+export type {
+  ExtractionNetwork,
+  ExtractionNetworkDeps,
+  ExtractionProxy,
+  ProxyReport,
+  ProxySource,
+  ResolvedProxy,
+  YouTubeNetwork,
+} from './proxy.js';
 export { removeCredential, resolveCredentialSource, setCredential } from './auth.js';
 export type { AuthMethod, CredentialSource } from './auth.js';
 export {

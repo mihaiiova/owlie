@@ -231,7 +231,9 @@ combined), the saved user configuration, and model-cache fallback
 (`owlie models` always live-fetches and never reads or writes the cache).
 `owlie auth` and `owlie setup` are rejected as a usage error (exit code 2)
 before any prompt or state write. Non-hosted behavior and precedence are
-unchanged.
+unchanged. The extraction proxy is read from `OWLIE_PROXY_URL` or
+`OWLIE_WEBSHARE_PROXY_USERNAME`/`OWLIE_WEBSHARE_PROXY_PASSWORD` in the process
+environment (see [configuration](configuration.md#extraction-proxy)).
 
 ## Integrating Owlie as a subprocess
 
@@ -247,8 +249,9 @@ command. The contract is the same for every consumer (ADR 0034):
    (`--timeout-ms`, `--max-network-bytes`, `--max-stdout-bytes`), for example
    `owlie --hosted extract URL --json --timeout-ms 60000`.
 4. **Pass configuration through the process environment only**, as an
-   allowlist: the variables Owlie documents (provider keys for `process`) and
-   nothing else from your own environment.
+   allowlist: the variables Owlie documents (provider keys for `process`, and
+   `OWLIE_PROXY_URL` or the `OWLIE_WEBSHARE_PROXY_*` pair for an extraction
+   proxy) and nothing else from your own environment.
 5. **Read results from stdout** (one envelope, or JSONL for `process --each`)
    and **progress, errors, and cancellation from stderr** JSONL records. Map
    the documented [error codes](#json-subprocess-protocol) and exit codes to
@@ -284,4 +287,6 @@ transcription readiness (Python + faster-whisper, ffmpeg, ffprobe, and the
 configured Whisper model), and whether the configuration and cache directories
 are writable. The JSON report includes `configurationSource`
 (`"hosted" | "local"`); in hosted mode it resolves provider readiness from
-flags and process environment only.
+flags and process environment only. It also includes `proxy`: `{ mode: "none" |
+"url" | "webshare" | "invalid", source: "env" | "env-file" | "user-config" | null
+}` (plus `error` when invalid), never the proxy host or credentials.

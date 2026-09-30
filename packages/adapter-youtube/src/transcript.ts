@@ -165,9 +165,13 @@ export class YouTubeTranscriptClient implements TranscriptClient {
       languages?: readonly string[];
       source?: TranscriptSource;
       proxy?: TranscriptProxy;
+      /** Fetch used for every transcript request when no `proxy` is set. */
+      fetchFn?: typeof fetch;
     } = {},
   ) {
-    this.source = options.source ?? new LibraryTranscriptSource({ proxy: options.proxy });
+    this.source =
+      options.source ??
+      new LibraryTranscriptSource({ proxy: options.proxy, fetchFn: options.fetchFn });
     this.languages = options.languages ?? DEFAULT_LANGUAGES;
   }
 
@@ -224,5 +228,7 @@ export interface YouTubeAdapterOptions {
   client?: TranscriptClient;
   languages?: readonly string[];
   proxy?: TranscriptProxy;
+  /** Fetch used for every transcript request when no `proxy` is set (e.g. a proxied fetch). */
+  fetchFn?: typeof fetch;
   timeoutMs?: number;
 }

@@ -115,7 +115,11 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
   constructor(options: YouTubeAdapterOptions = {}) {
     this.client =
       options.client ??
-      new YouTubeTranscriptClient({ languages: options.languages, proxy: options.proxy });
+      new YouTubeTranscriptClient({
+        languages: options.languages,
+        proxy: options.proxy,
+        fetchFn: options.fetchFn,
+      });
     this.languages = options.languages ?? DEFAULT_LANGUAGES;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }

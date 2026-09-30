@@ -1,6 +1,6 @@
 # ADR 0008 — Proxy configuration for YouTube transcript fetching
 
-- **Status:** Accepted
+- **Status:** Accepted (scope and configuration superseded by [ADR 0036](0036-extraction-proxy.md): the proxy now covers all extraction traffic and can be set through environment variables, including in hosted mode)
 - **Date:** 2026-08-19
 
 ## Context

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GenericProxyConfig, WebshareProxyConfig } from '@hallelx/youtube-transcript';
-import { toProxyConfig, transcriptApiOptions } from '@owlieio/adapter-youtube';
+import { YouTubeAdapter, toProxyConfig, transcriptApiOptions } from '@owlieio/adapter-youtube';
 
 describe('toProxyConfig', () => {
   it('returns undefined for no proxy', () => {
@@ -34,5 +34,21 @@ describe('transcriptApiOptions', () => {
     const options = transcriptApiOptions(undefined, undefined, new AbortController().signal);
     expect(options.fetchFn).toBeDefined();
     expect(options.proxyConfig).toBeUndefined();
+  });
+});
+
+describe('YouTubeAdapter fetchFn', () => {
+  it('sends transcript requests through an injected fetch', async () => {
+    const urls: string[] = [];
+    const fetchFn = (async (input: string | URL | Request) => {
+      urls.push(String(input instanceof Request ? input.url : input));
+      return new Response('unavailable', { status: 503 });
+    }) as typeof fetch;
+    const adapter = new YouTubeAdapter({ fetchFn });
+    const item = await adapter.resolveItem({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' });
+
+    await expect(adapter.extract(item)).rejects.toThrow();
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((url) => url.includes('youtube.com'))).toBe(true);
   });
 });
