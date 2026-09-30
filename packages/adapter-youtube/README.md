@@ -26,14 +26,21 @@ https://www.youtube.com/watch?v=<id>
 https://m.youtube.com/watch?v=<id>
 https://music.youtube.com/watch?v=<id>
 https://youtu.be/<id>
+https://www.youtube.com/embed/<id>
+https://www.youtube.com/v/<id>
 ```
+
+The `watch`, `embed`, and `v` forms work on every recognized YouTube host.
+Trailing path segments and query strings (such as `?start=30`) are ignored.
 
 Video IDs are exactly 11 characters from `[A-Za-z0-9_-]`. Every supported form
 canonicalizes to `https://www.youtube.com/watch?v=<id>` and resolves to the
 stable identity `youtube:video:<id>`.
 
-Unsupported in v0.1 (rejected with a clear error): playlists, channels,
-search URLs, and `/shorts/`, `/live/`, `/embed/`, and `/v/` forms.
+Unsupported (rejected with a clear error, never passed to another adapter):
+playlists, channels, and search URLs. `/live/` and `/shorts/` URLs fail with a
+`ValidationError`: a live stream has no known end, so there is no complete
+transcript to extract.
 
 ## Language selection
 

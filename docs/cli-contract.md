@@ -76,7 +76,9 @@ owlie capabilities [--json]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
-  to the YouTube adapter; podcast direct-audio URLs, Apple Podcasts episode
+  (`watch?v=`, `youtu.be/`, `/embed/`, and `/v/`, all canonicalized to
+  `watch?v=<id>`) to the YouTube adapter, while YouTube `/live/` and `/shorts/`
+  URLs are a `VALIDATION_ERROR` with no fallback; podcast direct-audio URLs, Apple Podcasts episode
   URLs, and safe server-rendered episode pages with declarative audio metadata
   to the podcast adapter. A remaining safe HTTP(S) URL is a page: the article
   adapter classifies it from one fetch (reusing the page an episode-page

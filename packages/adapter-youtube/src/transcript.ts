@@ -211,7 +211,8 @@ export class YouTubeTranscriptClient implements TranscriptClient {
       if (error instanceof RequestBlocked) {
         throw new ExtractionError(
           'YouTube blocked the transcript request (this network IP is likely blocked). ' +
-            'Configure a proxy by running `owlie setup`.',
+            'Configure a proxy with OWLIE_PROXY_URL, OWLIE_WEBSHARE_PROXY_USERNAME and ' +
+            'OWLIE_WEBSHARE_PROXY_PASSWORD, or `owlie setup`.',
           { cause: error },
         );
       }
