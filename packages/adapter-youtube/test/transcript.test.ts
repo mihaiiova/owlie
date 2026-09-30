@@ -114,7 +114,7 @@ describe('YouTubeTranscriptClient.fetch', () => {
       source: sourceOf([], new RequestBlocked('videoId')),
     });
     await expect(client.fetch('id')).rejects.toBeInstanceOf(ExtractionError);
-    await expect(client.fetch('id')).rejects.toThrow(/owlie setup/);
+    await expect(client.fetch('id')).rejects.toThrow(/OWLIE_PROXY_URL.*owlie setup/);
   });
 
   it('honors a per-call language override', async () => {
