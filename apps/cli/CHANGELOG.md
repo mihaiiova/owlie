@@ -38,6 +38,11 @@
 
 ### Patch Changes
 
+- `--max-network-bytes` is exhausted by the first response that crosses it, so
+  feed discovery probes and later batch items cannot keep downloading past the
+  cap. A deadline or cancellation during an episode page's oEmbed or feed
+  lookup ends with the cancellation record. `owlie auth list --env-file FILE`
+  reports keys from that file.
 - 8a56547: Atom link URLs and feed links declared in HTML pages are now entity-decoded,
   so a `&amp;` in a query string no longer reaches the request literally. Entry
   URLs, feed URLs, and site links containing entities change to their correct
