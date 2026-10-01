@@ -168,7 +168,8 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       // Only audio counts: an `audio` type, or a media URL with an audio extension.
       const audio = String(record.type).toLowerCase() === 'audio' || isAudioMedia(record.url);
       return mediaUrl && audio ? { mediaUrl, title: stringValue(record.title) } : undefined;
-    } catch {
+    } catch (error) {
+      if (isCancellation(error, signal)) throw error;
       return undefined;
     }
   }
@@ -198,7 +199,8 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       });
       if (!isFeedContentType(response.contentType)) return undefined;
       return feedEntryAudio(await parseFeed(response.text), response.url, pageUrl);
-    } catch {
+    } catch (error) {
+      if (isCancellation(error, signal)) throw error;
       return undefined;
     }
   }
@@ -306,6 +308,11 @@ function feedEntryAudio(
   const audio = enclosures.find((enclosure) => isAudioMedia(enclosure.url, enclosure.type));
   const mediaUrl = audio ? safeResolveUrl(audio.url, feedUrl) : undefined;
   return mediaUrl ? { mediaUrl, title: entry?.title } : undefined;
+}
+
+/** A cancelled or deadline-aborted fetch must end resolution, never fall through. */
+function isCancellation(error: unknown, signal: AbortSignal | undefined): boolean {
+  return error instanceof CancelledError || signal?.aborted === true;
 }
 
 function declaresArticle(html: string): boolean {

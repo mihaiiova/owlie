@@ -99,6 +99,26 @@ describe('auth command', () => {
     expect(stdout()).not.toContain('sk-x');
   });
 
+  it('reports a key from --env-file as an environment credential', async () => {
+    const { io, stdout } = capture();
+    const code = await run(
+      ['auth', 'list', '--json', '--env-file', 'credentials.env'],
+      io,
+      deps({
+        env: {},
+        readConfig: () => ({}),
+        loadFile: (path): Record<string, string> =>
+          path === 'credentials.env' ? { OPENAI_API_KEY: 'sk-file' } : {},
+      }),
+    );
+    expect(code).toBe(ExitCode.Success);
+    expect(JSON.parse(stdout()).result).toContainEqual({
+      provider: 'openai',
+      source: 'environment',
+    });
+    expect(stdout()).not.toContain('sk-file');
+  });
+
   it('emits JSON status for auth list with --json', async () => {
     const { io, stdout } = capture();
     const code = await run(

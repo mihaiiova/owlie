@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
-import { NotHandledError } from '@owlieio/core';
+import { CancelledError, NotHandledError } from '@owlieio/core';
 import { GenericEpisodePageResolver } from '@owlieio/adapter-podcast';
 
 type FetchResponse = { contentType?: string; text: string };
@@ -384,5 +384,43 @@ describe('GenericEpisodePageResolver — declared articles win over weak audio (
     await expect(resolver.resolve({ url: PAGE }, { authoritative: true })).resolves.toMatchObject({
       mediaUrl: 'https://publisher.example/clip.mp3',
     });
+  });
+});
+
+describe('GenericEpisodePageResolver — cancellation during nested fetches', () => {
+  const PAGE = 'https://publisher.example/episodes/one';
+
+  function cancellingFetcher(html: string, cancelOn: string, controller: AbortController) {
+    const fetcher: HttpFetcher = {
+      async fetch(url) {
+        if (url === cancelOn) {
+          controller.abort();
+          throw new CancelledError('fetch timed out or was cancelled');
+        }
+        return { url, contentType: 'text/html', text: html };
+      },
+    };
+    return fetcher;
+  }
+
+  it.each([
+    [
+      'the oEmbed fetch',
+      '<link type="application/json+oembed" href="/oembed"><audio src="/fallback.mp3"></audio>',
+      'https://publisher.example/oembed',
+    ],
+    [
+      'the feed fetch',
+      '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
+      'https://publisher.example/feed.xml',
+    ],
+  ])('propagates cancellation from %s', async (_label, html, cancelOn) => {
+    const controller = new AbortController();
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: cancellingFetcher(html, cancelOn, controller),
+    });
+    await expect(
+      resolver.resolve({ url: PAGE }, { signal: controller.signal }),
+    ).rejects.toBeInstanceOf(CancelledError);
   });
 });
