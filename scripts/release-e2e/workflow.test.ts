@@ -64,6 +64,14 @@ describe('publish workflow (static)', () => {
     expect(publish).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN|secrets\.NPM/);
   });
 
+  it('upgrades to an npm CLI that supports trusted publishing before publishing', () => {
+    const upgrade = publish.indexOf('npm install -g npm@^11.5.1');
+    expect(upgrade).toBeGreaterThan(-1);
+    expect(upgrade).toBeLessThan(publish.indexOf('npm publish --access public'));
+    // Verification and publication must pack with the same npm CLI.
+    expect(upgrade).toBeLessThan(publish.indexOf('pnpm verify:artifact'));
+  });
+
   it('publishes with public access', () => {
     expect(publish).toContain('npm publish --access public');
   });
