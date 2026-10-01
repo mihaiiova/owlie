@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.5.2-dev",
+  "version": "0.6.0",
   "description": "General-purpose web content extractor: URLs in, normalized content out",
   "keywords": [
     "web-content-extraction",
