@@ -1,5 +1,72 @@
 # @owlieio/owlie
 
+## 0.6.0
+
+### Minor Changes
+
+- a75f266: A page that declares itself an article (`og:type` article or a JSON-LD article
+  type) is now extracted as article text even when it embeds an audio player.
+  Only structured podcast data (JSON-LD `PodcastEpisode`/`AudioObject`, or an
+  oEmbed resolving to audio) makes such a page an episode. `--podcast-page` still
+  forces the episode path. A `video` oEmbed is no longer treated as episode audio.
+- b015cf8: `owlie extract <page URL>` now returns the article when the page is one (it
+  declares `og:type` article or a JSON-LD article type, or has a long readable
+  body), instead of discovering the site's feed. Other pages still go to feed
+  discovery, reusing the same fetch. New `--article` and `--feed` flags force
+  either path. Article pages no longer carry an `ARTICLE_FALLBACK` warning.
+- 5746324: A proxy now carries all extraction traffic (article pages, feeds, podcast
+  pages, Apple lookups, media downloads, and YouTube), not only YouTube
+  transcripts. Set it with `OWLIE_PROXY_URL` (`http`, `https`, or `socks5`) or
+  `OWLIE_WEBSHARE_PROXY_USERNAME`/`OWLIE_WEBSHARE_PROXY_PASSWORD`, which also
+  work in `--hosted` mode. A proxy saved by `owlie setup` applies the same way.
+  `owlie doctor` reports the proxy mode and source. LLM provider calls stay
+  direct.
+- f9d4c79: `owlie list --json` now returns the feed's title, description, site link, and
+  image, and each entry's `metadata`: the entry id and where it came from
+  (`entryIdSource`), typed `enclosures` (`url`, `type`, `length`), and
+  `media:content` as a separate `media` list. `enclosureUrl` is kept but
+  deprecated. Feed batches from `extract` and `process --each` carry the same
+  entry metadata on each document as `metadata.feedEntry`. Entry ids are
+  unchanged.
+  Enclosure, media, and feed image URLs are now entity-decoded (a `&amp;` in a
+  query string previously came through literally).
+- e60ca9d: YouTube `/embed/<id>` and `/v/<id>` URLs are now extracted like `watch?v=<id>`
+  URLs and share the same identity. YouTube live-stream (`/live/`) and Shorts
+  (`/shorts/`) URLs now fail with a clear `VALIDATION_ERROR`.
+  The message for a blocked transcript request now names the proxy environment
+  variables, which also work in `--hosted` mode.
+
+### Patch Changes
+
+- `--max-network-bytes` is exhausted by the first response that crosses it, so
+  feed discovery probes and later batch items cannot keep downloading past the
+  cap. A deadline or cancellation during an episode page's oEmbed or feed
+  lookup ends with the cancellation record. `owlie auth list --env-file FILE`
+  reports keys from that file.
+- 8a56547: Atom link URLs and feed links declared in HTML pages are now entity-decoded,
+  so a `&amp;` in a query string no longer reaches the request literally. Entry
+  URLs, feed URLs, and site links containing entities change to their correct
+  form. For the rare Atom entry that has no `<id>` and whose link contains an
+  entity, the entry id (taken from the link) changes once; consumers that store
+  entry ids may see such an entry as new one time.
+- b917bcd: Feeds at URLs that do not look like feeds now work. A feed found by discovery
+  (for example `/atom/everything/`) is listed instead of being rejected as "not a
+  recognized RSS/Atom feed URL", and a URL that itself serves an RSS/Atom feed
+  (for example `/?feed=rss2` or `https://hnrss.org/frontpage`) is listed or
+  extracted directly instead of failing discovery.
+- 7ae7fb6: Describe Owlie as a general-purpose web content extractor. The `owlie --help`
+  heading and the package description and keywords now say so, and the
+  documentation describes any product that runs Owlie as a subprocess as a
+  consumer of the same public contract (ADR 0034). No behaviour changes.
+- bb472a1: Podcast episode-page resolution now accepts only audio: a `<video>` source,
+  image, or non-audio enclosure on a page is no longer downloaded and
+  transcribed as an episode, and the feed fallback uses only the feed entry
+  whose link is the requested page instead of the feed's first enclosure. An
+  ordinary homepage or article on a site with a podcast feed is therefore no
+  longer transcribed as an unrelated episode. A download or page fetch aborted
+  by `--timeout-ms` or cancellation no longer crashes the process with an
+  unhandled `AbortError`; it ends with the cancellation record and exit code 130.
+
 ## 0.5.1
 
 ### Patch Changes
@@ -10,6 +77,22 @@
   `progress` events (e.g. whisper transcription progress) reach the spinner,
   and batch extraction messages carry a `[i/N]` position so progress through
   the bounded limit is visible.
+
+## 0.5.0
+
+### Major Changes
+
+- `--json` now uses the versioned subprocess protocol: single-result commands
+  emit `{ schemaVersion, command, result }`; streaming commands emit JSONL;
+  and stderr emits versioned progress and terminal records.
+
+### Minor Changes
+
+- Add deterministic `--hosted` mode; invocation-wide `--timeout-ms`,
+  `--max-network-bytes`, and `--max-stdout-bytes` controls; document
+  provenance and `owlie capabilities`; and support bounded RSS/Atom feed
+  discovery from a supplied HTML page for `list`, `extract`, and `process
+  --each`.
 
 ## 0.4.0
 
