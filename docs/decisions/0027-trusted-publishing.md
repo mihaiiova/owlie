@@ -37,3 +37,13 @@ attestations are generated automatically.
   because the package is scoped.
 - The published `package.json` must declare a `repository` field matching
   `https://github.com/mihaiiova/owlie.git` for trusted publishing to succeed.
+
+## Addendum (2026-10-01)
+
+The workflow never published successfully before this addendum: npm trusted
+publishing requires npm CLI **11.5.1 or later**, and the Node 20/22 toolchains
+bundle npm 10, which sends `npm publish` without credentials (npm answers with
+an `E404` for the scoped package). The workflow now installs `npm@^11.5.1`
+before publishing. The npm-side trusted publisher must match exactly:
+user/org `mihaiiova`, repository `owlie`, workflow file `publish.yml`, and no
+environment (the job uses none).
