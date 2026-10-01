@@ -260,12 +260,78 @@ describe('buildScenarios', () => {
     }
   });
 
-  it('marks only the YouTube scenario as proxy-fallback eligible', () => {
+  it('marks only the scenarios that fetch YouTube as proxy-fallback eligible', () => {
+    const youtubeScenarios = ['extract youtube', 'extract → process pipeline'];
     const scenarios = buildScenarios(ctx, spawn, spawnTty);
-    const youtube = scenarios.find((s) => s.name === 'extract youtube');
-    expect(youtube?.allowProxyFallback).toBe(true);
-    const others = scenarios.filter((s) => s.name !== 'extract youtube');
+    for (const name of youtubeScenarios) {
+      expect(scenarios.find((s) => s.name === name)?.allowProxyFallback, name).toBe(true);
+    }
+    const others = scenarios.filter((s) => !youtubeScenarios.includes(s.name));
     expect(others.every((s) => s.allowProxyFallback === false)).toBe(true);
+  });
+
+  it('passes the deadline-cancellation scenario through the runner on exit 130', async () => {
+    const cancelled = () => ({
+      status: 130,
+      stdout: '',
+      stderr:
+        '{"schemaVersion":1,"command":"list","kind":"cancelled","message":"fetch cancelled"}\n',
+    });
+    const scenario = buildScenarios(ctx, cancelled, spawnTty).find(
+      (s) => s.name === 'deadline cancellation',
+    );
+    const result = await executeScenario({ scenario, ctx, secrets: [] });
+    expect(result.status).toBe('passed');
+  });
+
+  it('still fails a default scenario that exits non-zero even when its assertion passes', async () => {
+    const result = await executeScenario({
+      scenario: {
+        name: 'expects success',
+        allowProxyFallback: false,
+        run: () => ({ status: 130, stdout: '', stderr: '' }),
+        assert: () => ({ ok: true, errors: [] }),
+      },
+      ctx: {},
+      secrets: [],
+    });
+    expect(result.status).toBe('failed');
+  });
+
+  it('retries the pipeline through the proxy config after a YouTube block', async () => {
+    const calls: Array<{ args: string[]; env: Record<string, string> }> = [];
+    const pipelineSpawn = ({ args, env }: { args: string[]; env: Record<string, string> }) => {
+      calls.push({ args, env });
+      if (args[0] === 'extract' && env.XDG_CONFIG_HOME !== ctx.proxyConfigHome) {
+        return {
+          status: 1,
+          stdout: '',
+          stderr: 'YouTube blocked the transcript request (this network IP is likely blocked).',
+        };
+      }
+      if (args[0] === 'extract') return { status: 0, stdout: 'transcript text', stderr: '' };
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          schemaVersion: 1,
+          command: 'process',
+          result: { format: 'text', output: 'OK' },
+        }),
+        stderr: '',
+      };
+    };
+    const proxied = { ...ctx, proxyUrl: 'http://proxy.example:8080' };
+    const scenario = buildScenarios(proxied, pipelineSpawn, spawnTty).find(
+      (s) => s.name === 'extract → process pipeline',
+    );
+    const result = await executeScenario({ scenario, ctx: proxied, secrets: [] });
+    expect(result.status).toBe('passed');
+    expect(result.attempts).toBe(2);
+    const extracts = calls.filter((call) => call.args[0] === 'extract');
+    expect(extracts.map((call) => call.env.XDG_CONFIG_HOME)).toEqual([
+      ctx.configHome,
+      ctx.proxyConfigHome,
+    ]);
   });
 
   it('accepts the deadline-cancellation scenario as exit 130 with a cancelled record', () => {

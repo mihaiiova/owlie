@@ -61,7 +61,8 @@ export function buildDiagnostics(result, assertionErrors = []) {
 /**
  * Runs one scenario with the retry/classification policy. `scenario.run` is
  * called with a boolean `useProxy` and returns a subprocess result; `scenario`
- * must also expose `assert` and `allowProxyFallback`.
+ * must also expose `assert` and `allowProxyFallback`, and may set
+ * `expectedExitCode` (default 0) for scenarios whose success is another exit.
  */
 export async function executeScenario({ scenario, ctx, secrets = [] }) {
   const started = Date.now();
@@ -75,7 +76,7 @@ export async function executeScenario({ scenario, ctx, secrets = [] }) {
     attempts = attempt;
     const result = await scenario.run(useProxy);
     const assertion = scenario.assert(result, ctx);
-    if (result.status === 0 && assertion.ok) {
+    if (result.status === (scenario.expectedExitCode ?? 0) && assertion.ok) {
       return {
         name: scenario.name,
         status: 'passed',
@@ -408,9 +409,15 @@ export function buildScenarios(ctx, spawn, spawnTty) {
     },
     {
       name: 'extract → process pipeline',
-      allowProxyFallback: false,
-      run: () => {
-        const extracted = spawn({ args: ['extract', youtubeUrl], env: {}, timeoutMs: 60_000 });
+      // The extract step fetches a YouTube transcript, so it needs the same
+      // runner-IP-block fallback as `extract youtube`.
+      allowProxyFallback: true,
+      run: (useProxy) => {
+        const extracted = spawn({
+          args: ['extract', youtubeUrl],
+          env: useProxy ? { XDG_CONFIG_HOME: proxyConfigHome } : { XDG_CONFIG_HOME: configHome },
+          timeoutMs: 60_000,
+        });
         if (extracted.status !== 0) return extracted;
         return spawn({
           args: ['process', '--prompt', 'Reply with exactly: OK', '--json'],
@@ -523,6 +530,8 @@ export function buildScenarios(ctx, spawn, spawnTty) {
     {
       name: 'deadline cancellation',
       allowProxyFallback: false,
+      // Cancellation is this scenario's success outcome.
+      expectedExitCode: 130,
       run: () =>
         spawn({
           args: ['list', feedUrl, '--timeout-ms', '1', '--json'],
