@@ -117,8 +117,12 @@ npm publish owlieio-owlie-<version>.tgz --access public
   5xx). Usage errors, auth failures, assertion failures, and other
   deterministic failures are not retried.
 - A classified YouTube runner-access block is retried once through the
-  optional proxy. Direct access is always attempted first. If no proxy is
-  configured (or the proxy also fails), validation fails.
+  optional proxy, in both scenarios that fetch a transcript (`extract youtube`
+  and `extract → process pipeline`). Direct access is always attempted first.
+  If no proxy is configured (or the proxy also fails), validation fails.
+- A scenario passes when its exit code matches the expected one (0 unless the
+  scenario sets `expectedExitCode`; `deadline cancellation` expects 130) and
+  its assertions hold.
 - The PTY-driven scenarios (`setup`, `process file`, `process feed --each`)
   run with `--quiet` so terminal framing cannot corrupt their stdout
   contract; because stderr is suppressed, a transient DeepSeek failure in
