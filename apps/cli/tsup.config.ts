@@ -9,7 +9,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  target: 'node20',
+  target: 'node22',
   platform: 'node',
   // The internal @owlieio/* packages are devDependencies, so tsup bundles them
   // by default. The explicit matcher documents that the published `owlie`
