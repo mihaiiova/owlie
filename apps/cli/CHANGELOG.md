@@ -73,6 +73,22 @@
   and batch extraction messages carry a `[i/N]` position so progress through
   the bounded limit is visible.
 
+## 0.5.0
+
+### Major Changes
+
+- `--json` now uses the versioned subprocess protocol: single-result commands
+  emit `{ schemaVersion, command, result }`; streaming commands emit JSONL;
+  and stderr emits versioned progress and terminal records.
+
+### Minor Changes
+
+- Add deterministic `--hosted` mode; invocation-wide `--timeout-ms`,
+  `--max-network-bytes`, and `--max-stdout-bytes` controls; document
+  provenance and `owlie capabilities`; and support bounded RSS/Atom feed
+  discovery from a supplied HTML page for `list`, `extract`, and `process
+  --each`.
+
 ## 0.4.0
 
 ### Minor Changes
