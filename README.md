@@ -382,7 +382,7 @@ published to npm; only the `@owlieio` scope is claimed for the published CLI.
 
 ## Development setup
 
-Prerequisites: Node.js (pinned via `.nvmrc`; `engines` requires `>=20`), pnpm
+Prerequisites: Node.js (pinned via `.nvmrc`; `engines` requires `>=22`), pnpm
 (pinned via `packageManager`).
 
 ```bash

@@ -4,6 +4,8 @@
 
 ### Minor Changes
 
+- Require Node.js 22 or later (was 20, which reached end of life in April
+  2026). The published package now declares `engines.node: ">=22"`.
 - a75f266: A page that declares itself an article (`og:type` article or a JSON-LD article
   type) is now extracted as article text even when it embeds an audio player.
   Only structured podcast data (JSON-LD `PodcastEpisode`/`AudioObject`, or an

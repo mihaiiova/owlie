@@ -11,8 +11,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# Node 20 (matches .nvmrc; required to build and run the packed CLI).
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Node 22 (matches .nvmrc; required to build and run the packed CLI).
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
   && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
 

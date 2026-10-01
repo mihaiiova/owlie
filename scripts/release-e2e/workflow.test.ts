@@ -29,8 +29,9 @@ describe('release validation workflow (static)', () => {
     expect(workflow).toContain('owlie-candidate');
   });
 
-  it('runs offline smoke on Node 20 and 22', () => {
-    expect(workflow).toContain("node: ['20', '22']");
+  it('runs offline smoke once on the .nvmrc Node version', () => {
+    expect(workflow).not.toContain('matrix.node');
+    expect(workflow).toMatch(/name: Offline smoke[\s\S]*?node-version-file: \.nvmrc/);
   });
 
   it('runs the live suite exactly once', () => {
