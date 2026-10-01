@@ -301,11 +301,31 @@ export function buildScenarios(ctx, spawn, spawnTty) {
       }),
     },
     {
+      name: 'extract article',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['extract', articleUrl, '--article', '--json'],
+          env: {},
+          timeoutMs: 60_000,
+        }),
+      assert: jsonAssert(parseJson, (doc) => {
+        if (doc.sourceType !== 'article') return { ok: false, error: 'wrong sourceType' };
+        if (typeof doc.text !== 'string' || !doc.text.includes(corpus.marker)) {
+          return { ok: false, error: 'article text missing marker' };
+        }
+        if (doc.provenance?.adapterId !== 'article') {
+          return { ok: false, error: 'wrong provenance adapterId' };
+        }
+        return { ok: true };
+      }),
+    },
+    {
       name: 'extract discovered feed',
       allowProxyFallback: false,
       run: () =>
         spawn({
-          args: ['extract', articleUrl, '--limit', '2', '--json'],
+          args: ['extract', articleUrl, '--feed', '--limit', '2', '--json'],
           env: {},
           timeoutMs: 60_000,
         }),

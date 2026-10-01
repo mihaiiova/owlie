@@ -11,9 +11,9 @@ import {
   assertNoUrlCredentials,
   CancelledError,
   ConfigurationError,
-  DefaultHttpFetcher,
   listCollection,
   NotHandledError,
+  resolveItem,
 } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -23,8 +23,16 @@ import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { cacheDir, readUserConfig } from '../config.js';
 import type { UserConfig } from '../config.js';
-import { extractWithFallback } from '../dispatch.js';
-import { extractLinkedItem, itemRef, resolveFeedCollectionUrl, toBatchError } from '../feed.js';
+import { canClassifyPage, extractWithFallback } from '../dispatch.js';
+import type { PageClassifier } from '../dispatch.js';
+import {
+  discoverFeedUrlFromResponse,
+  extractLinkedItem,
+  feedLocator,
+  itemRef,
+  resolveFeedCollectionUrl,
+  toBatchError,
+} from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
 import { defaultItemAdapters } from '../registry.js';
 import { resolvePodcastAudio } from '../resolvers.js';
@@ -42,6 +50,8 @@ import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 import { parsePositiveIntegerFlag } from '../invocation.js';
+import { lazyExtractionNetwork } from '../proxy.js';
+import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 
 export interface ExtractDeps {
   /** Ordered item adapters for direct-URL dispatch (specialized first). */
@@ -61,6 +71,8 @@ export interface ExtractDeps {
   networkPolicy?: HttpFetchPolicy;
   /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
   clock?: () => Date;
+  /** Proxy resolution inputs and fetcher factory for the default adapters. */
+  network?: ExtractionNetworkDeps;
 }
 
 /** Parses a comma-separated `--language` value into a priority list. */
@@ -126,6 +138,7 @@ export async function runExtractCommand(
   const readConfig: () => UserConfig = options.hosted
     ? () => ({})
     : (deps.readConfig ?? readUserConfig);
+  const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
 
   if (options.resolver !== undefined) {
     return runResolverExtraction(
@@ -136,23 +149,70 @@ export async function runExtractCommand(
       options.resolver,
       readConfig,
       maxMediaBytes,
+      network,
     );
   }
 
-  const itemAdapters =
-    deps.itemAdapters ??
-    defaultItemAdapters({
-      languages: parseLanguages(options.language),
-      proxy: readConfig().proxy,
-      cacheDir: cacheDir(),
-      whisperModel: readConfig().transcription?.model,
-      mediaMaxBytes: maxMediaBytes,
-      networkPolicy: deps.networkPolicy,
-    });
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
+  let itemAdapters: readonly ItemAdapter[];
+  let feedAdapter: CollectionAdapter;
+  try {
+    itemAdapters =
+      deps.itemAdapters ??
+      defaultItemAdapters({
+        languages: parseLanguages(options.language),
+        fetcher: network().fetcher,
+        youtube: network().youtube,
+        cacheDir: cacheDir(),
+        whisperModel: readConfig().transcription?.model,
+        mediaMaxBytes: maxMediaBytes,
+        networkPolicy: deps.networkPolicy,
+      });
+    feedAdapter =
+      deps.feedAdapter ??
+      new RssAdapter({ fetcher: network().fetcher, policy: deps.networkPolicy });
+  } catch (error) {
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
+
+  if (options.page === 'article') {
+    const specializedMatch = itemAdapters.some(
+      (adapter) => adapter.sourceType === 'youtube' && adapter.recognize({ url }),
+    );
+    if (specializedMatch || feedAdapter.recognize({ url })) {
+      const kind = specializedMatch ? 'a YouTube URL' : 'a direct feed URL';
+      if (!options.quiet) {
+        writeUsageError(io, options, 'extract', `--article cannot be used with ${kind}`);
+      }
+      return ExitCode.Usage;
+    }
+  }
+
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
+    if (options.page === 'article') {
+      return await runDirectExtraction(
+        url,
+        io,
+        articleAdapters(itemAdapters),
+        spinner,
+        options,
+        deps,
+      );
+    }
+    if (options.page === 'feed') {
+      const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
+      return await runFeedExtraction(
+        feedUrl,
+        io,
+        itemAdapters,
+        feedAdapter,
+        spinner,
+        options,
+        deps,
+      );
+    }
     if (feedAdapter.recognize({ url })) {
       return await runFeedExtraction(url, io, itemAdapters, feedAdapter, spinner, options, deps);
     }
@@ -182,12 +242,21 @@ function isNoAdapterConfigurationError(error: unknown): boolean {
   );
 }
 
+/** The article adapter alone, for `--article`. */
+function articleAdapters(itemAdapters: readonly ItemAdapter[]): ItemAdapter[] {
+  const article = itemAdapters.filter((adapter) => adapter.sourceType === 'article');
+  if (article.length === 0) {
+    throw new ConfigurationError('article extraction is not available');
+  }
+  return article;
+}
+
 /**
  * Routes a non-feed URL through the specialized item adapters (YouTube,
- * podcast). When none handles it — the article adapter is no longer a
- * top-level fallback for `extract` — the command attempts bounded collection
- * discovery instead and fails with a clear discovery error when no feed is
- * found.
+ * podcast). When none handles it, the page is classified from one fetch: an
+ * article page is extracted as a single document, and any other page goes to
+ * bounded feed discovery using the same fetched response. A page that is
+ * neither fails with one error naming both paths.
  */
 async function runDirectOrDiscoveredExtraction(
   url: string,
@@ -199,14 +268,53 @@ async function runDirectOrDiscoveredExtraction(
   deps: ExtractDeps,
 ): Promise<number> {
   const specialized = itemAdapters.filter((adapter) => adapter.sourceType !== 'article');
+  let deferred: NotHandledError | undefined;
   try {
     return await runDirectExtraction(url, io, specialized, spinner, options, deps);
   } catch (error) {
-    if (!(error instanceof NotHandledError) && !isNoAdapterConfigurationError(error)) {
-      throw error;
-    }
+    if (error instanceof NotHandledError) deferred = error;
+    else if (!isNoAdapterConfigurationError(error)) throw error;
+  }
+
+  const classifier = itemAdapters.find(
+    (adapter): adapter is PageClassifier =>
+      adapter.sourceType === 'article' && canClassifyPage(adapter) && adapter.recognize({ url }),
+  );
+  if (classifier === undefined) {
     const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
     return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+  }
+
+  const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
+  const progress = createProgressSink(io, options, 'extract', (event) => {
+    if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+  });
+  const item = await resolveItem(classifier, { url }, { signal: deps.signal });
+  const page = await classifier.classify(item, {
+    signal: deps.signal,
+    progress,
+    fetchedAt,
+    ...(deferred?.deferredResponse ? { response: deferred.deferredResponse } : {}),
+  });
+  if (page.isArticle && page.document !== undefined) {
+    const document = finalizeDocument(page.document, { adapterId: classifier.id, fetchedAt });
+    spinner.stop();
+    writeDocument(io, options, document);
+    return ExitCode.Success;
+  }
+
+  const feedUrl = await discoverFeedUrlFromResponse(feedAdapter, page.response, deps.signal);
+  if (feedUrl === undefined) {
+    throw new ConfigurationError(`no article content or RSS/Atom feed found at ${url}`);
+  }
+  return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+}
+
+function writeDocument(io: CliIo, options: CliOptions, document: NormalizedDocument): void {
+  if (options.json) {
+    writeResultEnvelope(io, 'extract', document);
+  } else {
+    io.stdout.write(document.text + '\n');
   }
 }
 
@@ -233,12 +341,7 @@ async function runDirectExtraction(
     },
   );
   spinner.stop();
-
-  if (options.json) {
-    writeResultEnvelope(io, 'extract', document);
-  } else {
-    io.stdout.write(document.text + '\n');
-  }
+  writeDocument(io, options, document);
   return ExitCode.Success;
 }
 
@@ -256,15 +359,16 @@ async function runResolverExtraction(
   resolverName: string,
   readConfig: () => UserConfig,
   maxMediaBytes: number | undefined,
+  network: () => ExtractionNetwork,
 ): Promise<number> {
-  const fetcher = deps.fetcher ?? new DefaultHttpFetcher();
-  const transcriber =
-    deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
-  const workCacheDir = deps.cacheDir ?? cacheDir();
   const spinner = createCommandSpinner(io, options, deps.spinner);
   const fetchedAt = (deps.clock?.() ?? new Date()).toISOString();
 
   try {
+    const fetcher = deps.fetcher ?? network().fetcher;
+    const transcriber =
+      deps.transcriber ?? new WhisperLocalTranscriber({ model: readConfig().transcription?.model });
+    const workCacheDir = deps.cacheDir ?? cacheDir();
     assertNoUrlCredentials(url);
     const resolved = await resolvePodcastAudio(url, {
       fetcher,
@@ -334,7 +438,10 @@ async function runFeedExtraction(
 ): Promise<number> {
   const limit = parseCollectionLimit(options.limit);
   spinner.start('extracting feed');
-  const result = await listCollection(feedAdapter, { url }, { limit, signal: deps.signal });
+  const result = await listCollection(feedAdapter, feedLocator(url), {
+    limit,
+    signal: deps.signal,
+  });
 
   const items: ExtractBatchItem[] = [];
   let failed = false;
@@ -352,6 +459,7 @@ async function runFeedExtraction(
       const outcome = await extractLinkedItem({
         url: entryUrl,
         title: entry.title,
+        entry,
         itemAdapters,
         signal: deps.signal,
         progress,

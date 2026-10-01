@@ -47,3 +47,44 @@ export const MAIN_WRAPPED_ARTICLE = `<!doctype html>
     <p>This site uses cookies to improve your experience. Accept · Reject</p>
   </body>
 </html>`;
+
+const LONG_BODY = `<p>${'This paragraph is part of a long-form static article with complete sentences, concrete detail, and enough independent words to be clearly editorial prose. '.repeat(4)}</p>
+        <p>${'A further paragraph extends the argument with context, examples, and a conclusion, so the readable body is long enough to count as an article by itself. '.repeat(4)}</p>`;
+
+export const JSON_LD_GRAPH_ARTICLE = `<!doctype html>
+<html>
+  <head>
+    <title>Declared through JSON-LD</title>
+    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Example"},{"@type":["NewsArticle"],"headline":"Declared through JSON-LD"}]}</script>
+  </head>
+  <body><main><article><h1>Declared through JSON-LD</h1><p>A short but real news story body with a few complete sentences for the reader. It explains what happened, who was involved, and why it matters to the people affected.</p><p>A second paragraph gives the outcome and what comes next, in plain editorial prose.</p></article></main></body>
+</html>`;
+
+export const MALFORMED_JSON_LD_ARTICLE = `<!doctype html>
+<html>
+  <head>
+    <script type="application/ld+json">{ not json</script>
+    <script type="application/ld+json">{"@type":"BlogPosting"}</script>
+  </head>
+  <body><article><p>A short blog post body with a couple of complete sentences so the extractor has readable text to return.</p></article></body>
+</html>`;
+
+export const UNDECLARED_LONG_ARTICLE = `<!doctype html>
+<html>
+  <head><title>An undeclared long read</title></head>
+  <body><main><article><h1>An undeclared long read</h1>
+        ${LONG_BODY}
+  </article></main></body>
+</html>`;
+
+export const WEBSITE_HOMEPAGE = `<!doctype html>
+<html>
+  <head>
+    <title>Example Publication</title>
+    <meta content="website" property="og:type" />
+    <link rel="alternate" type="application/rss+xml" href="/feed.xml" />
+  </head>
+  <body><main>
+        ${LONG_BODY}
+  </main></body>
+</html>`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpFetcher } from '@owlieio/core';
-import { NotHandledError } from '@owlieio/core';
+import { CancelledError, NotHandledError } from '@owlieio/core';
 import { GenericEpisodePageResolver } from '@owlieio/adapter-podcast';
 
 type FetchResponse = { contentType?: string; text: string };
@@ -111,7 +111,11 @@ describe('GenericEpisodePageResolver', () => {
       fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
         'https://publisher.example/feed.xml': {
           contentType: 'application/rss+xml',
-          text: '<rss><channel><item><enclosure url="https://cdn.example.com/episode.mp3" /></item></channel></rss>',
+          text:
+            '<rss version="2.0"><channel><title>Show</title>' +
+            '<item><title>Other</title><link>https://publisher.example/episodes/two</link><enclosure url="https://cdn.example.com/two.mp3" type="audio/mpeg" /></item>' +
+            '<item><title>One</title><link>https://publisher.example/episodes/one/</link><enclosure url="https://cdn.example.com/episode.mp3" /></item>' +
+            '</channel></rss>',
         },
       }),
     });
@@ -120,7 +124,7 @@ describe('GenericEpisodePageResolver', () => {
       resolver.resolve({ url: 'https://publisher.example/episodes/one' }),
     ).resolves.toEqual({
       mediaUrl: 'https://cdn.example.com/episode.mp3',
-      metadata: { resolvedFrom: 'page' },
+      metadata: { title: 'One', resolvedFrom: 'page' },
     });
   });
 
@@ -217,5 +221,206 @@ describe('GenericEpisodePageResolver', () => {
         { signal: controller.signal },
       ),
     ).rejects.toThrow('podcast episode resolution cancelled');
+  });
+});
+
+describe('GenericEpisodePageResolver — audio signals only (#120)', () => {
+  const PAGE = 'https://publisher.example/';
+
+  it.each([
+    ['a <video> source', '<video controls><source src="/clip.mp4" type="video/mp4"></video>'],
+    ['a <video src>', '<video src="/clip.mp4"></video>'],
+    ['a <picture> source', '<picture><source srcset="/a.webp" type="image/webp"></picture>'],
+    ['a video enclosure link', '<link rel="enclosure" href="/clip.mp4" type="video/mp4">'],
+    ['an untyped non-audio enclosure', '<enclosure url="/document.pdf">'],
+  ])('ignores %s', async (_label, html) => {
+    const resolver = new GenericEpisodePageResolver({ fetcher: pageFetcher(html) });
+    await expect(resolver.resolve({ url: PAGE })).rejects.toBeInstanceOf(NotHandledError);
+  });
+
+  it.each([
+    ['an <audio> source', '<audio controls><source src="/ep.mp3"></audio>'],
+    ['a standalone audio-typed source', '<source src="/ep.mp3" type="audio/mpeg">'],
+    ['an audio enclosure link', '<link rel="enclosure" href="/ep.mp3" type="audio/mpeg">'],
+    ['an untyped enclosure with an audio extension', '<enclosure url="/ep.m4a">'],
+  ])('accepts %s', async (_label, html) => {
+    const resolver = new GenericEpisodePageResolver({ fetcher: pageFetcher(html) });
+    const resolved = await resolver.resolve({ url: PAGE });
+    expect(resolved.mediaUrl).toMatch(/^https:\/\/publisher\.example\/ep\.(mp3|m4a)$/);
+  });
+
+  it('does not take an unrelated episode from the site feed', async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
+        'https://publisher.example/feed.xml': {
+          contentType: 'application/rss+xml',
+          text:
+            '<rss version="2.0"><channel><title>News</title>' +
+            '<item><title>Latest episode</title><link>https://publisher.example/episodes/latest</link>' +
+            '<enclosure url="https://cdn.example.com/latest.mp3" type="audio/mpeg"/></item>' +
+            '</channel></rss>',
+        },
+      }),
+    });
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/news/an-article' }),
+    ).rejects.toBeInstanceOf(NotHandledError);
+  });
+
+  it("ignores a matching feed entry's video enclosure", async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<link rel="alternate" type="application/rss+xml" href="/feed.xml">', {
+        'https://publisher.example/feed.xml': {
+          contentType: 'application/rss+xml',
+          text:
+            '<rss version="2.0"><channel><title>Blog</title>' +
+            '<item><title>Clip</title><link>https://publisher.example/posts/clip</link>' +
+            '<enclosure url="https://cdn.example.com/clip.mp4" type="video/mp4"/></item>' +
+            '</channel></rss>',
+        },
+      }),
+    });
+    await expect(
+      resolver.resolve({ url: 'https://publisher.example/posts/clip' }),
+    ).rejects.toBeInstanceOf(NotHandledError);
+  });
+});
+
+describe('GenericEpisodePageResolver — declared articles win over weak audio (#123)', () => {
+  const PAGE = 'https://publisher.example/posts/story';
+  const OG_ARTICLE = '<meta property="og:type" content="article">';
+  const GRAPH_ARTICLE =
+    '<script type="application/ld+json">{"@graph":[{"@type":"WebSite"},{"@type":"NewsArticle"}]}</script>';
+  const FEED_LINK = '<link rel="alternate" type="application/rss+xml" href="/feed.xml">';
+  const FEED = {
+    'https://publisher.example/feed.xml': {
+      contentType: 'application/rss+xml',
+      text:
+        '<rss version="2.0"><channel><title>Blog</title><item><title>Story</title>' +
+        `<link>${PAGE}</link><enclosure url="https://cdn.example.com/story.mp3" type="audio/mpeg"/>` +
+        '</item></channel></rss>',
+    },
+  };
+
+  it.each([
+    ['og:type article', OG_ARTICLE],
+    ['a JSON-LD @graph article', GRAPH_ARTICLE],
+  ])('defers a page declared by %s with only weak audio signals', async (_label, declaration) => {
+    for (const weak of [
+      '<audio src="/clip.mp3"></audio>',
+      '<audio><source src="/clip.mp3"></audio>',
+      '<link rel="enclosure" href="/clip.mp3" type="audio/mpeg">',
+      FEED_LINK,
+    ]) {
+      const html = `<html><head>${declaration}</head><body>${weak}</body></html>`;
+      const resolver = new GenericEpisodePageResolver({ fetcher: pageFetcher(html, FEED) });
+      const error = await resolver.resolve({ url: PAGE }).catch((caught: unknown) => caught);
+      expect(error, weak).toBeInstanceOf(NotHandledError);
+      expect((error as NotHandledError).deferredResponse?.text).toBe(html);
+    }
+  });
+
+  it.each([
+    [
+      'JSON-LD PodcastEpisode',
+      '<script type="application/ld+json">{"@graph":[{"@type":"Article"},{"@type":"PodcastEpisode","associatedMedia":{"@type":"AudioObject","contentUrl":"https://cdn.example.com/ep.mp3"}}]}</script>',
+      'https://cdn.example.com/ep.mp3',
+    ],
+    [
+      'JSON-LD AudioObject',
+      `${OG_ARTICLE}<script type="application/ld+json">{"@type":"AudioObject","contentUrl":"https://cdn.example.com/ep.m4a"}</script>`,
+      'https://cdn.example.com/ep.m4a',
+    ],
+  ])('resolves a declared article that also has a strong %s signal', async (_l, head, media) => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher(
+        `<html><head>${head}</head><body><audio src="/clip.mp3"></audio></body></html>`,
+      ),
+    });
+    await expect(resolver.resolve({ url: PAGE })).resolves.toMatchObject({ mediaUrl: media });
+  });
+
+  it('resolves a declared article with an audio oEmbed, but not a video oEmbed', async () => {
+    const page = (endpoint: string) =>
+      `<html><head>${OG_ARTICLE}<link type="application/json+oembed" href="${endpoint}"></head></html>`;
+    const audio = new GenericEpisodePageResolver({
+      fetcher: pageFetcher(page('/oembed/audio'), {
+        'https://publisher.example/oembed/audio': {
+          contentType: 'application/json',
+          text: '{"type":"rich","url":"https://cdn.example.com/ep.mp3"}',
+        },
+      }),
+    });
+    await expect(audio.resolve({ url: PAGE })).resolves.toMatchObject({
+      mediaUrl: 'https://cdn.example.com/ep.mp3',
+    });
+
+    const video = new GenericEpisodePageResolver({
+      fetcher: pageFetcher(page('/oembed/video'), {
+        'https://publisher.example/oembed/video': {
+          contentType: 'application/json',
+          text: '{"type":"video","url":"https://cdn.example.com/clip.mp4"}',
+        },
+      }),
+    });
+    await expect(video.resolve({ url: PAGE })).rejects.toBeInstanceOf(NotHandledError);
+  });
+
+  it('still resolves weak audio on a page that declares nothing', async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher('<html><body><audio src="/episode.mp3"></audio></body></html>'),
+    });
+    await expect(resolver.resolve({ url: PAGE })).resolves.toMatchObject({
+      mediaUrl: 'https://publisher.example/episode.mp3',
+    });
+  });
+
+  it('resolves weak audio on a declared article when selection is authoritative', async () => {
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: pageFetcher(
+        `<html><head>${OG_ARTICLE}</head><body><audio src="/clip.mp3"></audio></body></html>`,
+      ),
+    });
+    await expect(resolver.resolve({ url: PAGE }, { authoritative: true })).resolves.toMatchObject({
+      mediaUrl: 'https://publisher.example/clip.mp3',
+    });
+  });
+});
+
+describe('GenericEpisodePageResolver — cancellation during nested fetches', () => {
+  const PAGE = 'https://publisher.example/episodes/one';
+
+  function cancellingFetcher(html: string, cancelOn: string, controller: AbortController) {
+    const fetcher: HttpFetcher = {
+      async fetch(url) {
+        if (url === cancelOn) {
+          controller.abort();
+          throw new CancelledError('fetch timed out or was cancelled');
+        }
+        return { url, contentType: 'text/html', text: html };
+      },
+    };
+    return fetcher;
+  }
+
+  it.each([
+    [
+      'the oEmbed fetch',
+      '<link type="application/json+oembed" href="/oembed"><audio src="/fallback.mp3"></audio>',
+      'https://publisher.example/oembed',
+    ],
+    [
+      'the feed fetch',
+      '<link rel="alternate" type="application/rss+xml" href="/feed.xml">',
+      'https://publisher.example/feed.xml',
+    ],
+  ])('propagates cancellation from %s', async (_label, html, cancelOn) => {
+    const controller = new AbortController();
+    const resolver = new GenericEpisodePageResolver({
+      fetcher: cancellingFetcher(html, cancelOn, controller),
+    });
+    await expect(
+      resolver.resolve({ url: PAGE }, { signal: controller.signal }),
+    ).rejects.toBeInstanceOf(CancelledError);
   });
 });

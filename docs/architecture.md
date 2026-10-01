@@ -25,17 +25,18 @@ Only `@owlieio/owlie` is published. The other `@owlieio/*` packages are internal
 ## Dependency direction
 
 ```text
-owlie-app  →  runs `owlie` CLI (container/subprocess)
+consuming product  →  runs `owlie` CLI (container/subprocess)
 ```
 
-`owlie-app` does not import `owlie-cli` packages as libraries. Within the
-monorepo:
+Consuming products (the private `owlie-app` is the first) do not import
+`owlie-cli` packages as libraries. Within the monorepo:
 
 - `@owlieio/core` has no Owlie dependencies; its safe-HTTP implementation uses
   the generic `ipaddr.js` parser for canonical destination classification.
 - Adapters depend only on `@owlieio/core` (Reddit reuses
-  `@owlieio/adapter-rss` parsing; `adapter-podcast` reuses it solely for the
-  Apple Podcasts enclosure fallback).
+  `@owlieio/adapter-rss` parsing; `adapter-podcast` reuses it solely to select
+  the matching episode's enclosure from a feed, for the Apple Podcasts and
+  episode-page fallbacks).
 - Providers depend only on `@owlieio/core`.
 - `@owlieio/testing` depends only on `@owlieio/core`.
 - `owlie` bundles core, adapters, and providers into one self-contained build.
@@ -92,19 +93,25 @@ entry point (`apps/cli/src/bin.ts`) translates failures into exit codes.
 
 For `extract`, the CLI dispatches a direct URL through an ordered item-adapter
 registry — specialized adapters first (YouTube, then podcast media, Apple
-Podcasts episodes, and server-rendered episode pages with declarative audio), then the article adapter
-for remaining safe HTTP(S) URLs. A recognized RSS/Atom
-feed instead enters a bounded linked-item batch extraction that writes a single
+Podcasts episodes, and server-rendered episode pages with declarative audio).
+A remaining safe HTTP(S) page is classified by the article adapter from one
+fetch (reusing the page an episode-page resolver already fetched): an article
+page becomes a single document, and any other page goes to bounded feed
+discovery with the same response (ADR 0035). A recognized RSS/Atom feed
+instead enters a bounded linked-item batch extraction that writes a single
 JSON envelope of per-item documents or structured errors.
 
-## Future hosted-app integration
+## Integration by consuming products
 
-`owlie-app` runs the published `owlie` binary as a subprocess (typically in a
-container) and reads its stdout / exit codes — it keeps its own persistence,
-scheduling, and user/billing layers on top. It never imports the internal
-`@owlieio/*` packages.
+A consuming product runs the published `owlie` binary as a subprocess
+(typically in a container) using `--hosted` and the versioned `--json`
+protocol, and reads its stdout, stderr records, and exit codes. It keeps its
+own persistence, scheduling, and user/billing layers on top, and never imports
+the internal `@owlieio/*` packages. The contract is the same for every product
+(ADR 0034); see
+[Integrating Owlie as a subprocess](cli-contract.md#integrating-owlie-as-a-subprocess).
 
 ## Scheduling
 
-Scheduling and monitoring remain in `owlie-app`. Owlie CLI never monitors
-sources or schedules recurring work.
+Scheduling and monitoring belong to consuming products. Owlie CLI never
+monitors sources or schedules recurring work.

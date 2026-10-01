@@ -36,6 +36,7 @@ import { ARTICLE_FALLBACK_NOTICE, parseLanguages } from './extract.js';
 import {
   canDiscoverFeed,
   discoverFeedUrl,
+  feedLocator,
   extractLinkedItem,
   itemRef,
   toBatchError,
@@ -57,6 +58,8 @@ import {
   resolveProcessor,
 } from '../registry.js';
 import type { SpinnerLike } from '../spinner.js';
+import { lazyExtractionNetwork } from '../proxy.js';
+import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 import { writeDiagnostic } from '../style.js';
 
 /** Spinner message shown while waiting for the LLM response. */
@@ -80,6 +83,8 @@ export interface ProcessDeps {
   networkPolicy?: HttpFetchPolicy;
   /** Injected CLI-boundary clock for the provenance `fetchedAt` stamp. */
   clock?: () => Date;
+  /** Proxy resolution inputs and fetcher factory for the default adapters. */
+  network?: ExtractionNetworkDeps;
 }
 
 async function readInputFile(path: string): Promise<string> {
@@ -281,12 +286,14 @@ function resolveItemAdapters(
   options: CliOptions,
   deps: ProcessDeps,
   readConfig: () => UserConfig,
+  network: () => ExtractionNetwork,
 ): readonly ItemAdapter[] {
   return (
     deps.itemAdapters ??
     defaultItemAdapters({
       languages: parseLanguages(options.language),
-      proxy: options.hosted ? undefined : readConfig().proxy,
+      fetcher: network().fetcher,
+      youtube: network().youtube,
       cacheDir: cacheDir(),
       whisperModel: options.hosted ? undefined : readConfig().transcription?.model,
       networkPolicy: deps.networkPolicy,
@@ -320,8 +327,10 @@ async function runUrlProcessing(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
+  const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig, network);
+  const feedAdapter =
+    deps.feedAdapter ?? new RssAdapter({ fetcher: network().fetcher, policy: deps.networkPolicy });
 
   if (feedAdapter.recognize({ url })) {
     if (!options.quiet)
@@ -460,8 +469,10 @@ async function runFeedProcessing(
   }
 
   const readConfig = deps.readConfig ?? readUserConfig;
-  const itemAdapters = resolveItemAdapters(options, deps, readConfig);
-  const feedAdapter = deps.feedAdapter ?? new RssAdapter({ policy: deps.networkPolicy });
+  const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
+  const itemAdapters = resolveItemAdapters(options, deps, readConfig, network);
+  const feedAdapter =
+    deps.feedAdapter ?? new RssAdapter({ fetcher: network().fetcher, policy: deps.networkPolicy });
 
   let feedUrl = url;
   if (!feedAdapter.recognize({ url })) {
@@ -485,11 +496,10 @@ async function runFeedProcessing(
 
   const limit = parseCollectionLimit(options.limit);
   spinner.start('processing feed');
-  const result = await listCollection(
-    feedAdapter,
-    { url: feedUrl },
-    { limit, signal: deps.signal },
-  );
+  const result = await listCollection(feedAdapter, feedLocator(feedUrl), {
+    limit,
+    signal: deps.signal,
+  });
 
   let failed = false;
 
@@ -507,6 +517,7 @@ async function runFeedProcessing(
       const { document } = await extractLinkedItem({
         url: entryUrl,
         title: entry.title,
+        entry,
         itemAdapters,
         signal: deps.signal,
         progress,

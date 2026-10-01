@@ -19,6 +19,7 @@ import {
   ConfigurationError,
   ExtractionError,
   NotImplementedError,
+  ValidationError,
 } from '@owlieio/core';
 import { DEFAULT_LANGUAGES, DEFAULT_TIMEOUT_MS, YouTubeTranscriptClient } from './transcript.js';
 import type { TranscriptClient, YouTubeAdapterOptions } from './transcript.js';
@@ -58,10 +59,15 @@ export function isPlaylistUrl(input: string): boolean {
   }
 }
 
+/** Path prefixes whose first segment after the prefix is a video ID. */
+const VIDEO_PATH_PREFIXES = ['/embed/', '/v/'];
+
 /**
  * Extracts a validated video ID from a supported YouTube video URL
- * (`youtube.com/watch?v=<id>` or `youtu.be/<id>`). Returns `null` for
- * malformed or unsupported URLs. Pure; makes no network calls.
+ * (`youtube.com/watch?v=<id>`, `youtu.be/<id>`, `youtube.com/embed/<id>`, or
+ * `youtube.com/v/<id>`; trailing path segments and query strings are ignored).
+ * Returns `null` for malformed or unsupported URLs, including live streams and
+ * Shorts. Pure; makes no network calls.
  */
 export function extractVideoId(input: string): string | null {
   try {
@@ -75,9 +81,34 @@ export function extractVideoId(input: string): string | null {
       const id = url.searchParams.get('v');
       return id !== null && VIDEO_ID_PATTERN.test(id) ? id : null;
     }
+    const prefix = VIDEO_PATH_PREFIXES.find((candidate) => url.pathname.startsWith(candidate));
+    if (prefix !== undefined) {
+      const id = url.pathname.slice(prefix.length).split('/')[0] ?? '';
+      return VIDEO_ID_PATTERN.test(id) ? id : null;
+    }
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Rejects YouTube live-stream and Shorts URLs with a {@link ValidationError}.
+ * A live stream has no known end, so there is no complete transcript to take.
+ */
+function assertNotLiveOrShorts(input: string): void {
+  let path: string;
+  try {
+    path = new URL(input).pathname;
+  } catch {
+    return;
+  }
+  if (!recognizeYouTubeUrl(input)) return;
+  if (path.startsWith('/live/')) {
+    throw new ValidationError(`YouTube live streams are not supported: ${input}`);
+  }
+  if (path.startsWith('/shorts/')) {
+    throw new ValidationError(`YouTube Shorts are not supported: ${input}`);
   }
 }
 
@@ -115,7 +146,11 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
   constructor(options: YouTubeAdapterOptions = {}) {
     this.client =
       options.client ??
-      new YouTubeTranscriptClient({ languages: options.languages, proxy: options.proxy });
+      new YouTubeTranscriptClient({
+        languages: options.languages,
+        proxy: options.proxy,
+        fetchFn: options.fetchFn,
+      });
     this.languages = options.languages ?? DEFAULT_LANGUAGES;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
@@ -141,6 +176,7 @@ export class YouTubeAdapter implements CollectionAdapter, ItemAdapter {
   async resolveItem(locator: ContentLocator): Promise<ContentItem> {
     const videoId = extractVideoId(locator.url);
     if (videoId === null) {
+      assertNotLiveOrShorts(locator.url);
       throw new ConfigurationError(`not a supported YouTube video URL: ${locator.url}`);
     }
     return {

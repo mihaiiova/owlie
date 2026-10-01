@@ -517,7 +517,7 @@ describe('extract — direct dispatch and discovery', () => {
     });
   });
 
-  it('returns a clear discovery error for an article URL with no discoverable feed', async () => {
+  it('returns a discovery error when the article adapter cannot classify pages and no feed exists', async () => {
     const youtube = makeItemAdapter('youtube', { recognize: (url) => url.includes('youtube.com') });
     const article = makeItemAdapter('article', {
       recognize: (url) => url.startsWith('https://'),
@@ -537,7 +537,7 @@ describe('extract — direct dispatch and discovery', () => {
     expect(stderr()).not.toContain('article body');
   });
 
-  it('does not fall back to the article adapter when the podcast probe finds no enclosure', async () => {
+  it('uses feed discovery after a podcast deferral when the article adapter cannot classify pages', async () => {
     const podcast = makeItemAdapter('podcast', {
       recognize: (url) => url.startsWith('https://'),
       resolveError: new NotHandledError('no podcast audio enclosure found at ' + ARTICLE_URL),

@@ -21,7 +21,10 @@ import {
   isHtmlContentType,
   isJsonContentType,
   NotHandledError,
+  declaredArticleSignal,
 } from '@owlieio/core';
+import { parseFeed } from '@owlieio/adapter-rss';
+import type { FeedEnclosure } from '@owlieio/adapter-rss';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.flac'];
 const MEDIA_MAX_BYTES = 512 * 1024 * 1024;
@@ -31,8 +34,18 @@ export interface PodcastAudioResolver {
   recognize(locator: ContentLocator): boolean;
   resolve(
     locator: ContentLocator,
-    options?: { signal?: AbortSignal },
+    options?: PodcastResolveOptions,
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }>;
+}
+
+/** Options for {@link PodcastAudioResolver.resolve}. */
+export interface PodcastResolveOptions {
+  signal?: AbortSignal;
+  /**
+   * The caller explicitly selected this resolver (for example `--podcast-page`),
+   * asserting the URL is an episode; resolvers then skip heuristic deferrals.
+   */
+  authoritative?: boolean;
 }
 
 /** Direct-media foundation resolver; future episode-page resolvers share this seam. */
@@ -81,7 +94,7 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
 
   async resolve(
     locator: ContentLocator,
-    options: { signal?: AbortSignal } = {},
+    options: PodcastResolveOptions = {},
   ): Promise<{ mediaUrl: string; metadata?: Record<string, unknown> }> {
     if (!this.recognize(locator))
       throw new ConfigurationError(`not a recognized podcast episode URL: ${locator.url}`);
@@ -97,9 +110,18 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
         { deferredResponse: page },
       );
     }
-    const resolved =
+    // Strong signals declare the page itself as audio and always win. Weak
+    // signals (players, enclosures, the page's feed entry) only count when the
+    // page does not declare itself an article, unless selection is explicit.
+    let resolved =
       resolveJsonLdAudio(page.text, page.url) ??
-      (await this.resolveOembedAudio(page.text, page.url, options.signal)) ??
+      (await this.resolveOembedAudio(page.text, page.url, options.signal));
+    if (!resolved && !options.authoritative && declaresArticle(page.text)) {
+      throw new NotHandledError(`page at ${page.url} declares an article, not an episode`, {
+        deferredResponse: page,
+      });
+    }
+    resolved ??=
       resolveAudioElement(page.text, page.url) ??
       (await this.resolveFeedAudio(page.text, page.url, options.signal));
     if (!resolved)
@@ -143,8 +165,11 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       if (!isAudioOembedType(record.type)) return undefined;
       if (typeof record.url !== 'string') return undefined;
       const mediaUrl = safeResolveUrl(record.url, response.url);
-      return mediaUrl ? { mediaUrl, title: stringValue(record.title) } : undefined;
-    } catch {
+      // Only audio counts: an `audio` type, or a media URL with an audio extension.
+      const audio = String(record.type).toLowerCase() === 'audio' || isAudioMedia(record.url);
+      return mediaUrl && audio ? { mediaUrl, title: stringValue(record.title) } : undefined;
+    } catch (error) {
+      if (isCancellation(error, signal)) throw error;
       return undefined;
     }
   }
@@ -166,15 +191,16 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
     });
     if (!feed) return undefined;
     try {
-      const href = safeResolveUrl(attributes(feed).href!, pageUrl);
+      const href = safeResolveUrl(decodeAmpersands(attributes(feed).href!), pageUrl);
       if (!href) return undefined;
       const response = await this.fetcher.fetch(href, {
         signal,
         policy: this.policy,
       });
       if (!isFeedContentType(response.contentType)) return undefined;
-      return resolveEnclosure(response.text, response.url);
-    } catch {
+      return feedEntryAudio(await parseFeed(response.text), response.url, pageUrl);
+    } catch (error) {
+      if (isCancellation(error, signal)) throw error;
       return undefined;
     }
   }
@@ -232,26 +258,101 @@ function resolveAudioElement(html: string, pageUrl: string): ResolvedAudio | und
   return mediaUrl ? { mediaUrl } : undefined;
 }
 
+/**
+ * The first audio URL declared by the page: an `<audio src>`, a `<source>`
+ * inside an `<audio>` element, or a standalone `<source>` whose type is audio.
+ * `<video>` and `<picture>` sources never count.
+ */
 function audioUrlFromHtml(html: unknown, pageUrl: string): string | undefined {
   if (typeof html !== 'string') return undefined;
-  for (const tag of [...findTag(html, 'audio'), ...findTag(html, 'source')]) {
+  const audioSources = [...html.matchAll(/<audio\b[\s\S]*?<\/audio\s*>/gi)].flatMap((block) =>
+    findTag(block[0], 'source'),
+  );
+  const typedSources = findTag(html, 'source').filter((tag) => isAudioType(attributes(tag).type));
+  for (const tag of [...findTag(html, 'audio'), ...audioSources, ...typedSources]) {
     const src = attributes(tag).src;
-    const mediaUrl = src ? safeResolveUrl(src, pageUrl) : undefined;
+    const mediaUrl = src ? safeResolveUrl(decodeAmpersands(src), pageUrl) : undefined;
     if (mediaUrl) return mediaUrl;
   }
   return undefined;
 }
 
+/** An `<enclosure>` or `<link rel="enclosure">` in page markup, when it is audio. */
 function resolveEnclosure(markup: string, baseUrl: string): ResolvedAudio | undefined {
   for (const tag of [...findTag(markup, 'enclosure'), ...findTag(markup, 'link')]) {
     const attrs = attributes(tag);
     const candidate =
       attrs.url ??
       (attrs.rel?.toLowerCase().split(/\s+/).includes('enclosure') ? attrs.href : undefined);
-    const mediaUrl = candidate ? safeResolveUrl(candidate, baseUrl) : undefined;
+    if (candidate === undefined || !isAudioMedia(candidate, attrs.type)) continue;
+    const mediaUrl = safeResolveUrl(decodeAmpersands(candidate), baseUrl);
     if (mediaUrl) return { mediaUrl };
   }
   return undefined;
+}
+
+/**
+ * The audio enclosure of the feed entry whose link is this page. Other
+ * entries' enclosures are never used: a page is not the site's latest episode.
+ */
+function feedEntryAudio(
+  feed: Awaited<ReturnType<typeof parseFeed>>,
+  feedUrl: string,
+  pageUrl: string,
+): ResolvedAudio | undefined {
+  const entry = feed.entries.find((candidate) => {
+    const link = candidate.url ? safeResolveUrl(candidate.url, feedUrl) : undefined;
+    return link !== undefined && isSameEpisodeUrl(link, pageUrl);
+  });
+  const enclosures = (entry?.metadata.enclosures as FeedEnclosure[] | undefined) ?? [];
+  const audio = enclosures.find((enclosure) => isAudioMedia(enclosure.url, enclosure.type));
+  const mediaUrl = audio ? safeResolveUrl(audio.url, feedUrl) : undefined;
+  return mediaUrl ? { mediaUrl, title: entry?.title } : undefined;
+}
+
+/** A cancelled or deadline-aborted fetch must end resolution, never fall through. */
+function isCancellation(error: unknown, signal: AbortSignal | undefined): boolean {
+  return error instanceof CancelledError || signal?.aborted === true;
+}
+
+function declaresArticle(html: string): boolean {
+  const signal = declaredArticleSignal(html);
+  return signal === 'og-article' || signal === 'json-ld-article';
+}
+
+function isAudioType(type: string | undefined): boolean {
+  return type?.trim().toLowerCase().startsWith('audio/') ?? false;
+}
+
+/** Audio by declared type, or by file extension when no type is declared. */
+function isAudioMedia(url: string, type?: string): boolean {
+  if (type !== undefined && type.trim() !== '') return isAudioType(type);
+  try {
+    const path = new URL(url, 'https://base.invalid/').pathname.toLowerCase();
+    return AUDIO_EXTENSIONS.some((ext) => path.endsWith(ext));
+  } catch {
+    return false;
+  }
+}
+
+/** Compares page URLs ignoring fragment, a trailing slash, host case, and http/https. */
+function isSameEpisodeUrl(a: string, b: string): boolean {
+  const normalize = (value: string) => {
+    const url = new URL(value);
+    url.hash = '';
+    url.protocol = 'https:';
+    return url.toString().replace(/\/$/, '');
+  };
+  try {
+    return normalize(a) === normalize(b);
+  } catch {
+    return false;
+  }
+}
+
+/** Decodes the `&amp;` entity in attribute-borne URLs from static HTML. */
+function decodeAmpersands(value: string): string {
+  return value.replace(/&amp;|&#0*38;|&#x0*26;/gi, '&');
 }
 
 function findTag(markup: string, name: string): string[] {

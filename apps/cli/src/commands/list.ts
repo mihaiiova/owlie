@@ -11,7 +11,7 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
-import { resolveFeedCollectionUrl } from '../feed.js';
+import { feedLocator, listedItemMetadata, resolveFeedCollectionUrl } from '../feed.js';
 import {
   createCommandSpinner,
   writeCommandError,
@@ -21,12 +21,17 @@ import {
 import type { SpinnerLike } from '../spinner.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
+import { extractionNetwork } from '../proxy.js';
+import type { ExtractionNetworkDeps } from '../proxy.js';
+
 export interface ListDeps {
   adapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
   networkPolicy?: HttpFetchPolicy;
+  /** Proxy resolution inputs and fetcher factory for the default adapter. */
+  network?: ExtractionNetworkDeps;
 }
 
 /** A safe, HTML-free summary of one listed item. */
@@ -38,6 +43,8 @@ export interface ListItemSummary {
   description?: string;
   publishedAt?: string;
   author?: string;
+  /** Allowlisted identity and media facts (entry id and its source, enclosures, media). */
+  metadata?: Record<string, unknown>;
 }
 
 /** A safe, HTML-free summary of the listed collection. */
@@ -91,6 +98,8 @@ export function summarizeItem(item: ContentItem): ListItemSummary {
   if (item.description) summary.description = item.description;
   if (item.publishedAt) summary.publishedAt = item.publishedAt;
   if (item.author) summary.author = item.author;
+  const metadata = listedItemMetadata(item);
+  if (Object.keys(metadata).length > 0) summary.metadata = metadata;
   return summary;
 }
 
@@ -130,14 +139,22 @@ export async function runListCommand(
     return ExitCode.Usage;
   }
 
-  const adapter = deps.adapter ?? new RssAdapter({ policy: deps.networkPolicy });
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
+    const adapter =
+      deps.adapter ??
+      new RssAdapter({
+        fetcher: extractionNetwork(options, deps.network).fetcher,
+        policy: deps.networkPolicy,
+      });
     const limit = parseListLimit(options.limit);
     spinner.start('listing feed');
     const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
-    const result = await listCollection(adapter, { url: feedUrl }, { limit, signal: deps.signal });
+    const result = await listCollection(adapter, feedLocator(feedUrl), {
+      limit,
+      signal: deps.signal,
+    });
     const envelope = buildEnvelope(result);
     spinner.stop();
 

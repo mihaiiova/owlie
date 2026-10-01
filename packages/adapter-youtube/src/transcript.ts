@@ -165,9 +165,13 @@ export class YouTubeTranscriptClient implements TranscriptClient {
       languages?: readonly string[];
       source?: TranscriptSource;
       proxy?: TranscriptProxy;
+      /** Fetch used for every transcript request when no `proxy` is set. */
+      fetchFn?: typeof fetch;
     } = {},
   ) {
-    this.source = options.source ?? new LibraryTranscriptSource({ proxy: options.proxy });
+    this.source =
+      options.source ??
+      new LibraryTranscriptSource({ proxy: options.proxy, fetchFn: options.fetchFn });
     this.languages = options.languages ?? DEFAULT_LANGUAGES;
   }
 
@@ -207,7 +211,8 @@ export class YouTubeTranscriptClient implements TranscriptClient {
       if (error instanceof RequestBlocked) {
         throw new ExtractionError(
           'YouTube blocked the transcript request (this network IP is likely blocked). ' +
-            'Configure a proxy by running `owlie setup`.',
+            'Configure a proxy with OWLIE_PROXY_URL, OWLIE_WEBSHARE_PROXY_USERNAME and ' +
+            'OWLIE_WEBSHARE_PROXY_PASSWORD, or `owlie setup`.',
           { cause: error },
         );
       }
@@ -224,5 +229,7 @@ export interface YouTubeAdapterOptions {
   client?: TranscriptClient;
   languages?: readonly string[];
   proxy?: TranscriptProxy;
+  /** Fetch used for every transcript request when no `proxy` is set (e.g. a proxied fetch). */
+  fetchFn?: typeof fetch;
   timeoutMs?: number;
 }

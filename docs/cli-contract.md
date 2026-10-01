@@ -64,7 +64,7 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie list FEED_URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
@@ -76,19 +76,40 @@ owlie capabilities [--json]
 ```
 
 - `extract` dispatches a direct URL through the registry: YouTube video URLs
-  to the YouTube adapter; podcast direct-audio URLs, Apple Podcasts episode
+  (`watch?v=`, `youtu.be/`, `/embed/`, and `/v/`, all canonicalized to
+  `watch?v=<id>`) to the YouTube adapter, while YouTube `/live/` and `/shorts/`
+  URLs are a `VALIDATION_ERROR` with no fallback; podcast direct-audio URLs, Apple Podcasts episode
   URLs, and safe server-rendered episode pages with declarative audio metadata
-  to the podcast adapter. A remaining safe HTTP(S) URL is then a feed-discovery
-  candidate: the command fetches the supplied page (HTML/XHTML only), reads
-  eligible `<link rel="alternate">` elements, and otherwise probes the six
-  fixed same-origin conventional paths, then runs the bounded linked-item
-  batch on the top-ranked discovered feed. A page URL with no discoverable
-  feed is a clear error (it is not reinterpreted as an article). Apple episodes
+  to the podcast adapter. A remaining safe HTTP(S) URL is a page: the article
+  adapter classifies it from one fetch (reusing the page an episode-page
+  resolver already fetched). The page is an **article** when it declares
+  `og:type` `article` or a JSON-LD `@type` of `Article`, `NewsArticle`,
+  `BlogPosting`, `Report`, `ScholarlyArticle`, or `TechArticle` (including in
+  `@graph`) and yields readable text, or when it declares no `og:type` and its
+  readable text is at least 500 characters. An article page is written as a
+  single `NormalizedDocument` (`adapterId: "article"`, no `ARTICLE_FALLBACK`
+  warning). Any other page is a feed-discovery candidate using the same
+  response: eligible `<link rel="alternate">` elements, otherwise the six
+  fixed same-origin conventional paths, then the bounded linked-item batch on
+  the top-ranked discovered feed. A page that is neither is one
+  `CONFIGURATION_ERROR` naming both paths (ADR 0035).
+  `--article` extracts the page as an article (an `EXTRACTION_ERROR` when it
+  has no readable body) and `--feed` runs feed discovery only; both are
+  authoritative with no fallback, exclude each other and the podcast resolver
+  flags, and `--article` with a YouTube or direct feed URL is a usage error
+  (exit code 2). Apple episodes
   resolve through Apple's public lookup API, with a matching RSS enclosure
-  fallback. Other episode pages use JSON-LD, declared oEmbed,
-  `<audio>`/`<source>`, or RSS/Atom enclosure signals; they never execute
-  JavaScript, and a safe episode-page URL with no discoverable audio is treated
-  as a feed-discovery candidate rather than article text.
+  fallback. Other episode pages use audio signals only; they never execute
+  JavaScript (ADR 0037). Strong signals (JSON-LD `PodcastEpisode`,
+  `AudioObject`, or `MusicRecording` with a media URL, or an oEmbed resolving
+  to audio) always make the page an episode. Weak signals (`<audio>`, a
+  `<source>` inside it or with an audio type, an audio enclosure, or the page's
+  own feed entry's audio enclosure) count only when the page does not declare
+  itself an article (`og:type` article or a JSON-LD article type). A declared
+  article with only weak signals, and any page with no audio, is classified as
+  a page (article or feed-discovery candidate) as described above, reusing the
+  fetched page. `--podcast-page` is authoritative and resolves weak signals
+  even on a declared article.
   It writes transcript text, or a feed batch JSON envelope for a feed/page
   URL, or a JSON `NormalizedDocument` with `--json` for a direct item.
   `--language LANG` sets a comma-separated language priority list for YouTube
@@ -125,9 +146,14 @@ owlie capabilities [--json]
 - `list` resolves an RSS/Atom feed URL (or discovers one from a supplied HTML
   page URL) and writes a bounded, line-oriented
   summary of its entries to stdout, or a single JSON envelope with `--json`
-  (collection metadata, item metadata, and `truncated`). `--limit N` bounds the
+  (collection metadata, item metadata, and `truncated`; see
+  [output formats](output-formats.md#feed-listings)). `--limit N` bounds the
   listing (default 10, maximum 500); invalid or oversized limits fail with a
   clear error. Raw entry HTML is never written to stdout.
+  A feed is accepted whatever its URL shape: a discovered feed (such as
+  `/atom/everything/`) and a supplied URL that itself serves a feed media type
+  whose body parses as RSS or Atom (such as `/?feed=rss2`) are both listed.
+  The same applies to feed batches in `extract` and `process --each`.
 - `process` reads exactly one input — a positional http(s) URL, a positional
   file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
   (exit code 2). A URL is extracted first through the universal
@@ -219,7 +245,34 @@ combined), the saved user configuration, and model-cache fallback
 (`owlie models` always live-fetches and never reads or writes the cache).
 `owlie auth` and `owlie setup` are rejected as a usage error (exit code 2)
 before any prompt or state write. Non-hosted behavior and precedence are
-unchanged.
+unchanged. The extraction proxy is read from `OWLIE_PROXY_URL` or
+`OWLIE_WEBSHARE_PROXY_USERNAME`/`OWLIE_WEBSHARE_PROXY_PASSWORD` in the process
+environment (see [configuration](configuration.md#extraction-proxy)).
+
+## Integrating Owlie as a subprocess
+
+Any product can use Owlie as its extractor by running the published `owlie`
+command. The contract is the same for every consumer (ADR 0034):
+
+1. **Install a pinned version** of `@owlieio/owlie` and run its bin with Node
+   directly (not through `npx`).
+2. **Check compatibility at startup** with `owlie capabilities --json`: accept
+   work only when `protocolSchemaVersion` and `documentSchemaVersion` are the
+   versions your parser supports and the `adapters` you rely on are listed.
+3. **Invoke with `--hosted --json`** plus explicit job controls
+   (`--timeout-ms`, `--max-network-bytes`, `--max-stdout-bytes`), for example
+   `owlie --hosted extract URL --json --timeout-ms 60000`.
+4. **Pass configuration through the process environment only**, as an
+   allowlist: the variables Owlie documents (provider keys for `process`, and
+   `OWLIE_PROXY_URL` or the `OWLIE_WEBSHARE_PROXY_*` pair for an extraction
+   proxy) and nothing else from your own environment.
+5. **Read results from stdout** (one envelope, or JSONL for `process --each`)
+   and **progress, errors, and cancellation from stderr** JSONL records. Map
+   the documented [error codes](#json-subprocess-protocol) and exit codes to
+   your own retry policy; Owlie does not retry on your behalf.
+6. **Use `provenance`** (`sourceId`, `canonicalUrl`, `contentFingerprint`) for
+   your own persistence and de-duplication. Identity and de-duplication policy
+   belong to the consumer.
 
 ## Exit codes
 
@@ -248,4 +301,6 @@ transcription readiness (Python + faster-whisper, ffmpeg, ffprobe, and the
 configured Whisper model), and whether the configuration and cache directories
 are writable. The JSON report includes `configurationSource`
 (`"hosted" | "local"`); in hosted mode it resolves provider readiness from
-flags and process environment only.
+flags and process environment only. It also includes `proxy`: `{ mode: "none" |
+"url" | "webshare" | "invalid", source: "env" | "env-file" | "user-config" | null
+}` (plus `error` when invalid), never the proxy host or credentials.

@@ -9,6 +9,7 @@ import type {
   ContentCollection,
   ContentItem,
   ContentLocator,
+  HttpTextResponse,
   NormalizedDocument,
 } from '@owlieio/core';
 import {
@@ -95,7 +96,11 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDisc
       .slice(0, options.limit)
       .map((entry) => entryToItem(entry, collection.canonicalUrl));
     return {
-      collection,
+      collection: {
+        ...collection,
+        ...(feed.title !== undefined ? { title: feed.title } : {}),
+        metadata: { ...collection.metadata, ...feed.metadata, format: feed.format },
+      },
       items,
       truncated: feed.entries.length > options.limit,
     };
@@ -147,6 +152,16 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDisc
       fetcher: this.fetcher,
       policy: this.effectivePolicy(),
     }).discover(locator, options);
+  }
+
+  async discoverFromResponse(
+    response: HttpTextResponse,
+    options: FeedDiscoveryOptions = {},
+  ): Promise<ContentCollection[]> {
+    return new FeedDiscoveryService({
+      fetcher: this.fetcher,
+      policy: this.effectivePolicy(),
+    }).discoverFromResponse(response, options);
   }
 }
 

@@ -5,6 +5,25 @@ import { XMLParser } from 'fast-xml-parser';
 
 export type FeedFormat = 'atom' | 'rss';
 
+/** Which feed field an entry id came from. */
+export type EntryIdSource = 'guid' | 'atom-id' | 'rdf-about' | 'link' | 'fallback';
+
+/** An RSS `<enclosure>` or Atom `link rel="enclosure"`. */
+export interface FeedEnclosure {
+  url: string;
+  /** Lowercased MIME type, when declared. */
+  type?: string;
+  /** Size in bytes, when declared as a non-negative integer. */
+  length?: number;
+}
+
+/** A `media:content` element, kept separate from enclosures. */
+export interface FeedMedia {
+  url: string;
+  type?: string;
+  medium?: string;
+}
+
 export interface ParsedEntry {
   id: string;
   title?: string;
@@ -228,6 +247,8 @@ function parseAtom(doc: Record<string, unknown>): ParsedFeed {
     entries,
     metadata: compact({
       subtitle: clean(feed.subtitle),
+      description: clean(feed.subtitle),
+      siteUrl: atomLink(feed.link, 'alternate'),
       imageUrl: atomIcon(feed),
     }),
   };
@@ -237,8 +258,8 @@ function parseAtom(doc: Record<string, unknown>): ParsedFeed {
 function atomLink(link: unknown, rel?: string): string | undefined {
   for (const item of toArray<unknown>(link)) {
     if (!isRecord(item)) continue;
-    const href = item['@_href'];
-    if (typeof href !== 'string') continue;
+    const href = attribute(item, 'href');
+    if (href === undefined) continue;
     if (rel === undefined) return href;
     const itemRel = item['@_rel'];
     if (itemRel === rel) return href;
@@ -249,9 +270,7 @@ function atomLink(link: unknown, rel?: string): string | undefined {
 }
 
 function atomIcon(feed: Record<string, unknown>): string | undefined {
-  if (typeof feed.icon === 'string') return feed.icon;
-  if (typeof feed.logo === 'string') return feed.logo;
-  return undefined;
+  return clean(feed.icon) ?? clean(feed.logo);
 }
 
 function atomAuthor(author: unknown): string | undefined {
@@ -270,11 +289,17 @@ function parseAtomEntry(entry: unknown): ParsedEntry | null {
   const content = clean(entry.content);
   const publishedAt = normalizeDate(clean(entry.updated) ?? clean(entry.published));
   const author = atomAuthor(entry.author);
-  const id = atomId ?? url ?? fallbackId(title, publishedAt, summary ?? content);
+  const { id, source } = entryId(
+    [
+      [atomId, 'atom-id'],
+      [url, 'link'],
+    ],
+    () => fallbackId(title, publishedAt, summary ?? content),
+  );
 
   const parsed: ParsedEntry = {
     id,
-    metadata: compact({ enclosureUrl: atomLink(entry.link, 'enclosure') }),
+    metadata: mediaMetadata(source, atomEnclosures(entry.link), []),
   };
   assign(parsed, 'title', title);
   assign(parsed, 'url', url);
@@ -308,6 +333,7 @@ function parseRss(doc: Record<string, unknown>): ParsedFeed {
     entries,
     metadata: compact({
       description: clean(channel.description),
+      siteUrl: firstText(channel.link),
       imageUrl: rssImage(channel),
     }),
   };
@@ -324,7 +350,10 @@ function parseRss10(rdf: Record<string, unknown>): ParsedFeed {
     title: clean(channel.title),
     canonicalUrl: firstText(channel.link),
     entries,
-    metadata: compact({ description: clean(channel.description) }),
+    metadata: compact({
+      description: clean(channel.description),
+      siteUrl: firstText(channel.link),
+    }),
   };
 }
 
@@ -338,12 +367,18 @@ function parseRss20Entry(item: unknown): ParsedEntry | null {
   const content = clean(item['content:encoded']);
   const publishedAt = normalizeDate(firstText(item.pubDate));
   const author = firstText(item['dc:creator']) ?? firstText(item.author) ?? firstText(item.creator);
-  const id = guid ?? url ?? fallbackId(title, publishedAt, description ?? content);
+  const { id, source } = entryId(
+    [
+      [guid, 'guid'],
+      [url, 'link'],
+    ],
+    () => fallbackId(title, publishedAt, description ?? content),
+  );
 
   const parsed: ParsedEntry = {
     id,
     metadata: compact({
-      enclosureUrl: enclosureUrl(item),
+      ...mediaMetadata(source, rssEnclosures(item), mediaContents(item)),
       duration: clean(item['itunes:duration']),
       categories: categories(item),
     }),
@@ -366,9 +401,15 @@ function parseRss10Entry(item: unknown): ParsedEntry | null {
   const publishedAt = normalizeDate(firstText(item['dc:date']));
   const author = firstText(item['dc:creator']);
   const about = typeof item['@_rdf:about'] === 'string' ? item['@_rdf:about'] : undefined;
-  const id = about ?? url ?? fallbackId(title, publishedAt, description);
+  const { id, source } = entryId(
+    [
+      [about, 'rdf-about'],
+      [url, 'link'],
+    ],
+    () => fallbackId(title, publishedAt, description),
+  );
 
-  const parsed: ParsedEntry = { id, metadata: {} };
+  const parsed: ParsedEntry = { id, metadata: { entryIdSource: source } };
   assign(parsed, 'title', title);
   assign(parsed, 'url', url);
   assign(parsed, 'description', description);
@@ -377,16 +418,84 @@ function parseRss10Entry(item: unknown): ParsedEntry | null {
   return parsed;
 }
 
-function enclosureUrl(item: Record<string, unknown>): string | undefined {
-  const enclosure = first(item.enclosure);
-  if (isRecord(enclosure) && typeof enclosure['@_url'] === 'string') {
-    return enclosure['@_url'];
+/** The first present id candidate and its source, or a stable hash fallback. */
+function entryId(
+  candidates: Array<[string | undefined, EntryIdSource]>,
+  fallback: () => string,
+): { id: string; source: EntryIdSource } {
+  for (const [value, source] of candidates) {
+    if (value !== undefined) return { id: value, source };
   }
-  const media = first(item['media:content']);
-  if (isRecord(media) && typeof media['@_url'] === 'string') {
-    return media['@_url'];
-  }
-  return undefined;
+  return { id: fallback(), source: 'fallback' };
+}
+
+/** A decoded, trimmed attribute value (entity processing is off in the parser). */
+function attribute(record: Record<string, unknown>, name: string): string | undefined {
+  const value = record[`@_${name}`];
+  if (typeof value !== 'string') return undefined;
+  const decoded = decodeXmlEntities(value).trim();
+  return decoded === '' ? undefined : decoded;
+}
+
+function byteLength(value: string | undefined): number | undefined {
+  return value !== undefined && /^\d+$/.test(value) ? Number(value) : undefined;
+}
+
+function enclosure(url: string | undefined, record: Record<string, unknown>) {
+  if (url === undefined) return undefined;
+  return compact({
+    url,
+    type: attribute(record, 'type')?.toLowerCase(),
+    length: byteLength(attribute(record, 'length')),
+  }) as unknown as FeedEnclosure;
+}
+
+function rssEnclosures(item: Record<string, unknown>): FeedEnclosure[] {
+  return toArray<unknown>(item.enclosure)
+    .filter(isRecord)
+    .map((record) => enclosure(attribute(record, 'url'), record))
+    .filter((value): value is FeedEnclosure => value !== undefined);
+}
+
+function atomEnclosures(link: unknown): FeedEnclosure[] {
+  return toArray<unknown>(link)
+    .filter(isRecord)
+    .filter((record) => record['@_rel'] === 'enclosure')
+    .map((record) => enclosure(attribute(record, 'href'), record))
+    .filter((value): value is FeedEnclosure => value !== undefined);
+}
+
+function mediaContents(item: Record<string, unknown>): FeedMedia[] {
+  return toArray<unknown>(item['media:content'])
+    .filter(isRecord)
+    .flatMap((record) => {
+      const url = attribute(record, 'url');
+      if (url === undefined) return [];
+      return [
+        compact({
+          url,
+          type: attribute(record, 'type')?.toLowerCase(),
+          medium: attribute(record, 'medium'),
+        }) as unknown as FeedMedia,
+      ];
+    });
+}
+
+/**
+ * Entry id source plus typed enclosures and media. `enclosureUrl` is kept for
+ * compatibility (first enclosure, else first `media:content`) and deprecated.
+ */
+function mediaMetadata(
+  source: EntryIdSource,
+  enclosures: FeedEnclosure[],
+  media: FeedMedia[],
+): Record<string, unknown> {
+  return compact({
+    entryIdSource: source,
+    enclosureUrl: enclosures[0]?.url ?? media[0]?.url,
+    enclosures: enclosures.length > 0 ? enclosures : undefined,
+    media: media.length > 0 ? media : undefined,
+  });
 }
 
 function categories(item: Record<string, unknown>): string[] | undefined {
@@ -403,10 +512,7 @@ function rssImage(channel: Record<string, unknown>): string | undefined {
     if (url !== undefined) return decodeXmlEntities(url);
   }
   const itunesImage = first(channel['itunes:image']);
-  if (isRecord(itunesImage) && typeof itunesImage['@_href'] === 'string') {
-    return itunesImage['@_href'];
-  }
-  return undefined;
+  return isRecord(itunesImage) ? attribute(itunesImage, 'href') : undefined;
 }
 
 export function normalizeFeedUrl(input: string): string {
@@ -439,7 +545,7 @@ export function entryToItem(entry: ParsedEntry, feedUrl: string): ContentItem {
     id: `rss:entry:${entry.id}`,
     sourceType: 'rss',
     canonicalUrl: entry.url ?? feedUrl,
-    metadata: { entryId: entry.id, feedUrl },
+    metadata: { ...entry.metadata, entryId: entry.id, feedUrl },
   };
   if (entry.title) item.title = entry.title;
   if (entry.description) item.description = htmlToText(entry.description);

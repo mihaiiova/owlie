@@ -1,9 +1,14 @@
 import { extractFromHtml } from '@extractus/article-extractor';
 import { decodeHTML } from 'entities';
 import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } from '@owlieio/core';
-import type { DeferredResponseItemAdapter, HttpTextResponse } from '@owlieio/core';
+import type {
+  DeclaredArticleSignal,
+  DeferredResponseItemAdapter,
+  HttpTextResponse,
+} from '@owlieio/core';
 import {
   assertSafeHttpUrl,
+  declaredArticleSignal,
   buildProvenance,
   CancelledError,
   extractionFetchedAt,
@@ -117,6 +122,29 @@ const ARTICLE_EXTRACTOR_ALLOWED_TAGS = [
   'wbr',
 ];
 
+/**
+ * Minimum readable text length for an undeclared page to count as an article.
+ * Pages that declare an article type (`og:type`, JSON-LD) need no minimum.
+ */
+export const MIN_READABLE_ARTICLE_CHARS = 500;
+
+/** Re-exported for existing consumers; the check lives in `@owlieio/core`. */
+export { declaredArticleSignal };
+export type { DeclaredArticleSignal };
+
+/** Why a page was, or was not, classified as an article. */
+export type ArticlePageSignal = DeclaredArticleSignal | 'readable-body';
+
+/** The result of {@link ArticleAdapter.classify}. */
+export interface ArticlePageClassification {
+  isArticle: boolean;
+  signal: ArticlePageSignal;
+  /** The fetched page, reusable by other consumers such as feed discovery. */
+  response: HttpTextResponse;
+  /** The extracted document whenever the page yielded readable text. */
+  document?: NormalizedDocument;
+}
+
 function plainText(html: string): string {
   return decodeHTML(html)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
@@ -218,6 +246,56 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
     } catch (error) {
       this.emitFailure(target, options, error);
     }
+  }
+
+  /**
+   * Decides whether a page is an article, from one fetched response (the
+   * supplied `response`, or a single fetch of the item URL). A page that
+   * declares an article type (`og:type`, JSON-LD) is an article when it yields
+   * readable text; an undeclared page is one when its readable text reaches
+   * {@link MIN_READABLE_ARTICLE_CHARS}; a page whose `og:type` declares another
+   * type is not. The response is returned so a caller can reuse it.
+   */
+  async classify(
+    item: ContentItem,
+    options: ExtractionOptions & { response?: HttpTextResponse } = {},
+  ): Promise<ArticlePageClassification> {
+    if (options.signal?.aborted) throw new CancelledError('article classification cancelled');
+    const response =
+      options.response ??
+      (await this.fetcher.fetch(item.canonicalUrl, {
+        signal: options.signal,
+        policy: this.policy,
+      }));
+    assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+    if (!isHtmlContentType(response.contentType)) {
+      return { isArticle: false, signal: 'none', response };
+    }
+
+    const declared = declaredArticleSignal(response.text);
+    let document: NormalizedDocument | undefined;
+    try {
+      document = await this.extractFromResponse(response, options);
+    } catch (error) {
+      if (error instanceof CancelledError || options.signal?.aborted) throw error;
+      if (!(error instanceof ExtractionError)) throw error;
+    }
+
+    let signal: ArticlePageSignal = declared;
+    let isArticle = false;
+    if (document !== undefined) {
+      if (declared === 'og-article' || declared === 'json-ld-article') {
+        isArticle = true;
+      } else if (declared === 'none' && document.text.length >= MIN_READABLE_ARTICLE_CHARS) {
+        isArticle = true;
+        signal = 'readable-body';
+      }
+    }
+    if (isArticle) {
+      options.progress?.emit({ type: 'started', target: item.id });
+      options.progress?.emit({ type: 'completed', target: item.id, result: document! });
+    }
+    return { isArticle, signal, response, ...(document ? { document } : {}) };
   }
 
   private async extractFromResponse(

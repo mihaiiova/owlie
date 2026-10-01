@@ -2,16 +2,17 @@
 
 [![codecov](https://codecov.io/gh/mihaiiova/owlie-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie-cli)
 
-Local-first content extraction and processing, as a command-line tool.
+An open-source, general-purpose web content extractor.
 
-Owlie CLI turns sources like YouTube videos, podcast episodes, Reddit posts, and
-RSS/Atom entries into normalized text that can be searched, transcribed, and
-processed with an LLM — entirely on your machine.
+Give Owlie a URL (an article, a video, a podcast episode, a feed, or a
+discussion) and it returns normalized, provenance-stamped content that people
+and programs can search, store, or process with an LLM of their choice. It runs
+on your own machine or inside another product as a subprocess.
 
-> **Status: functional core (v0.1 milestone complete).** The v0.1 milestone is
-> shipped (latest release v0.4.0) and covers: `owlie extract` (YouTube
-> transcripts, local podcast transcription, and bounded feed batches — from a
-> feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
+> **Status: functional core (v0.1 milestone complete).** Release history is in
+> the [changelog](CHANGELOG.md). The v0.1 milestone covers: `owlie extract` (article
+> pages, YouTube transcripts, local podcast transcription, and bounded feed
+> batches — from a feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
 > audio media URLs), `owlie list` and
 > `owlie process --each` (RSS/Atom feeds, direct or discovered), and `owlie
 process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
@@ -70,10 +71,17 @@ owlie extract "https://publisher.example/episodes/my-episode"
 # Authoritative resolver selection (no fallback; at most one flag)
 owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890" --podcast-apple
 
+# An article page (declared by og:type/JSON-LD, or with a long readable body)
+owlie extract "https://example.com/posts/a-story" --json
+
 # Bounded linked-item extraction from an RSS/Atom feed (one JSON envelope).
-# A direct feed URL or an HTML page URL that exposes a feed both work.
+# A direct feed URL or a non-article HTML page that exposes a feed both work.
 owlie extract "https://example.com/feed.xml" --limit 20
 owlie extract "https://example.com/" --limit 20
+
+# Force either path for a page URL (no fallback)
+owlie extract "https://example.com/" --article
+owlie extract "https://example.com/posts/a-story" --feed
 ```
 
 ### Resolve
@@ -164,6 +172,11 @@ owlie extract "https://www.youtube.com/watch?v=..." --quiet
 # environment only (no .env, saved profile, or model-cache fallback).
 owlie --hosted process transcript.txt --prompt "Summarize this"
 owlie --hosted doctor --json   # reports configurationSource: hosted
+
+# Send all extraction traffic (pages, feeds, media, YouTube) through a proxy.
+# Set a proxy URL or a Webshare pair, never both; hosted mode reads process env.
+OWLIE_PROXY_URL="socks5://user:pass@proxy.example:1080" owlie --hosted extract URL --json
+OWLIE_WEBSHARE_PROXY_USERNAME=… OWLIE_WEBSHARE_PROXY_PASSWORD=… owlie --hosted extract URL --json
 ```
 
 ## Global options
@@ -204,8 +217,8 @@ owlie --hosted doctor --json   # reports configurationSource: hosted
 Individual items:
 
 - YouTube video (v0.1)
-- Static article (v0.1, via the universal dispatch — `process URL` and
-  linked-item feed extraction)
+- Article page (`owlie extract URL`, `process URL`, and linked-item feed
+  extraction)
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
@@ -219,8 +232,8 @@ Collections (deferred — not implemented in v0.1):
 
 ## Planned operations
 
-- `extract` normalized text from an individual item (YouTube video or podcast)
-  or the bounded linked items of an RSS/Atom feed (direct URL or discovered
+- `extract` normalized text from an individual item (article page, YouTube
+  video, or podcast) or the bounded linked items of an RSS/Atom feed (direct URL or discovered
   page)
 - `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
 - `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
@@ -240,7 +253,7 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor [--json]
-owlie extract URL   # YouTube video, podcast media/Apple episode/episode page, or bounded feed (direct or discovered page)
+owlie extract URL   # article page, YouTube video, podcast media/Apple episode/episode page, or bounded feed (direct or discovered page)
 owlie resolve URL   # print the validated audio media URL without transcribing
 owlie list FEED_URL # list entries in an RSS/Atom feed
 owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
@@ -304,24 +317,25 @@ Owlie CLI does not provide:
   supplied page is bounded and one-hop, not a crawl)
 - telemetry
 
-Those responsibilities — where they exist at all — belong to the private,
-hosted `owlie-app`.
+Those responsibilities, where they exist at all, belong to the products that
+use Owlie.
 
-## Relationship with `owlie-app`
+## Using Owlie from another product
 
-`owlie-app` is the private hosted product. It owns the web UI, auth, billing,
-Postgres, job queues, monitoring, notifications, storage, analytics, admin, and
-deployment.
-
-`owlie-cli` owns the reusable content functionality. `owlie-app` consumes it by
-running the published `owlie` command as a subprocess (typically in a
-container) — it does not import `owlie-cli` packages as libraries:
+Owlie is built for two audiences: people running it at a terminal, and products
+that run the published `owlie` command as a subprocess (typically in a
+container). Every product integrates through the same public contract: the
+`--hosted` mode, the versioned `--json` protocol, invocation-wide job controls,
+and `owlie capabilities`. See
+[Integrating Owlie as a subprocess](docs/cli-contract.md#integrating-owlie-as-a-subprocess).
 
 ```text
-owlie-app  →  runs `owlie` CLI (container/subprocess)
+consuming product  →  runs `owlie` CLI (container/subprocess)
 ```
 
-`owlie-cli` never imports from `owlie-app`. See
+A consuming product owns its own UI, users, billing, persistence, scheduling,
+monitoring, storage, and deployment. The private `owlie-app` is the first such
+product; others may follow. Owlie never imports from a consuming product. See
 [docs/repository-boundaries.md](docs/repository-boundaries.md).
 
 ## Repository map

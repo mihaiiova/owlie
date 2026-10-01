@@ -1,7 +1,10 @@
 # Product scope
 
-This document separates what exists now, what the v0.1 milestone will deliver,
-what is deferred, and what belongs to the hosted product.
+Owlie CLI is an open-source, general-purpose web content extractor: given a
+URL (an article, a video, a podcast episode, a feed, or a discussion), it
+returns normalized, provenance-stamped content for people and programs, and can
+process it with an LLM. This document separates what exists now, what the v0.1
+milestone delivers, what is deferred, and what belongs to consuming products.
 
 ## Scaffold scope (current)
 
@@ -20,11 +23,13 @@ what is deferred, and what belongs to the hosted product.
 
 v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
-- `owlie extract URL` — extract an available transcript from an individual
-  YouTube video, a direct podcast media URL, Apple Podcasts episode URL, or
-  declarative server-rendered episode page (local faster-whisper, chunked),
-  or the bounded linked items of an RSS/Atom feed — supplied as a feed URL or
-  an HTML page URL that exposes one — as normalized documents. Optional
+- `owlie extract URL` — extract an article page (declared by `og:type` or
+  JSON-LD, or with a long readable body), an available transcript from an
+  individual YouTube video, a direct podcast media URL, Apple Podcasts episode
+  URL, or declarative server-rendered episode page (local faster-whisper,
+  chunked), or the bounded linked items of an RSS/Atom feed — supplied as a
+  feed URL or a non-article HTML page URL that exposes one — as normalized
+  documents. `--article` and `--feed` force either page path (ADR 0035). Optional
   `--podcast-media`/`--podcast-page`/`--podcast-apple` flags select the audio
   resolver explicitly (authoritative, no fallback). Direct podcast-media
   extraction accepts positive-integer `--timeout-ms` (one deadline shared by
@@ -82,16 +87,17 @@ other commands do not use `jsonl`.
 - Following external links from RSS entries, generic crawling, and browser-rendered
   webpage extraction. The reusable static `article` adapter is the narrow
   exception: it extracts a directly supplied safe HTTP(S) editorial page from
-  server-rendered HTML only, through `process URL` and linked-item feed
-  extraction. Universal `extract` dispatch (YouTube video, podcast media,
-  Apple Podcasts episode, or declarative episode page, or bounded feed) is
-  functional in v0.1, and a supplied HTML page URL is discovered for its feed
-  in bounded one hop.
+  server-rendered HTML only, through `extract URL`, `process URL`, and
+  linked-item feed extraction. Universal `extract` dispatch (article page,
+  YouTube video, podcast media, Apple Podcasts episode, or declarative episode
+  page, or bounded feed) is functional in v0.1, and a supplied non-article
+  HTML page URL is discovered for its feed in bounded one hop.
 - Automatic package publishing and Windows support guarantees.
 
-## Hosted-app responsibilities (`owlie-app`)
+## Consumer responsibilities
 
-The web UI, authentication and users, billing and credits, Postgres
-persistence, hosted job queues and workers, source monitoring and schedules,
-notifications, hosted media storage and delivery, analytics, administrative
-functionality, and cloud deployment. None of these appear in `owlie-cli`.
+Products that run Owlie (the private `owlie-app` is the first) own the web UI,
+authentication and users, billing and credits, persistence, job queues and
+workers, source monitoring and schedules, notifications, media storage and
+delivery, analytics, administrative functionality, and cloud deployment. None
+of these appear in `owlie-cli`.

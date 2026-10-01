@@ -1,6 +1,6 @@
 # ADR 0019 — Generic podcast episode-page audio resolution
 
-- **Status:** Accepted
+- **Status:** Accepted (refined by #120: only audio signals count, `<source>` only inside `<audio>` or with an audio type, enclosures must be audio, and the feed fallback uses only the entry whose link is the page, parsed with the safe RSS/Atom parser; signal strength and article precedence refined by [ADR 0037](0037-article-precedence-over-page-audio.md))
 - **Date:** 2026-09-12
 - **Supersedes:** the episode-page deferral in [ADR 0018](0018-local-podcast-transcription.md)
 

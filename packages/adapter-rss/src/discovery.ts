@@ -3,6 +3,7 @@ import type {
   ContentLocator,
   HttpFetcher,
   HttpFetchPolicy,
+  HttpTextResponse,
 } from '@owlieio/core';
 import {
   DefaultHttpFetcher,
@@ -11,7 +12,7 @@ import {
   isHtmlContentType,
   mediaTypeOf,
 } from '@owlieio/core';
-import { parseFeed, type FeedFormat } from './feed.js';
+import { decodeXmlEntities, parseFeed, type FeedFormat } from './feed.js';
 
 /** The fixed conventional-path probes, in the agreed order. */
 export const PROBE_PATHS: readonly string[] = [
@@ -40,6 +41,11 @@ export interface FeedDiscoveryOptions {
 /** A collection adapter that can also discover feeds from supplied pages. */
 export interface FeedDiscovery {
   discover(locator: ContentLocator, options?: FeedDiscoveryOptions): Promise<ContentCollection[]>;
+  /** Discovers feeds from a page the caller has already safely fetched. */
+  discoverFromResponse(
+    response: HttpTextResponse,
+    options?: FeedDiscoveryOptions,
+  ): Promise<ContentCollection[]>;
 }
 
 /**
@@ -75,7 +81,9 @@ function linkAttributes(tag: string): Record<string, string> {
   for (const match of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) {
     const name = match[1];
     const value = match[2] ?? match[3] ?? match[4];
-    if (name !== undefined && value !== undefined) result[name.toLowerCase()] = value;
+    if (name !== undefined && value !== undefined) {
+      result[name.toLowerCase()] = decodeXmlEntities(value);
+    }
   }
   return result;
 }
@@ -185,8 +193,27 @@ export class FeedDiscoveryService implements FeedDiscovery {
       signal: options.signal,
       policy: this.policy,
     });
-    if (!isHtmlContentType(response.contentType)) {
+    return this.discoverFromResponse(response, options);
+  }
+
+  /**
+   * Discovers feeds from a page already fetched through a safe fetch seam, so a
+   * caller that has the page (for example after classifying it) does not fetch
+   * it again. Probes are resolved against the page's final URL. A supplied
+   * response that is itself a feed (a feed media type whose body parses as
+   * RSS or Atom) is returned as the only candidate, whatever its URL shape.
+   */
+  async discoverFromResponse(
+    response: HttpTextResponse,
+    options: FeedDiscoveryOptions = {},
+  ): Promise<ContentCollection[]> {
+    try {
+      assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+    } catch {
       return [];
+    }
+    if (!isHtmlContentType(response.contentType)) {
+      return this.selfAsFeed(response);
     }
 
     const declared = this.declaredCandidates(response.text, response.url);
@@ -194,6 +221,16 @@ export class FeedDiscoveryService implements FeedDiscovery {
 
     const probed = await this.probeCandidates(response.url, options.signal);
     return this.toCollections(probed);
+  }
+
+  private async selfAsFeed(response: HttpTextResponse): Promise<ContentCollection[]> {
+    if (!isFeedContentType(response.contentType)) return [];
+    try {
+      const feed = await parseFeed(response.text);
+      return this.toCollections([{ url: response.url, format: feed.format }]);
+    } catch {
+      return [];
+    }
   }
 
   private declaredCandidates(html: string, baseUrl: string): FeedCandidate[] {

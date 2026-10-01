@@ -96,16 +96,49 @@ Each provider profile holds a `model`, `apiKey`, and optional `baseUrl`; the
 `{ provider, model, apiKey, baseUrl }` shape (DeepSeek-only) is still read and
 migrated into a profile on load, so existing users keep working.
 
-The `proxy` field is optional and applies only to YouTube transcript fetching:
-`{ "type": "webshare", "username", "password" }` for a WebShare residential
-proxy, or `{ "type": "generic", "url" }` for an HTTP/SOCKS proxy. Omitting it
-(or choosing "none" in `owlie setup`) uses a direct connection.
+The `proxy` field is optional and applies to all extraction traffic (see
+[Extraction proxy](#extraction-proxy)): `{ "type": "webshare", "username",
+"password" }` for a Webshare residential proxy, or `{ "type": "generic", "url"
+}` for an `http://`, `https://`, or `socks5://` proxy. Omitting it (or choosing
+"none" in `owlie setup`) uses a direct connection.
 
 The stored profile values are the lowest-priority explicit source (below `.env`
 and environment variables), so `--model` and the provider-specific variables
 still override them. The API key and proxy credentials are never echoed to the
 terminal; they are only written to the config file. Model lists are cached for
 one hour at `~/.cache/owlie/models.json` (see `owlie models`).
+
+## Extraction proxy
+
+One proxy can carry all extraction traffic: article pages, RSS/Atom feeds and
+discovery probes, podcast episode pages, Apple Podcasts lookups, media
+downloads, and YouTube transcripts. LLM provider calls, model discovery
+(`owlie models`), and local Whisper models never use it.
+
+Set **either** a proxy URL **or** a Webshare pair:
+
+| Variable                        | Meaning                                                             |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `OWLIE_PROXY_URL`               | `http://`, `https://`, or `socks5://` proxy URL; may carry userinfo |
+| `OWLIE_WEBSHARE_PROXY_USERNAME` | Webshare residential proxy username (set with the password)         |
+| `OWLIE_WEBSHARE_PROXY_PASSWORD` | Webshare residential proxy password (set with the username)         |
+
+Setting both forms, only one Webshare variable, a malformed URL, or another
+scheme is a `CONFIGURATION_ERROR` that names the variables but never their
+values. There is no command-line flag, because arguments are visible to other
+processes.
+
+Each source is read as a whole, and the first one that sets any proxy variable
+wins: process environment → `--env-file` → `.env.local` → `.env` → the saved
+`proxy` setting. In `--hosted` mode only the process environment is read.
+
+With a Webshare pair, YouTube uses the transcript library's Webshare support
+(which rotates IPs and retries when blocked), and other traffic uses Webshare's
+rotating endpoint (`p.webshare.io:80` with the `-rotate` username suffix). With
+a proxy URL, all traffic, YouTube included, goes through that proxy.
+
+`owlie doctor` reports the effective proxy as `{ mode: "none" | "url" |
+"webshare" | "invalid", source }`, never its host or credentials.
 
 ## Transcription defaults
 

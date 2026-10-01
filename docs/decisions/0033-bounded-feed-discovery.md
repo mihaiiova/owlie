@@ -1,6 +1,6 @@
 # ADR 0033 — Bounded one-hop RSS/Atom feed discovery from supplied pages
 
-- **Status:** Accepted
+- **Status:** Accepted (refined by [ADR 0035](0035-article-page-classification.md): discovery runs only for pages not classified as articles); a supplied URL that serves a feed is its own discovery result, and discovered feeds are listed with a `feed` hint rather than re-recognized by URL shape (#119)
 - **Date:** 2026-09-22
 
 ## Context

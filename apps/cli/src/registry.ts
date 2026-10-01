@@ -1,5 +1,6 @@
 import type {
   ContentProcessor,
+  HttpFetcher,
   HttpFetchPolicy,
   ItemAdapter,
   ProviderCatalog,
@@ -10,9 +11,9 @@ import { PodcastAdapter } from '@owlieio/adapter-podcast';
 import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
-import type { TranscriptProxy } from '@owlieio/adapter-youtube';
 import { DeepSeekProcessor, DeepSeekCatalog, DEEPSEEK_BASE_URL } from '@owlieio/provider-deepseek';
 import { OpenAIProcessor, OpenAICatalog, OPENAI_BASE_URL } from '@owlieio/provider-openai';
+import type { YouTubeNetwork } from './proxy.js';
 import { createPodcastResolvers } from './resolvers.js';
 
 /**
@@ -33,32 +34,40 @@ export const ADAPTER_IDS: readonly string[] = [
  * The default ordered item adapters for universal `extract` dispatch: the
  * specialized YouTube adapter first, then podcast media and declarative
  * episode pages, then the article fallback for any remaining safe HTTP(S)
- * URL. The CLI passes explicit language/proxy/transcription configuration.
+ * URL. The CLI passes explicit language/transcription configuration and the
+ * invocation's extraction network: one shared fetcher (proxied when a proxy is
+ * configured) for every page, feed, lookup, and media download, plus how the
+ * YouTube transcript client reaches YouTube.
  */
 export function defaultItemAdapters(
   options: {
     languages?: string[];
-    proxy?: TranscriptProxy;
+    fetcher?: HttpFetcher;
+    youtube?: YouTubeNetwork;
     cacheDir?: string;
     whisperModel?: string;
     mediaMaxBytes?: number;
     networkPolicy?: HttpFetchPolicy;
   } = {},
 ): ItemAdapter[] {
-  const podcastFetcher = new DefaultHttpFetcher();
+  const fetcher = options.fetcher ?? new DefaultHttpFetcher();
   return [
-    new YouTubeAdapter({ languages: options.languages, proxy: options.proxy }),
+    new YouTubeAdapter({
+      languages: options.languages,
+      proxy: options.youtube?.proxy,
+      fetchFn: options.youtube?.fetchFn,
+    }),
     new PodcastAdapter({
-      fetcher: podcastFetcher,
+      fetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
       cacheDir: options.cacheDir ?? '.owlie-cache',
       mediaFetchPolicy: {
         ...(options.networkPolicy ?? {}),
         ...(options.mediaMaxBytes === undefined ? {} : { maxResponseBytes: options.mediaMaxBytes }),
       },
-      resolvers: createPodcastResolvers(podcastFetcher, options.networkPolicy),
+      resolvers: createPodcastResolvers(fetcher, options.networkPolicy),
     }),
-    new ArticleAdapter({ policy: options.networkPolicy }),
+    new ArticleAdapter({ fetcher, policy: options.networkPolicy }),
   ];
 }
 

@@ -1,10 +1,10 @@
-const HELP = `owlie — local-first content extraction and processing
+const HELP = `owlie — general-purpose web content extractor
 
 Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract a YouTube video, podcast episode, or an RSS/Atom feed (direct URL or discovered page)
+  extract   Extract an article, YouTube video, podcast episode, or RSS/Atom feed (direct URL or discovered page)
   resolve   Resolve a URL to its validated audio media URL (no transcription)
   list      List entries in an RSS/Atom feed (direct URL or discovered page)
   process   Process text, a document, a URL, or a feed's linked items with an LLM
@@ -29,6 +29,8 @@ Options:
   --max-stdout-bytes N   Cap total stdout bytes
   --max-media-bytes N  Cap a direct-media download in bytes
   --each           Process each linked item of an RSS/Atom feed (process only)
+  --article        Extract a page URL as an article (extract only)
+  --feed           Discover and extract a page URL's feed (extract only)
   --env-file PATH  Load an explicit environment file
   --hosted         Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)
 
@@ -37,14 +39,16 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
-  'Extract content from a URL. A YouTube video or podcast episode writes its\n' +
-  'normalized text to stdout, or a JSON NormalizedDocument with --json. An\n' +
-  'RSS/Atom feed URL — or an HTML page URL that exposes one via a link element\n' +
-  'or a conventional feed path — writes a single JSON envelope of its bounded\n' +
-  'linked items, each with its URL, title, and normalized document or\n' +
-  'structured error. A page URL with no discoverable feed is a clear error\n' +
-  'rather than article extraction. --limit bounds feed extraction (default 10,\n' +
+  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
+  'Extract content from a URL. A YouTube video, podcast episode, or article\n' +
+  'page writes its normalized text to stdout, or a JSON NormalizedDocument with\n' +
+  '--json. A page is an article when it declares one (og:type or JSON-LD) or\n' +
+  'has a long readable body. An RSS/Atom feed URL, or another HTML page URL\n' +
+  'that exposes a feed via a link element or a conventional feed path, writes a\n' +
+  'single JSON envelope of its bounded linked items, each with its URL, title,\n' +
+  'and normalized document or structured error. A page that is neither is a\n' +
+  'clear error. --article or --feed forces either path without fallback; they\n' +
+  'exclude each other and the resolver flags. --limit bounds feed extraction (default 10,\n' +
   'max 500). --language sets a comma-separated language priority list for\n' +
   'YouTube transcripts (default en).\n' +
   '--timeout-ms applies one positive end-to-end deadline to the complete\n' +
@@ -110,7 +114,9 @@ const AUTH_HELP =
 const SETUP_HELP =
   'owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]\n\n' +
   'Configure your LLM provider, model, API key, and (optionally) a proxy for\n' +
-  'YouTube transcript fetching, interactively. The model list is fetched live\n' +
+  'all extraction traffic (pages, feeds, media, YouTube), interactively. The\n' +
+  'OWLIE_PROXY_URL or OWLIE_WEBSHARE_PROXY_USERNAME/PASSWORD variables override\n' +
+  'the saved proxy. The model list is fetched live\n' +
   'from the chosen provider (no fallback or cache), and choices are persisted\n' +
   'per provider for future commands.';
 

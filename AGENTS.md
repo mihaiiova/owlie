@@ -5,21 +5,28 @@ Coding agents must read this file before modifying the repository. Nested
 
 ## 1. Repository purpose
 
-Owlie CLI is an open-source, local-first content extraction and processing
-tool. It turns sources (YouTube, podcasts, Reddit, RSS/Atom) into normalized
-text that can be searched, transcribed, and processed with an LLM — locally.
+Owlie CLI is an open-source, general-purpose web content extractor. Given a
+URL (an article, a video, a podcast episode, a feed, or a discussion), it
+returns normalized, provenance-stamped content for people and programs, and can
+process that content with an LLM the user chooses. It runs locally or as a
+subprocess inside a consuming product (ADR 0034).
+
+Design every capability for any consumer. A feature must make sense for a
+product other than `owlie-app`; consumer-specific policy (identity and
+de-duplication rules, retries, pricing, storage, scheduling) stays in the
+consumer.
 
 ## 2. Current implementation status
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (YouTube transcripts, podcast direct-media URLs, Apple Podcasts
+`owlie extract` (article pages, YouTube transcripts, podcast direct-media URLs, Apple Podcasts
 episode URLs, and declarative server-rendered episode pages, and bounded RSS/Atom feed batches —
-from a feed URL or an HTML page URL that exposes one),
+from a feed URL or a non-article HTML page URL that exposes one; `--article`/`--feed` force a path),
 `owlie list`, `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
-stdin document, a normalized JSON document, a single http(s) URL — which still
-uses the static-article adapter — or a feed
+stdin document, a normalized JSON document, a single http(s) URL — which
+uses the static-article adapter for pages — or a feed
 `--each` batch, selected
 by `--model provider/model-id` — or a plain `--model id` with the deprecated
 `--provider` alias, `OWLIE_PROVIDER`, or the saved active provider),
@@ -33,7 +40,10 @@ emits the versioned envelope). Extraction documents carry a first-class v2
 warnings; ADR 0032). A global
 `--hosted` flag makes any command deterministic for a hosted subprocess:
 flags and injected process environment only, with no dotenv, saved user
-configuration, or model-cache fallback, and `auth`/`setup` rejected. `--json`
+configuration, or model-cache fallback, and `auth`/`setup` rejected. One
+extraction proxy (`OWLIE_PROXY_URL` or the `OWLIE_WEBSHARE_PROXY_*` pair, or
+the saved `proxy` locally) carries all extraction traffic, never provider
+calls (ADR 0036). `--json`
 is a unified, versioned subprocess protocol (`{ schemaVersion, command, result }`
 envelopes on stdout, versioned JSONL progress and terminal error/cancellation
 records on stderr; ADR 0030). Every networked command also accepts an
@@ -55,9 +65,9 @@ differ from older v1 plans.
 
 ### v0.1 (current milestone)
 
-Functional commands: `owlie extract URL` (a YouTube video, podcast direct-media
+Functional commands: `owlie extract URL` (an article page, a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, declarative server-rendered episode page, or a bounded
-RSS/Atom feed — supplied as a feed URL or an HTML page URL that exposes one),
+RSS/Atom feed — supplied as a feed URL or a non-article HTML page URL that exposes one),
 `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
 `owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie capabilities`,
@@ -66,8 +76,8 @@ extraction, direct-media, Apple Podcasts episode, and declarative episode-page
 podcast transcription via local faster-whisper, explicit resolver-selection
 flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
 `resolve`, a single generic local faster-whisper pipeline with chunked long-form
-transcription, static article extraction via the universal dispatch (`process
-URL` and linked-item feed extraction), bounded RSS/Atom listing, linked-item
+transcription, static article extraction via the universal dispatch (`extract
+URL` with page classification per ADR 0035, `process URL`, and linked-item feed extraction), bounded RSS/Atom listing, linked-item
 feed extraction, linked-item feed processing (`process --each`), and bounded
 one-hop RSS/Atom feed discovery from supplied HTML pages (ADR 0033), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), a provider-neutral
@@ -84,8 +94,8 @@ coding-agent harness.
 Explicit v0.1 non-goals: YouTube playlists/channels, Reddit, podcast provider-specific
 resolution other than Apple Podcasts and podcast feed discovery, generic webpage crawling, collection search,
 `process --each` for non-feed collections, `owlie run`,
-scheduling/monitoring/cron, local database or persistent jobs, `owlie-app`
-integration, Owlie user authentication,
+scheduling/monitoring/cron, local database or persistent jobs, consumer-specific
+integration code, Owlie user authentication,
 billing/credits/analytics/notifications/hosted storage, and automatic
 publishing or deployment. Deferred scaffold packages are not deleted, but
 documentation must not imply they are functional.
@@ -99,22 +109,28 @@ serialization, and reusable adapters/providers.
 
 Explicit non-goals for v1: source monitoring, scheduling, cron, daemons, a
 local database, persistent job records, Reddit OAuth/credentials/comments/HTML
-scraping, following external links from RSS entries, generic webpage
-extraction, automatic publishing, and Windows support guarantees.
+scraping, following external links from RSS entries, crawling,
+browser/JavaScript-rendered pages, logged-in or paywalled pages, automatic
+publishing, and Windows support guarantees. Extracting a supplied web page URL
+is in scope.
 
-## 4. Boundary with `owlie-app`
+## 4. Boundary with consuming products
 
-`owlie-app` is the private hosted product (UI, auth, billing, Postgres, job
-queues, monitoring, schedules, notifications, storage, analytics, admin,
-deployment). `owlie-cli` owns the reusable content functionality. `owlie-app`
-consumes it by running the published `owlie` command as a subprocess (typically
-in a container) — it does not import `owlie-cli` packages as libraries:
+`owlie-cli` owns the reusable content functionality. Consuming products run the
+published `owlie` command as a subprocess (typically in a container) through
+the public contract in `docs/cli-contract.md`. They do not import `owlie-cli`
+packages as libraries:
 
 ```text
-owlie-app → runs `owlie` CLI (container/subprocess)
+consuming product → runs `owlie` CLI (container/subprocess)
 ```
 
-Never import files or packages from `owlie-app`. Never introduce hosted
+A consuming product owns its UI, auth, billing, persistence, job queues,
+monitoring, schedules, notifications, storage, analytics, admin, and
+deployment. The private `owlie-app` is the first consuming product; others may
+follow.
+
+Never import files or packages from a consuming product. Never introduce hosted
 concepts (user IDs, billing, Stripe, Better Auth, Hono routes, Postgres,
 Railway, R2, PostHog, Resend, hosted feed/playback state, cron) into this
 repository.
@@ -151,7 +167,8 @@ owlie (published)    → bundles core, adapters, providers (owns terminal/env/co
 
 Documented exceptions: `adapter-reddit` may reuse public RSS/Atom parsing from
 `adapter-rss`; `adapter-podcast` may reuse it solely to select the matching
-Apple Podcasts RSS enclosure. Source-specific URL normalization and metadata
+episode's enclosure from a feed (the Apple Podcasts fallback and the
+episode-page feed fallback). Source-specific URL normalization and metadata
 interpretation stay in the consuming adapter. Do not create a generic `utils`
 package. `pnpm check:deps` enforces these rules automatically.
 
