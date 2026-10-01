@@ -246,10 +246,13 @@ describe('createHttpByteBudget', () => {
     expect(budget.remaining).toBe(0);
   });
 
-  it('throws when the remaining budget is insufficient', () => {
+  it('throws and exhausts the budget when the remaining budget is insufficient', () => {
     const budget = createHttpByteBudget(3);
     expect(() => budget.consume(4)).toThrow(ExtractionError);
-    expect(budget.remaining).toBe(3);
+    // The over-limit chunk was already received, so nothing may follow it,
+    // even when a caller catches the error and continues with another fetch.
+    expect(budget.remaining).toBe(0);
+    expect(() => budget.consume(1)).toThrow(ExtractionError);
   });
 });
 
@@ -873,7 +876,11 @@ describe('DefaultHttpFetcher', () => {
     await expect(
       fetcher.fetch('https://example.com/b', { policy: { byteBudget: budget } }),
     ).rejects.toThrow(ExtractionError);
-    expect(budget.remaining).toBe(2);
+    // The over-limit response exhausts the budget, so no later fetch can proceed.
+    expect(budget.remaining).toBe(0);
+    await expect(
+      fetcher.fetch('https://example.com/a', { policy: { byteBudget: budget } }),
+    ).rejects.toThrow(ExtractionError);
   });
 
   it('cancels on timeout', async () => {

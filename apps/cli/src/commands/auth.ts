@@ -58,7 +58,13 @@ export async function runAuthCommand(
     }
     const statuses = providers.map((provider) => ({
       provider: provider.id,
-      source: resolveCredentialSource(provider.id, {}, env, loadFile, readConfig),
+      source: resolveCredentialSource(
+        provider.id,
+        { envFile: options.envFile },
+        env,
+        loadFile,
+        readConfig,
+      ),
     }));
     if (options.json) {
       writeResultEnvelope(io, 'auth', statuses);

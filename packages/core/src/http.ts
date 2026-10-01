@@ -31,7 +31,8 @@ export interface HttpByteBudget {
   readonly remaining: number;
   /**
    * Records `bytes` of download; throws {@link ExtractionError} when the
-   * remaining budget is insufficient.
+   * remaining budget is insufficient, and then exhausts the budget so no later
+   * fetch in the invocation can continue past the cap.
    */
   consume(bytes: number): void;
 }
@@ -49,6 +50,10 @@ export function createHttpByteBudget(maxBytes: number): HttpByteBudget {
     },
     consume(bytes: number): void {
       if (bytes > remaining) {
+        // The over-limit chunk has already been received; callers that catch
+        // the error and continue (feed probes, batch items) must not get a
+        // fresh allowance.
+        remaining = 0;
         throw new ExtractionError(
           `network download exceeded the ${maxBytes}-byte invocation budget`,
         );
