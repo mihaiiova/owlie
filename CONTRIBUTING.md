@@ -6,7 +6,7 @@ contributing, read the [root `AGENTS.md`](AGENTS.md) and the
 
 ## Prerequisites
 
-- Node.js 20+ (pinned in `.nvmrc`)
+- Node.js 22+ (pinned in `.nvmrc`)
 - pnpm (pinned in `package.json` via `packageManager`)
 
 ```bash

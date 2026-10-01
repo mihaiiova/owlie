@@ -92,7 +92,7 @@ merge/squash commit subject.
 
 ## 3. Local checks
 
-Run from the repository root (Node 20+, pnpm pinned via `packageManager`):
+Run from the repository root (Node 22+, pnpm pinned via `packageManager`):
 
 | Command                                                   | Purpose                                                                                |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |

@@ -1,7 +1,7 @@
 name: Release validation
 
 # Validation-only: builds and packs the candidate once, installs and
-# offline-smoke-tests the exact artifact on Node 20 and 22, and runs the full
+# offline-smoke-tests the exact artifact on the .nvmrc Node version, and runs the full
 # live E2E suite once on Node 22. It does NOT tag, publish, or create a GitHub
 # Release. Publishing happens in the separate publish.yml workflow (npm Trusted
 # Publishers) after this gate passes.
@@ -59,19 +59,15 @@ jobs:
           retention-days: 14
 
   offline:
-    name: Offline smoke (Node ${{ matrix.node }})
+    name: Offline smoke
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['20', '22']
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version-file: .nvmrc
 
       - uses: actions/download-artifact@v4
         with:
