@@ -50,6 +50,13 @@ jobs:
       - name: Verify packed artifact (offline smoke)
         run: pnpm verify:artifact
 
+      # Trusted publishing (OIDC) needs npm >= 11.5.1. Node 22 bundles npm 10,
+      # which sends the publish without credentials; npm then answers E404.
+      - name: Use an npm CLI that supports trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
       - name: Publish to npm
         working-directory: apps/cli
         run: npm publish --access public
