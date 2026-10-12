@@ -41,8 +41,9 @@ a discussion.
   text, and the comment tree in HN's ranked order. The tree is read level by
   level within three bounds: top-level comments (default 30, max 100), reply
   levels (default 2, max 3), and comments in total (default 100, max 300).
-  Deleted and dead comments are skipped and still use their slot, which keeps
-  the number of requests bounded. When comments are left out, the document
+  The total bound counts every comment fetched: deleted and dead comments are
+  skipped but still use budget, so one discussion makes at most `maxComments`
+  comment requests. When comments are left out, the document
   carries an `HN_COMMENTS_TRUNCATED` warning. HN's limited HTML is converted to
   plain text with links kept as URLs and code blocks preserved.
 - **`--hn-content discussion|article|both`** (default `discussion`) chooses what

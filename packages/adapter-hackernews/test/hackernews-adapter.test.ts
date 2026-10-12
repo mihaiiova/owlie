@@ -239,9 +239,10 @@ describe('HackerNewsAdapter.extract', () => {
 
     const total = adapter({ comments: { maxComments: 2 } }).adapter;
     const capped = await total.extract(await total.resolveItem({ url: ITEM_URL }));
-    // Top-level slots go first (the deleted comment uses one), then replies.
-    expect(capped.metadata.commentsIncluded).toBe(2);
-    expect(capped.text).toContain('[r1]');
+    // Two fetches: c1 and the deleted comment, which uses the rest of the budget.
+    expect(capped.metadata.commentsIncluded).toBe(1);
+    expect(capped.text).toContain('[c1]');
+    expect(capped.text).not.toContain('[r1]');
     expect(capped.text).not.toContain('[c3]');
   });
 
@@ -279,6 +280,37 @@ describe('HackerNewsAdapter.extract', () => {
       CancelledError,
     );
     expect(progress.events.map((event) => event.type)).toEqual(['started', 'cancelled']);
+  });
+});
+
+describe('comment budget', () => {
+  it('counts deleted comments toward the total, so requests never exceed maxComments', async () => {
+    // 29 deleted top-level comments, then one live comment with 200 replies.
+    const kids = Array.from({ length: 29 }, (_, index) => 1000 + index).concat(2000);
+    const replies = Array.from({ length: 200 }, (_, index) => 3000 + index);
+    const items: Record<number, unknown> = {
+      1: { id: 1, type: 'story', title: 'Busy thread', descendants: 230, kids },
+      2000: { id: 2000, type: 'comment', by: 'live', text: 'Still here', kids: replies },
+    };
+    for (const id of kids.slice(0, 29)) items[id] = { id, type: 'comment', deleted: true };
+    for (const id of replies) items[id] = { id, type: 'comment', by: `r${id}`, text: 'Reply' };
+    const calls: string[] = [];
+    const hn = new HackerNewsAdapter({
+      fetcher: {
+        async fetch(url) {
+          calls.push(url);
+          const id = Number(url.match(/\/item\/(\d+)\.json$/)?.[1]);
+          return { url, contentType: 'application/json', text: JSON.stringify(items[id] ?? null) };
+        },
+      },
+    });
+    const document = await hn.extract(
+      await hn.resolveItem({ url: 'https://news.ycombinator.com/item?id=1' }),
+    );
+    const commentFetches = calls.filter((url) => !url.endsWith('/item/1.json')).length;
+    expect(commentFetches).toBe(100);
+    // One live top-level comment plus the 70 replies left in the budget.
+    expect(document.metadata.commentsIncluded).toBe(71);
   });
 });
 

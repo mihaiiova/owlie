@@ -418,7 +418,8 @@ export class HackerNewsAdapter implements CollectionAdapter, ItemAdapter {
   /**
    * Reads the comment tree level by level in HN's ranked order: up to
    * `maxTopLevelComments` top-level comments, then replies to `depth` levels,
-   * stopping at `maxComments` in total. Deleted and dead comments are skipped.
+   * stopping after `maxComments` comment fetches in total. Deleted and dead
+   * comments are skipped but still count, so requests stay bounded.
    */
   private async readComments(
     topLevelIds: readonly number[],
@@ -426,14 +427,17 @@ export class HackerNewsAdapter implements CollectionAdapter, ItemAdapter {
   ): Promise<CommentTree> {
     const roots: HackerNewsComment[] = [];
     let included = 0;
+    // Every fetched comment uses budget, usable or not, so requests stay within `maxComments`.
+    let fetchedCount = 0;
     let level: Array<{ id: number; siblings: HackerNewsComment[] }> = topLevelIds
       .slice(0, this.bounds.maxTopLevelComments)
       .map((id) => ({ id, siblings: roots }));
 
     for (let depth = 1; depth <= this.bounds.depth && level.length > 0; depth++) {
-      const remaining = this.bounds.maxComments - included;
+      const remaining = this.bounds.maxComments - fetchedCount;
       if (remaining <= 0) break;
       const wanted = level.slice(0, remaining);
+      fetchedCount += wanted.length;
       const fetched = await mapConcurrent(wanted, (entry) => this.getItem(entry.id, signal));
       const nextLevel: typeof level = [];
       for (const [index, record] of fetched.entries()) {
