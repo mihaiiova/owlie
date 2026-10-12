@@ -21,9 +21,10 @@ consumer.
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
 `owlie extract` (article pages, YouTube transcripts, podcast direct-media URLs, Apple Podcasts
-episode URLs, and declarative server-rendered episode pages, and bounded RSS/Atom feed batches —
+episode URLs, and declarative server-rendered episode pages, Hacker News items — discussion,
+linked article, or both via `--hn-content` (ADR 0038) — and bounded RSS/Atom feed batches —
 from a feed URL or a non-article HTML page URL that exposes one; `--article`/`--feed` force a path),
-`owlie list`, `owlie resolve` (a validated audio media URL with no download or
+`owlie list` (RSS/Atom feeds and Hacker News lists), `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
 stdin document, a normalized JSON document, a single http(s) URL — which
 uses the static-article adapter for pages — or a feed
@@ -66,9 +67,10 @@ differ from older v1 plans.
 ### v0.1 (current milestone)
 
 Functional commands: `owlie extract URL` (an article page, a YouTube video, podcast direct-media
-URL, Apple Podcasts episode URL, declarative server-rendered episode page, or a bounded
+URL, Apple Podcasts episode URL, declarative server-rendered episode page, a Hacker News item, or a bounded
 RSS/Atom feed — supplied as a feed URL or a non-article HTML page URL that exposes one),
-`owlie resolve URL` (a validated audio media URL, no transcription), `owlie list FEED_URL`, `owlie process [FILE|URL] --prompt`, `owlie
+`owlie resolve URL` (a validated audio media URL, no transcription), `owlie list URL` (a feed or a
+Hacker News list), `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
 `owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie capabilities`,
 `owlie --help`, `owlie --version`. In scope: individual YouTube video transcript
@@ -77,7 +79,9 @@ podcast transcription via local faster-whisper, explicit resolver-selection
 flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
 `resolve`, a single generic local faster-whisper pipeline with chunked long-form
 transcription, static article extraction via the universal dispatch (`extract
-URL` with page classification per ADR 0035, `process URL`, and linked-item feed extraction), bounded RSS/Atom listing, linked-item
+URL` with page classification per ADR 0035, `process URL`, and linked-item feed extraction), the
+Hacker News adapter over the official API (bounded list listing and item discussions with
+bounded comment trees, plus the linked article composed in `apps/cli`; ADR 0038), bounded RSS/Atom listing, linked-item
 feed extraction, linked-item feed processing (`process --each`), and bounded
 one-hop RSS/Atom feed discovery from supplied HTML pages (ADR 0033), DeepSeek and OpenAI `ContentProcessor`s
 (via `ai` and `@ai-sdk/deepseek`/`@ai-sdk/openai`), a provider-neutral
@@ -144,6 +148,7 @@ packages/testing/            @owlieio/testing (fakes, fixtures, contract tests)
 packages/adapter-youtube/    @owlieio/adapter-youtube
 packages/adapter-podcast/    @owlieio/adapter-podcast
 packages/adapter-rss/        @owlieio/adapter-rss
+packages/adapter-hackernews/ @owlieio/adapter-hackernews
 packages/adapter-reddit/     @owlieio/adapter-reddit
 packages/provider-deepseek/  @owlieio/provider-deepseek
 packages/provider-openai/    @owlieio/provider-openai
@@ -197,13 +202,13 @@ pnpm cli doctor
 ## 8. Item-versus-collection model
 
 Model collections and items separately. Collections: YouTube playlist,
-subreddit, RSS/Atom feed. Items: YouTube video, podcast episode, Reddit post,
-RSS/Atom entry. A collection adapter recognizes, resolves, lists bounded items
+subreddit, RSS/Atom feed, Hacker News list. Items: YouTube video, podcast
+episode, Reddit post, RSS/Atom entry, Hacker News item. A collection adapter recognizes, resolves, lists bounded items
 with stable identities, and exposes metadata. An item adapter recognizes or
 resolves an item, extracts a `NormalizedDocument`, emits provider-neutral
 progress events, and supports cancellation. Not every document is a transcript:
-YouTube/podcast documents may contain transcripts; Reddit/RSS documents contain
-normalized written text.
+YouTube/podcast documents may contain transcripts; Reddit/RSS/Hacker News
+documents contain normalized written text.
 
 ## 9. Adapter and provider rules
 

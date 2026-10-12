@@ -127,6 +127,17 @@ describe('extract resolver-selection flags', () => {
     expect(stderr()).toContain('--podcast-apple');
   });
 
+  it.each([
+    ['--hn-content', 'both'],
+    ['--max-comments', '5'],
+  ])('rejects %s with a resolver flag as a usage error', async (flag, value) => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(['extract', APPLE_URL, '--podcast-apple', flag, value], io, deps());
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('cannot be used with a resolver flag');
+  });
+
   it('fails clearly rather than producing article text when --podcast-page finds no enclosure', async () => {
     const pageFetcher: HttpFetcher = {
       async fetch(url) {

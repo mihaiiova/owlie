@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "General-purpose web content extractor: URLs in, normalized content out",
   "keywords": [
     "web-content-extraction",
@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@owlieio/adapter-article": "workspace:*",
+    "@owlieio/adapter-hackernews": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",
     "@owlieio/adapter-rss": "workspace:*",

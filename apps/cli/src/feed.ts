@@ -23,6 +23,12 @@ export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
   'enclosureUrl',
   'duration',
   'categories',
+  // Hacker News: item id, post kind, point-in-time score and comment count, linked URL.
+  'hnId',
+  'kind',
+  'score',
+  'commentCount',
+  'linkUrl',
 ];
 
 /** The allowlisted, HTML-free metadata of a listed item. */

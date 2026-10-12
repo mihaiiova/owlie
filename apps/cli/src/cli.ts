@@ -56,7 +56,18 @@ export interface CliOptions {
   resolver?: string;
   /** Forced page handling for `extract` (`--article` or `--feed`). */
   page?: 'article' | 'feed';
+  /** What `extract` reads for a Hacker News item (`--hn-content`). */
+  hnContent?: HackerNewsContent;
+  /** Hacker News comment bounds for `extract` (raw flag values). */
+  maxComments?: string;
+  commentDepth?: string;
+  maxTopLevelComments?: string;
 }
+
+/** What `extract` reads for a Hacker News item. */
+export type HackerNewsContent = 'discussion' | 'article' | 'both';
+
+const HN_CONTENT_VALUES: readonly HackerNewsContent[] = ['discussion', 'article', 'both'];
 
 export interface CliDeps {
   auth?: AuthDeps;
@@ -103,6 +114,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--max-media-bytes',
     '--max-network-bytes',
     '--max-stdout-bytes',
+    '--hn-content',
+    '--max-comments',
+    '--comment-depth',
+    '--max-top-level-comments',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -150,6 +165,22 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--max-stdout-bytes':
         options.maxStdoutBytes = value;
+        break;
+      case '--hn-content':
+        if ((HN_CONTENT_VALUES as readonly string[]).includes(value)) {
+          options.hnContent = value as HackerNewsContent;
+        } else {
+          usageError = `--hn-content must be "discussion", "article" or "both", received "${value}"`;
+        }
+        break;
+      case '--max-comments':
+        options.maxComments = value;
+        break;
+      case '--comment-depth':
+        options.commentDepth = value;
+        break;
+      case '--max-top-level-comments':
+        options.maxTopLevelComments = value;
         break;
     }
   };

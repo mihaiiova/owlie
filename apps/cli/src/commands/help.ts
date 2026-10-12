@@ -4,9 +4,9 @@ Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract an article, YouTube video, podcast episode, or RSS/Atom feed (direct URL or discovered page)
+  extract   Extract an article, YouTube video, podcast episode, Hacker News item, or RSS/Atom feed (direct URL or discovered page)
   resolve   Resolve a URL to its validated audio media URL (no transcription)
-  list      List entries in an RSS/Atom feed (direct URL or discovered page)
+  list      List entries in an RSS/Atom feed (direct URL or discovered page) or a Hacker News list
   process   Process text, a document, a URL, or a feed's linked items with an LLM
   models    List current models for your LLM providers
   auth      Manage API keys for LLM providers
@@ -31,6 +31,10 @@ Options:
   --each           Process each linked item of an RSS/Atom feed (process only)
   --article        Extract a page URL as an article (extract only)
   --feed           Discover and extract a page URL's feed (extract only)
+  --hn-content MODE  Read a Hacker News item's discussion, linked article, or both (extract only)
+  --max-comments N   Cap Hacker News comments read in total (default 100, max 300)
+  --comment-depth N  Hacker News reply levels read (default 2, max 3)
+  --max-top-level-comments N  Cap top-level Hacker News comments (default 30, max 100)
   --env-file PATH  Load an explicit environment file
   --hosted         Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)
 
@@ -39,7 +43,7 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
+  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
   'Extract content from a URL. A YouTube video, podcast episode, or article\n' +
   'page writes its normalized text to stdout, or a JSON NormalizedDocument with\n' +
   '--json. A page is an article when it declares one (og:type or JSON-LD) or\n' +
@@ -62,7 +66,14 @@ const EXTRACT_HELP =
   'default.\n' +
   'A resolver-selection flag (--podcast-media, --podcast-page, --podcast-apple)\n' +
   'asserts which podcast resolver finds the audio URL; at most one may be\n' +
-  'supplied and it overrides URL recognition without fallback.';
+  'supplied and it overrides URL recognition without fallback.\n' +
+  'A Hacker News item URL (news.ycombinator.com/item?id=N) is read through the\n' +
+  'official HN API. --hn-content discussion (default) writes the post and a\n' +
+  'bounded comment tree; article writes the linked article (the post text for\n' +
+  'a text post); both writes the article, then the discussion, and keeps the\n' +
+  'discussion with a warning when the article cannot be read. --max-comments,\n' +
+  '--comment-depth and --max-top-level-comments bound the comment tree.\n' +
+  'These flags apply only to Hacker News item URLs; --article and --feed do not.';
 
 const RESOLVE_HELP =
   'owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]\n\n' +
@@ -72,12 +83,14 @@ const RESOLVE_HELP =
   'run in recognition order and never fall back to article extraction.';
 
 const LIST_HELP =
-  'owlie list FEED_URL [--limit N] [--json]\n\n' +
+  'owlie list URL [--limit N] [--json]\n\n' +
   'List entries in an RSS/Atom feed, bounded by --limit (default 10, max 500).\n' +
   'A feed URL is used directly; an HTML page URL that exposes a feed is\n' +
-  'discovered first. Writes a line-oriented summary to stdout, or a JSON\n' +
-  'envelope of collection metadata, item metadata, and truncation state with\n' +
-  '--json.';
+  'discovered first. A Hacker News list URL (/, /news, /newest, /best, /ask,\n' +
+  '/show, or /submitted?id=USER) lists its stories with their HN id, kind,\n' +
+  'score, comment count, and linked URL. Writes a line-oriented summary to\n' +
+  'stdout, or a JSON envelope of collection metadata, item metadata, and\n' +
+  'truncation state with --json.';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +

@@ -12,7 +12,7 @@ milestone delivers, what is deferred, and what belongs to consuming products.
   Changesets, GitHub Actions CI.
 - `@owlieio/core` provider-neutral contracts and types.
 - Adapter URL recognition/normalization (YouTube, podcast media, Apple Podcasts
-  episodes, and declarative episode pages, RSS/Atom, Reddit).
+  episodes, and declarative episode pages, RSS/Atom, Hacker News, Reddit).
 - Local faster-whisper provider with explicit configuration and no network
   calls. (OpenAI is functional in v0.1; see below.)
 - `@owlieio/testing` fakes, fixtures, and contract-test helpers.
@@ -29,7 +29,9 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
   URL, or declarative server-rendered episode page (local faster-whisper,
   chunked), or the bounded linked items of an RSS/Atom feed — supplied as a
   feed URL or a non-article HTML page URL that exposes one — as normalized
-  documents. `--article` and `--feed` force either page path (ADR 0035). Optional
+  documents. A Hacker News item URL yields its discussion (the post and a
+  bounded comment tree), its linked article, or both, chosen with
+  `--hn-content` (ADR 0038). `--article` and `--feed` force either page path (ADR 0035). Optional
   `--podcast-media`/`--podcast-page`/`--podcast-apple` flags select the audio
   resolver explicitly (authoritative, no fallback). Direct podcast-media
   extraction accepts positive-integer `--timeout-ms` (one deadline shared by
@@ -40,8 +42,10 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 - `owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]` —
   resolve a URL to its validated audio media URL without downloading or
   transcribing, for consumers that run their own transcription.
-- `owlie list FEED_URL [--limit N] [--json]` — list bounded entries of an
-  RSS/Atom feed, supplied as a feed URL or an HTML page URL that exposes one.
+- `owlie list URL [--limit N] [--json]` — list bounded entries of an
+  RSS/Atom feed, supplied as a feed URL or an HTML page URL that exposes one,
+  or the stories of a Hacker News list (front page, newest, best, Ask HN,
+  Show HN, or a user's submissions) through the official HN API.
 - `owlie process [FILE] --prompt "..."` — process plain text or a normalized
   document with DeepSeek or OpenAI, reading from a positional file, `--input
 FILE`, or stdin. Model selection is `--model provider/model-id` (self-contained),
@@ -84,8 +88,11 @@ other commands do not use `jsonl`.
   functional.
 - A local database or persistent job records.
 - Reddit OAuth, credentials, comment-tree extraction, and HTML scraping.
+- Hacker News keyword search (Algolia), points thresholds, and re-reading a
+  story later for new comments.
 - Following external links from RSS entries, generic crawling, and browser-rendered
-  webpage extraction. The reusable static `article` adapter is the narrow
+  webpage extraction. A Hacker News item's own linked article, read with
+  `--hn-content article|both`, is the one followed link. The reusable static `article` adapter is the narrow
   exception: it extracts a directly supplied safe HTTP(S) editorial page from
   server-rendered HTML only, through `extract URL`, `process URL`, and
   linked-item feed extraction. Universal `extract` dispatch (article page,

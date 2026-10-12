@@ -184,7 +184,7 @@ describe('unified JSON protocol through run()', () => {
     expect(stdoutJson()).toMatchObject({
       schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
       command: 'doctor',
-      result: { adapters: ['youtube', 'podcast', 'rss', 'article'] },
+      result: { adapters: ['youtube', 'podcast', 'rss', 'article', 'hackernews'] },
     });
     expect(stderr()).toBe('');
   });

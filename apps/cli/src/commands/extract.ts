@@ -50,6 +50,8 @@ import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
 import { parsePositiveIntegerFlag } from '../invocation.js';
+import { MAX_COMMENT_BOUNDS, type HackerNewsCommentBounds } from '@owlieio/adapter-hackernews';
+import { extractHackerNewsItem, isHackerNewsAdapter } from '../hackernews.js';
 import { lazyExtractionNetwork } from '../proxy.js';
 import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 
@@ -128,8 +130,10 @@ export async function runExtractCommand(
   }
 
   let maxMediaBytes: number | undefined;
+  let hackerNewsComments: Partial<HackerNewsCommentBounds>;
   try {
     maxMediaBytes = parsePositiveIntegerFlag(options.maxMediaBytes, '--max-media-bytes');
+    hackerNewsComments = parseCommentBounds(options);
   } catch (error) {
     if (!options.quiet) writeUsageError(io, options, 'extract', (error as Error).message);
     return ExitCode.Usage;
@@ -141,6 +145,17 @@ export async function runExtractCommand(
   const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
 
   if (options.resolver !== undefined) {
+    if (usesHackerNewsFlags(options)) {
+      if (!options.quiet) {
+        writeUsageError(
+          io,
+          options,
+          'extract',
+          '--hn-content and the comment flags cannot be used with a resolver flag',
+        );
+      }
+      return ExitCode.Usage;
+    }
     return runResolverExtraction(
       url,
       io,
@@ -166,6 +181,7 @@ export async function runExtractCommand(
         whisperModel: readConfig().transcription?.model,
         mediaMaxBytes: maxMediaBytes,
         networkPolicy: deps.networkPolicy,
+        hackerNewsComments,
       });
     feedAdapter =
       deps.feedAdapter ??
@@ -173,6 +189,31 @@ export async function runExtractCommand(
   } catch (error) {
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
+  }
+
+  const hackerNews = itemAdapters.find(isHackerNewsAdapter);
+  const isHackerNewsUrl = hackerNews?.recognize({ url }) ?? false;
+  if (!isHackerNewsUrl && usesHackerNewsFlags(options)) {
+    if (!options.quiet) {
+      writeUsageError(
+        io,
+        options,
+        'extract',
+        '--hn-content and the comment flags can only be used with a Hacker News item URL',
+      );
+    }
+    return ExitCode.Usage;
+  }
+  if (isHackerNewsUrl && options.page !== undefined) {
+    if (!options.quiet) {
+      writeUsageError(
+        io,
+        options,
+        'extract',
+        `--${options.page} cannot be used with a Hacker News URL (use --hn-content)`,
+      );
+    }
+    return ExitCode.Usage;
   }
 
   if (options.page === 'article') {
@@ -191,6 +232,24 @@ export async function runExtractCommand(
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
+    if (hackerNews !== undefined && isHackerNewsUrl) {
+      assertNoUrlCredentials(url);
+      const progress = createProgressSink(io, options, 'extract', (event) => {
+        if (event.type === 'started') spinner.start(`extracting ${event.target}`);
+      });
+      const document = await extractHackerNewsItem({
+        url,
+        mode: options.hnContent ?? 'discussion',
+        adapter: hackerNews,
+        articleAdapters: articleAdapters(itemAdapters),
+        signal: deps.signal,
+        progress,
+        clock: deps.clock,
+      });
+      spinner.stop();
+      writeDocument(io, options, document);
+      return ExitCode.Success;
+    }
     if (options.page === 'article') {
       return await runDirectExtraction(
         url,
@@ -230,6 +289,44 @@ export async function runExtractCommand(
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
   }
+}
+
+/** Whether any Hacker News-only extract flag was given. */
+function usesHackerNewsFlags(options: CliOptions): boolean {
+  return (
+    options.hnContent !== undefined ||
+    options.maxComments !== undefined ||
+    options.commentDepth !== undefined ||
+    options.maxTopLevelComments !== undefined
+  );
+}
+
+/** The Hacker News comment-bound flags and the bound each one sets. */
+const COMMENT_BOUND_FLAGS: ReadonlyArray<{
+  flag: string;
+  option: 'maxComments' | 'commentDepth' | 'maxTopLevelComments';
+  bound: keyof HackerNewsCommentBounds;
+}> = [
+  { flag: '--max-comments', option: 'maxComments', bound: 'maxComments' },
+  { flag: '--comment-depth', option: 'commentDepth', bound: 'depth' },
+  { flag: '--max-top-level-comments', option: 'maxTopLevelComments', bound: 'maxTopLevelComments' },
+];
+
+/**
+ * Parses the Hacker News comment-bound flags and checks each against its
+ * maximum. Throws {@link ConfigurationError} for an invalid value.
+ */
+function parseCommentBounds(options: CliOptions): Partial<HackerNewsCommentBounds> {
+  const bounds: Partial<HackerNewsCommentBounds> = {};
+  for (const { flag, option, bound } of COMMENT_BOUND_FLAGS) {
+    const value = parsePositiveIntegerFlag(options[option], flag);
+    if (value === undefined) continue;
+    if (value > MAX_COMMENT_BOUNDS[bound]) {
+      throw new ConfigurationError(`${flag} must be at most ${MAX_COMMENT_BOUNDS[bound]}`);
+    }
+    bounds[bound] = value;
+  }
+  return bounds;
 }
 
 /** stderr notice when a URL defers from audio resolution to article text. */
