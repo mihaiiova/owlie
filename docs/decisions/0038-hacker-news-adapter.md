@@ -56,7 +56,8 @@ a discussion.
   only on `@owlieio/core` (AGENTS §6). The adapter exposes `fetchStory` (the
   post without comments) and `extract` (the discussion), and the CLI combines
   them with the article adapter.
-- `--hn-content` and the comment-bound flags are usage errors on a non-HN URL;
+- `--hn-content` and the comment-bound flags are usage errors on a non-HN URL
+  and with a resolver flag;
   `--article` and `--feed` are usage errors on an HN URL.
 
 ## Consequences
