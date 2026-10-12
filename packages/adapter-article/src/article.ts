@@ -145,13 +145,59 @@ export interface ArticlePageClassification {
   document?: NormalizedDocument;
 }
 
+/** Elements whose start or end separates paragraphs (a blank line). */
+const PARAGRAPH_TAGS =
+  'p|div|h[1-6]|blockquote|ul|ol|dl|table|caption|article|section|main|header|footer|aside|nav|address|figure|figcaption|details|summary|fieldset|legend|hr|pre';
+/** Elements that start a new line within a block. */
+const LINE_TAGS = 'li|tr|dt|dd|br';
+/**
+ * Inline elements are removed without a separator so words they wrap stay
+ * joined to surrounding text (`<em>x</em>.`). Any other tag, including table
+ * cells and block elements not listed above, becomes a space, so text it
+ * separated never runs together.
+ */
+const INLINE_TAGS =
+  'a|abbr|b|bdi|bdo|cite|code|data|del|dfn|em|font|i|img|ins|kbd|label|mark|output|q|s|samp|small|span|strong|sub|sup|time|u|var|wbr';
+
+/** Marks a preformatted block's position until its text is put back. */
+const PRE_PLACEHOLDER = /\uE000(\d+)\uE000/g;
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]*>/g, '');
+}
+
+/**
+ * Turns extracted article HTML into plain text that keeps its structure:
+ * paragraphs, headings and other blocks are separated by a blank line, list
+ * items, table rows and `<br>` start a new line, and `<pre>` lines are kept as
+ * they are. Tags are removed before entities are decoded, so escaped text such
+ * as `&lt;div&gt;` survives as literal `<div>`.
+ */
 function plainText(html: string): string {
-  return decodeHTML(html)
+  const preformatted: string[] = [];
+  const body = html
+    .replace(/\uE000/g, '')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi, (_match, inner: string) => {
+      const lines = inner.replace(/<br\b[^>]*>/gi, '\n');
+      preformatted.push(decodeHTML(stripTags(lines)).replace(/^\n+|\s+$/g, ''));
+      return `\n\n\uE000${preformatted.length - 1}\uE000\n\n`;
+    })
+    // Source whitespace (indentation, soft wraps) is not meaningful in HTML.
+    .replace(/[ \t\r\n\f]+/g, ' ')
+    .replace(new RegExp(`<\\/?(?:${PARAGRAPH_TAGS})\\b[^>]*>`, 'gi'), '\n\n')
+    .replace(new RegExp(`<(?:${LINE_TAGS})\\b[^>]*>`, 'gi'), '\n')
+    .replace(new RegExp(`<\\/?(?:${INLINE_TAGS})\\b[^>]*>`, 'gi'), '');
+
+  return decodeHTML(body.replace(/<[^>]*>/g, ' '))
+    .replace(/\u00a0/g, ' ')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .replace(PRE_PLACEHOLDER, (_match, index: string) => preformatted[Number(index)] ?? '');
 }
 
 /**

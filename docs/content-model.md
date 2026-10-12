@@ -40,6 +40,11 @@ Not every document is a transcript:
 
 - YouTube and podcast documents may contain transcripts.
 - Reddit and RSS documents contain normalized written text.
+- Article documents contain the page's readable text with its structure kept:
+  paragraphs, headings and other blocks are separated by a blank line; list
+  items, table rows and line breaks start a new line; preformatted (`<pre>`)
+  lines are kept as they are; and escaped text such as `&lt;div&gt;` appears
+  literally as `<div>`. Markup itself is not kept.
 - Hacker News documents contain written text: the post and a bounded comment
   tree, the linked article, or both, as chosen by `--hn-content` (ADR 0038).
 - Local documents (`sourceType: 'local'`) contain user-supplied text with no
