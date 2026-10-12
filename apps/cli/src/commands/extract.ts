@@ -145,6 +145,17 @@ export async function runExtractCommand(
   const network = lazyExtractionNetwork(options, { readConfig: deps.readConfig, ...deps.network });
 
   if (options.resolver !== undefined) {
+    if (usesHackerNewsFlags(options)) {
+      if (!options.quiet) {
+        writeUsageError(
+          io,
+          options,
+          'extract',
+          '--hn-content and the comment flags cannot be used with a resolver flag',
+        );
+      }
+      return ExitCode.Usage;
+    }
     return runResolverExtraction(
       url,
       io,
