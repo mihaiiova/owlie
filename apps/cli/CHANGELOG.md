@@ -1,5 +1,23 @@
 # @owlieio/owlie
 
+## 0.7.0
+
+### Minor Changes
+
+- 22cf328: Hacker News support (ADR 0038). `owlie list` reads the front page, newest, best,
+  Ask HN, Show HN and a user's submissions through the official HN API, with
+  each story's HN id, kind, score, comment count and linked URL. `owlie extract`
+  on an item URL returns its discussion (the post and a bounded comment tree),
+  its linked article, or both in one document with `--hn-content`, and
+  `--max-comments`, `--comment-depth` and `--max-top-level-comments` bound the
+  comments. Adds the `hackernews` source type: consumers that check the
+  source-type enum must accept it. `news.ycombinator.com/rss` stays an RSS feed.
+
+### Patch Changes
+
+- 62e426c: `--hn-content` and the Hacker News comment-bound flags are a usage error with a
+  resolver flag (such as `--podcast-apple`) instead of being silently ignored.
+
 ## 0.6.0
 
 ### Minor Changes
@@ -94,7 +112,7 @@
   `--max-network-bytes`, and `--max-stdout-bytes` controls; document
   provenance and `owlie capabilities`; and support bounded RSS/Atom feed
   discovery from a supplied HTML page for `list`, `extract`, and `process
-  --each`.
+--each`.
 
 ## 0.4.0
 
