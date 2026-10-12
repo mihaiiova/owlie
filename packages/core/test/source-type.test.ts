@@ -3,7 +3,15 @@ import { isSourceType, SOURCE_TYPES } from '../src/index.js';
 
 describe('SourceType', () => {
   it('includes every known source type, including local', () => {
-    expect(SOURCE_TYPES).toEqual(['youtube', 'podcast', 'reddit', 'rss', 'article', 'local']);
+    expect(SOURCE_TYPES).toEqual([
+      'youtube',
+      'podcast',
+      'reddit',
+      'rss',
+      'article',
+      'hackernews',
+      'local',
+    ]);
   });
 
   it('accepts every known source type', () => {

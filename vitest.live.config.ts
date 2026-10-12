@@ -21,6 +21,8 @@ export default defineConfig({
       '@owlieio/adapter-youtube': src('packages/adapter-youtube/src/index.ts'),
       '@owlieio/adapter-podcast': src('packages/adapter-podcast/src/index.ts'),
       '@owlieio/adapter-rss': src('packages/adapter-rss/src/index.ts'),
+      '@owlieio/adapter-hackernews': src('packages/adapter-hackernews/src/index.ts'),
+      '@owlieio/adapter-article': src('packages/adapter-article/src/index.ts'),
       '@owlieio/adapter-reddit': src('packages/adapter-reddit/src/index.ts'),
       '@owlieio/provider-openai': src('packages/provider-openai/src/index.ts'),
       '@owlieio/provider-deepseek': src('packages/provider-deepseek/src/index.ts'),

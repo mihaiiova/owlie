@@ -7,6 +7,8 @@ import type {
 } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
+import { HackerNewsAdapter } from '@owlieio/adapter-hackernews';
+import type { HackerNewsCommentBounds } from '@owlieio/adapter-hackernews';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
 import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import { RssAdapter } from '@owlieio/adapter-rss';
@@ -19,20 +21,40 @@ import { createPodcastResolvers } from './resolvers.js';
 /**
  * The functional adapters bundled into `owlie`: the YouTube video item
  * adapter, the direct-media podcast item adapter, the static article item
- * adapter (universal `extract` dispatch), and the RSS/Atom collection adapter
- * (bounded `list` and feed extraction). Reddit remains a deferred scaffold
- * and is deliberately not registered.
+ * adapter (universal `extract` dispatch), the RSS/Atom collection adapter
+ * (bounded `list` and feed extraction), and the Hacker News list and item
+ * adapter. Reddit remains a deferred scaffold and is deliberately not
+ * registered.
  */
 export const ADAPTER_IDS: readonly string[] = [
   YouTubeAdapter.id,
   PodcastAdapter.id,
   RssAdapter.id,
   ArticleAdapter.id,
+  HackerNewsAdapter.id,
 ];
 
 /**
+ * The Hacker News adapter on the invocation's extraction network, with the
+ * caller's comment bounds (validated against their maximums).
+ */
+export function createHackerNewsAdapter(
+  options: {
+    fetcher?: HttpFetcher;
+    networkPolicy?: HttpFetchPolicy;
+    comments?: Partial<HackerNewsCommentBounds>;
+  } = {},
+): HackerNewsAdapter {
+  return new HackerNewsAdapter({
+    fetcher: options.fetcher ?? new DefaultHttpFetcher(),
+    policy: options.networkPolicy,
+    comments: options.comments,
+  });
+}
+
+/**
  * The default ordered item adapters for universal `extract` dispatch: the
- * specialized YouTube adapter first, then podcast media and declarative
+ * specialized YouTube and Hacker News adapters first, then podcast media and declarative
  * episode pages, then the article fallback for any remaining safe HTTP(S)
  * URL. The CLI passes explicit language/transcription configuration and the
  * invocation's extraction network: one shared fetcher (proxied when a proxy is
@@ -48,6 +70,7 @@ export function defaultItemAdapters(
     whisperModel?: string;
     mediaMaxBytes?: number;
     networkPolicy?: HttpFetchPolicy;
+    hackerNewsComments?: Partial<HackerNewsCommentBounds>;
   } = {},
 ): ItemAdapter[] {
   const fetcher = options.fetcher ?? new DefaultHttpFetcher();
@@ -56,6 +79,11 @@ export function defaultItemAdapters(
       languages: options.languages,
       proxy: options.youtube?.proxy,
       fetchFn: options.youtube?.fetchFn,
+    }),
+    createHackerNewsAdapter({
+      fetcher,
+      networkPolicy: options.networkPolicy,
+      comments: options.hackerNewsComments,
     }),
     new PodcastAdapter({
       fetcher,

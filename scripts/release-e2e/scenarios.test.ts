@@ -248,6 +248,8 @@ describe('buildScenarios', () => {
       'extract discovered feed',
       'extract youtube',
       'extract feed',
+      'list hacker news',
+      'extract hacker news item',
       'process file',
       'extract → process pipeline',
       'process feed --each',

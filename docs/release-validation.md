@@ -12,6 +12,7 @@ The workflow proves the published artifact can:
 - install and run on the supported Node runtimes;
 - list a real RSS/Atom feed and extract its linked article;
 - extract a real static article and a known-caption YouTube video;
+- list the Hacker News front page and extract a fixed old HN discussion;
 - process text with DeepSeek, including the `extract → process` pipeline and
   bounded `process --each`;
 - keep the stdout/stderr and exit-code contracts intact at the installed
@@ -33,6 +34,8 @@ The scenario inventory lives in `scripts/release-e2e/scenarios.mjs`:
 | extract discovered feed        | `owlie extract <article> --feed --limit 2 --json`                            | Pages article → feed + article            |
 | extract youtube                | `owlie extract <youtube> --json`                                             | YouTube                                   |
 | extract feed                   | `owlie extract <feed> --limit 2 --json`                                      | Pages feed + article                      |
+| list hacker news               | `owlie list https://news.ycombinator.com/ --limit 2 --json`                  | Hacker News API                           |
+| extract hacker news item       | `owlie extract <HN item 8863> --hn-content both --json`                      | Hacker News API (+ its linked page)       |
 | process file                   | `owlie process <file> --prompt "Reply with exactly: OK" --json`              | DeepSeek                                  |
 | extract → process pipeline     | `extract <youtube>` piped into `process --json`                              | YouTube + DeepSeek                        |
 | process feed --each            | `owlie process <feed> --each --limit 2 --prompt "Reply with exactly: OK"`    | Pages feed + article + DeepSeek           |

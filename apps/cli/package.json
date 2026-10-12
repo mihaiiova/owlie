@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@owlieio/adapter-article": "workspace:*",
+    "@owlieio/adapter-hackernews": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",
     "@owlieio/adapter-rss": "workspace:*",

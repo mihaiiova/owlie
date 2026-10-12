@@ -139,7 +139,7 @@ describe('doctor', () => {
     expect(code).toBe(ExitCode.Success);
     const report = JSON.parse(stdout()).result;
     expect(report.node).toContain('v');
-    expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article']);
+    expect(report.adapters).toEqual(['youtube', 'podcast', 'rss', 'article', 'hackernews']);
     expect(report.providers).toEqual([
       { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },
       { id: 'openai', apiKey: 'not set', model: null, authSource: 'not set' },

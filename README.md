@@ -11,9 +11,10 @@ on your own machine or inside another product as a subprocess.
 
 > **Status: functional core (v0.1 milestone complete).** Release history is in
 > the [changelog](CHANGELOG.md). The v0.1 milestone covers: `owlie extract` (article
-> pages, YouTube transcripts, local podcast transcription, and bounded feed
-> batches — from a feed URL or an HTML page URL that exposes one), `owlie resolve` (validated
-> audio media URLs), `owlie list` and
+> pages, YouTube transcripts, local podcast transcription, Hacker News
+> discussions, and bounded feed batches — from a feed URL or an HTML page URL
+> that exposes one), `owlie resolve` (validated audio media URLs), `owlie list`
+> (RSS/Atom feeds, direct or discovered, and Hacker News lists) and
 > `owlie process --each` (RSS/Atom feeds, direct or discovered), and `owlie
 process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
 > extracted through the universal dispatch including the static-article
@@ -35,6 +36,11 @@ owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 # feed URL or an HTML page URL that exposes one
 owlie list "https://example.com/feed.xml" --limit 20
 owlie extract "https://example.com/" --limit 20
+
+# List the Hacker News front page, then read a story's discussion,
+# its linked article, or both in one document
+owlie list "https://news.ycombinator.com/" --limit 30 --json
+owlie extract "https://news.ycombinator.com/item?id=8863" --hn-content both
 
 # Process text, a document, or a URL with DeepSeek or OpenAI
 owlie extract "https://www.youtube.com/watch?v=..." |
@@ -181,26 +187,28 @@ OWLIE_WEBSHARE_PROXY_USERNAME=… OWLIE_WEBSHARE_PROXY_PASSWORD=… owlie --host
 
 ## Global options
 
-| Option                                                   | Applies to                                  | Description                                                                                                               |
-| -------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--help`, `-h`                                           | all                                         | Show help (or help for a command)                                                                                         |
-| `--version`, `-V`                                        | all                                         | Show version (`--version --json` emits the versioned envelope)                                                            |
-| `--quiet`, `-q`                                          | all                                         | Suppress diagnostics on stderr                                                                                            |
-| `--json`                                                 | all                                         | Emit the versioned JSON subprocess protocol on stdout (`{ schemaVersion, command, result }` envelope, or versioned JSONL) |
-| `--env-file PATH`                                        | all                                         | Load an explicit environment file                                                                                         |
-| `--hosted`                                               | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)                                 |
-| `--model MODEL`                                          | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                                                     |
-| `--refresh`                                              | `models`                                    | Bypass the model cache                                                                                                    |
-| `--language LANG`                                        | `extract`                                   | Comma-separated transcript languages (default `en`)                                                                       |
-| `--limit N`                                              | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                                                            |
-| `--timeout-ms N`                                         | all networked commands                      | One invocation-wide deadline across listing, HTTP, extraction/transcription, feeds, and providers                         |
-| `--max-network-bytes N`                                  | all networked commands                      | Cap total network download bytes through the core fetch seam and direct media                                             |
-| `--max-stdout-bytes N`                                   | all networked commands                      | Cap total stdout bytes before the protocol boundary                                                                       |
-| `--max-media-bytes N`                                    | `extract` (direct media)                    | Cap the download size in bytes (direct-media override)                                                                    |
-| `--each`                                                 | `process`                                   | Process each linked item of an RSS/Atom feed                                                                              |
-| `--input FILE`                                           | `process`                                   | Read input from a file instead of a positional argument or stdin                                                          |
-| `--input-format text\|json`                              | `process`                                   | Declare the input format (`text` default)                                                                                 |
-| `--podcast-media` / `--podcast-page` / `--podcast-apple` | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                                                            |
+| Option                                                                  | Applies to                                  | Description                                                                                                               |
+| ----------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--help`, `-h`                                                          | all                                         | Show help (or help for a command)                                                                                         |
+| `--version`, `-V`                                                       | all                                         | Show version (`--version --json` emits the versioned envelope)                                                            |
+| `--quiet`, `-q`                                                         | all                                         | Suppress diagnostics on stderr                                                                                            |
+| `--json`                                                                | all                                         | Emit the versioned JSON subprocess protocol on stdout (`{ schemaVersion, command, result }` envelope, or versioned JSONL) |
+| `--env-file PATH`                                                       | all                                         | Load an explicit environment file                                                                                         |
+| `--hosted`                                                              | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)                                 |
+| `--model MODEL`                                                         | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                                                     |
+| `--refresh`                                                             | `models`                                    | Bypass the model cache                                                                                                    |
+| `--language LANG`                                                       | `extract`                                   | Comma-separated transcript languages (default `en`)                                                                       |
+| `--limit N`                                                             | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                                                            |
+| `--timeout-ms N`                                                        | all networked commands                      | One invocation-wide deadline across listing, HTTP, extraction/transcription, feeds, and providers                         |
+| `--max-network-bytes N`                                                 | all networked commands                      | Cap total network download bytes through the core fetch seam and direct media                                             |
+| `--max-stdout-bytes N`                                                  | all networked commands                      | Cap total stdout bytes before the protocol boundary                                                                       |
+| `--max-media-bytes N`                                                   | `extract` (direct media)                    | Cap the download size in bytes (direct-media override)                                                                    |
+| `--each`                                                                | `process`                                   | Process each linked item of an RSS/Atom feed                                                                              |
+| `--input FILE`                                                          | `process`                                   | Read input from a file instead of a positional argument or stdin                                                          |
+| `--input-format text\|json`                                             | `process`                                   | Declare the input format (`text` default)                                                                                 |
+| `--podcast-media` / `--podcast-page` / `--podcast-apple`                | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                                                            |
+| `--hn-content discussion\|article\|both`                                | `extract` (Hacker News items)               | Read the discussion (default), the linked article, or both in one document                                                |
+| `--max-comments N` / `--comment-depth N` / `--max-top-level-comments N` | `extract` (Hacker News items)               | Bound the comment tree (defaults 100 / 2 / 30; max 300 / 3 / 100)                                                         |
 
 ## Exit codes
 
@@ -222,6 +230,7 @@ Individual items:
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
+- Hacker News item: discussion, linked article, or both (`owlie extract`)
 
 Collections (deferred — not implemented in v0.1):
 
@@ -229,6 +238,8 @@ Collections (deferred — not implemented in v0.1):
 - Subreddit (via Reddit's public Atom feeds)
 - RSS/Atom feed (bounded `owlie list` and `owlie extract`, plus one-hop
   discovery from an HTML page URL, are functional)
+- Hacker News front page, newest, best, Ask HN, Show HN, and a user's
+  submissions (bounded `owlie list` is functional)
 
 ## Planned operations
 
@@ -238,7 +249,8 @@ Collections (deferred — not implemented in v0.1):
 - `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
 - `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
   JSONL record per item
-- `list` items in a collection (RSS/Atom feeds, direct or discovered)
+- `list` items in a collection (RSS/Atom feeds, direct or discovered, and
+  Hacker News lists)
 - `search` collection item titles, descriptions, and feed-provided content
   (deferred)
 - `extract` a transcript from podcast media, an Apple Podcasts episode, or a
@@ -253,9 +265,9 @@ Owlie CLI does **not** monitor sources or schedule recurring work.
 owlie --help
 owlie --version
 owlie doctor [--json]
-owlie extract URL   # article page, YouTube video, podcast media/Apple episode/episode page, or bounded feed (direct or discovered page)
+owlie extract URL   # article page, YouTube video, podcast media/Apple episode/episode page, Hacker News item, or bounded feed (direct or discovered page)
 owlie resolve URL   # print the validated audio media URL without transcribing
-owlie list FEED_URL # list entries in an RSS/Atom feed
+owlie list URL      # list entries in an RSS/Atom feed or a Hacker News list
 owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
 owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)
@@ -348,6 +360,7 @@ packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article adapter
 packages/adapter-podcast/    Podcast media, Apple episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
+packages/adapter-hackernews/ Hacker News adapter (lists and item discussions, official API)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
 packages/provider-deepseek/  DeepSeek content processor
 packages/provider-openai/    OpenAI content processor
@@ -357,19 +370,20 @@ docs/                        Architecture, contracts, security, decisions
 
 ## Packages
 
-| Package                      | Purpose                                                         |
-| ---------------------------- | --------------------------------------------------------------- |
-| `@owlieio/core`              | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
-| `@owlieio/testing`           | Fakes, fixtures, contract-test helpers                          |
-| `@owlieio/adapter-youtube`   | YouTube videos (playlists deferred)                             |
-| `@owlieio/adapter-article`   | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`   | Podcast media, Apple episodes, and declarative episode pages    |
-| `@owlieio/adapter-rss`       | RSS/Atom feeds and entries (fetch, list, extract)               |
-| `@owlieio/adapter-reddit`    | Subreddits via public Atom feeds (scaffold)                     |
-| `@owlieio/provider-deepseek` | DeepSeek `ContentProcessor`                                     |
-| `@owlieio/provider-openai`   | OpenAI `ContentProcessor`                                       |
-| `@owlieio/provider-whisper`  | Local faster-whisper `Transcriber`                              |
-| `@owlieio/owlie`             | The `owlie` command-line interface (published)                  |
+| Package                       | Purpose                                                         |
+| ----------------------------- | --------------------------------------------------------------- |
+| `@owlieio/core`               | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
+| `@owlieio/testing`            | Fakes, fixtures, contract-test helpers                          |
+| `@owlieio/adapter-youtube`    | YouTube videos (playlists deferred)                             |
+| `@owlieio/adapter-article`    | Safe static server-rendered editorial-page extraction           |
+| `@owlieio/adapter-podcast`    | Podcast media, Apple episodes, and declarative episode pages    |
+| `@owlieio/adapter-rss`        | RSS/Atom feeds and entries (fetch, list, extract)               |
+| `@owlieio/adapter-hackernews` | Hacker News lists and item discussions (official API)           |
+| `@owlieio/adapter-reddit`     | Subreddits via public Atom feeds (scaffold)                     |
+| `@owlieio/provider-deepseek`  | DeepSeek `ContentProcessor`                                     |
+| `@owlieio/provider-openai`    | OpenAI `ContentProcessor`                                       |
+| `@owlieio/provider-whisper`   | Local faster-whisper `Transcriber`                              |
+| `@owlieio/owlie`              | The `owlie` command-line interface (published)                  |
 
 v0.1 adds `@owlieio/provider-deepseek` and makes `@owlieio/provider-openai`
 functional, both implemented with `ai` (`@ai-sdk/deepseek` and

@@ -6,9 +6,9 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract a YouTube video, a podcast, or a feed's linked items   (v0.1)
+owlie extract  Extract a YouTube video, a podcast, a Hacker News item, or a feed's linked items   (v0.1)
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
-owlie list     List entries in an RSS/Atom feed (direct URL or discovered page) (functional)
+owlie list     List entries in an RSS/Atom feed (direct URL or discovered page) or a Hacker News list (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie models   List current models for your LLM providers     (v0.1)
 owlie auth     Manage API keys for LLM providers             (v0.1)
@@ -64,9 +64,9 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie list FEED_URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie list URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
@@ -127,6 +127,24 @@ owlie capabilities [--json]
   terminates the active local command and cleans temporary media and
   transcription artifacts. Long media is transcribed in bounded five-minute
   chunks (two-second overlap) with monotonic progress.
+- `extract` on a Hacker News item URL (`news.ycombinator.com/item?id=N`) reads
+  the item through the official HN API (ADR 0038) and writes one
+  `NormalizedDocument` with `sourceType: "hackernews"` and
+  `adapterId: "hackernews"`. `--hn-content` chooses what is read:
+  `discussion` (default) is the post and a bounded comment tree in HN's ranked
+  order; `article` is the linked article, extracted with the `--article` rules
+  (a text post returns its own text with an `HN_NO_LINKED_ARTICLE` warning;
+  an unreadable article is an error); `both` is the article followed by the
+  discussion (`# Article` and `# Discussion` sections), and an unreadable
+  article keeps the discussion with an `HN_ARTICLE_UNAVAILABLE` warning.
+  `--max-top-level-comments N` (default 30, max 100), `--comment-depth N`
+  (reply levels, default 2, max 3) and `--max-comments N` (in total, default
+  100, max 300) bound the comment tree; comments left out produce an
+  `HN_COMMENTS_TRUNCATED` warning. A comment, deleted, dead or nonexistent
+  item is an `EXTRACTION_ERROR`; an HN list URL is a `CONFIGURATION_ERROR`
+  pointing to `owlie list`. `--hn-content` and the comment flags on a non-HN
+  URL, and `--article`/`--feed` on an HN URL, are usage errors (exit code 2).
+  `news.ycombinator.com/rss` is not an HN URL here: it stays an RSS feed.
 - `extract` on an RSS/Atom feed URL — or an HTML page URL that exposes one —
   performs a bounded linked-item batch
   extraction and always writes a single versioned JSON envelope (regardless of
@@ -154,6 +172,12 @@ owlie capabilities [--json]
   `/atom/everything/`) and a supplied URL that itself serves a feed media type
   whose body parses as RSS or Atom (such as `/?feed=rss2`) are both listed.
   The same applies to feed batches in `extract` and `process --each`.
+  A Hacker News list URL (`/`, `/news`, `/newest`, `/best`, `/ask`, `/show`,
+  or `/submitted?id=USER`) lists its stories, in HN's order, through the
+  official API (ADR 0038). Deleted, dead and comment items are skipped, and
+  item fetches are capped at three per requested story
+  (`collection.metadata.fetchCapReached` when the cap stops the listing). An
+  HN item URL is a `CONFIGURATION_ERROR` pointing to `owlie extract`.
 - `process` reads exactly one input — a positional http(s) URL, a positional
   file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
   (exit code 2). A URL is extracted first through the universal
