@@ -72,6 +72,29 @@ The feed batch of `owlie extract` and the records of `process --each` carry the
 same allowlisted entry metadata, plus `publishedAt`, on each document as
 `metadata.feedEntry`.
 
+## Hacker News listings and documents
+
+`owlie list --json` on a Hacker News list URL uses the same envelope (ADR 0038).
+Items stay in HN's order (rank for the front page, best, Ask and Show; newest
+first for newest and a user's submissions).
+
+- `collection.id` is `hackernews:list:<top|new|best|ask|show>` or
+  `hackernews:user:<name>`; `collection.metadata` has `platform`, `list` or
+  `user`, and `fetchCapReached: true` when the item-fetch cap stopped the
+  listing.
+- Each item has `id` (`hackernews:item:<id>`), `canonicalUrl` (the HN item
+  page), and when present `title`, `publishedAt` and `author`.
+- `item.metadata`: `hnId`, `kind` (`story`, `ask`, `show`, `job` or `poll`),
+  `score` and `commentCount` (snapshots at listing time), and `linkUrl` (the
+  external link after safe-URL validation; absent for text posts).
+
+`owlie extract --json` on an HN item writes a `NormalizedDocument` whose
+`metadata` has the same `hnId`, `kind`, `score`, `commentCount` and `linkUrl`,
+plus `hnContent` (`discussion`, `article` or `both`), `commentsIncluded` and
+`commentsOmitted` (when comments were read), and `article: { canonicalUrl,
+title? }` (when the linked article was read). Provenance warnings use the codes
+`HN_COMMENTS_TRUNCATED`, `HN_NO_LINKED_ARTICLE` and `HN_ARTICLE_UNAVAILABLE`.
+
 ## Files and cache
 
 Temporary downloads and intermediate artifacts will eventually use

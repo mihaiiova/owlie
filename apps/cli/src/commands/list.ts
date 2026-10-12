@@ -7,6 +7,8 @@ import type {
 } from '@owlieio/core';
 import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
+import { isHackerNewsUrl } from '@owlieio/adapter-hackernews';
+import { createHackerNewsAdapter } from '../registry.js';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -26,6 +28,8 @@ import type { ExtractionNetworkDeps } from '../proxy.js';
 
 export interface ListDeps {
   adapter?: CollectionAdapter;
+  /** Collection adapter for Hacker News list URLs (tests substitute an offline one). */
+  hackerNewsAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
@@ -142,19 +146,32 @@ export async function runListCommand(
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
-    const adapter =
-      deps.adapter ??
-      new RssAdapter({
-        fetcher: extractionNetwork(options, deps.network).fetcher,
-        policy: deps.networkPolicy,
-      });
     const limit = parseListLimit(options.limit);
-    spinner.start('listing feed');
-    const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
-    const result = await listCollection(adapter, feedLocator(feedUrl), {
-      limit,
-      signal: deps.signal,
-    });
+    let result: CollectionListResult;
+    // Recognition is pure, so the network is only built for the adapter that runs.
+    if (deps.hackerNewsAdapter?.recognize({ url }) ?? isHackerNewsUrl(url)) {
+      const hackerNews =
+        deps.hackerNewsAdapter ??
+        createHackerNewsAdapter({
+          fetcher: extractionNetwork(options, deps.network).fetcher,
+          networkPolicy: deps.networkPolicy,
+        });
+      spinner.start('listing Hacker News');
+      result = await listCollection(hackerNews, { url }, { limit, signal: deps.signal });
+    } else {
+      const adapter =
+        deps.adapter ??
+        new RssAdapter({
+          fetcher: extractionNetwork(options, deps.network).fetcher,
+          policy: deps.networkPolicy,
+        });
+      spinner.start('listing feed');
+      const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
+      result = await listCollection(adapter, feedLocator(feedUrl), {
+        limit,
+        signal: deps.signal,
+      });
+    }
     const envelope = buildEnvelope(result);
     spinner.stop();
 

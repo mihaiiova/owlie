@@ -11,6 +11,7 @@ apps/cli (owlie, published)
               ├─ adapter-podcast    ─▶ @owlieio/core
               ├─ adapter-article    ─▶ @owlieio/core
               ├─ adapter-rss        ─▶ @owlieio/core
+              ├─ adapter-hackernews ─▶ @owlieio/core
               ├─ adapter-reddit     ─▶ @owlieio/core (reuses adapter-rss parsing)
               ├─ provider-openai    ─▶ @owlieio/core
               ├─ provider-deepseek  ─▶ @owlieio/core

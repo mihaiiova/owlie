@@ -13,6 +13,7 @@ export default defineConfig({
       '@owlieio/testing': src('packages/testing/src/index.ts'),
       '@owlieio/adapter-youtube': src('packages/adapter-youtube/src/index.ts'),
       '@owlieio/adapter-article': src('packages/adapter-article/src/index.ts'),
+      '@owlieio/adapter-hackernews': src('packages/adapter-hackernews/src/index.ts'),
       '@owlieio/adapter-podcast': src('packages/adapter-podcast/src/index.ts'),
       '@owlieio/adapter-rss': src('packages/adapter-rss/src/index.ts'),
       '@owlieio/adapter-reddit': src('packages/adapter-reddit/src/index.ts'),

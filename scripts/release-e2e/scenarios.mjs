@@ -17,6 +17,10 @@ import { sanitize } from './redact.mjs';
 
 const DIAGNOSTIC_LIMIT = 500;
 
+/** Hacker News inputs: the live front page and an old item whose discussion no longer changes. */
+export const HACKER_NEWS_FRONT_PAGE = 'https://news.ycombinator.com/';
+export const HACKER_NEWS_ITEM = 'https://news.ycombinator.com/item?id=8863';
+
 /** Extracts the YouTube `v` parameter from a watch URL. */
 export function youtubeVideoId(url) {
   const match = /[?&]v=([^&#]+)/.exec(String(url));
@@ -383,6 +387,56 @@ export function buildScenarios(ctx, spawn, spawnTty) {
         }
         if (envelope.truncated !== false)
           return { ok: false, error: 'feed unexpectedly truncated' };
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'list hacker news',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['list', HACKER_NEWS_FRONT_PAGE, '--limit', '2', '--json'],
+          env: {},
+          timeoutMs: 60_000,
+        }),
+      assert: jsonAssert(parseJson, (envelope) => {
+        if (envelope.collection?.id !== 'hackernews:list:top') {
+          return { ok: false, error: 'wrong collection id' };
+        }
+        if (!Array.isArray(envelope.items) || envelope.items.length !== 2) {
+          return { ok: false, error: 'expected 2 items' };
+        }
+        for (const item of envelope.items) {
+          if (!/^hackernews:item:\d+$/.test(String(item.id))) {
+            return { ok: false, error: 'item id is not a Hacker News item id' };
+          }
+          if (typeof item.metadata?.hnId !== 'number') {
+            return { ok: false, error: 'item metadata missing hnId' };
+          }
+        }
+        return { ok: true };
+      }),
+    },
+    {
+      name: 'extract hacker news item',
+      allowProxyFallback: false,
+      run: () =>
+        spawn({
+          args: ['extract', HACKER_NEWS_ITEM, '--hn-content', 'both', '--json'],
+          env: {},
+          timeoutMs: 120_000,
+        }),
+      assert: jsonAssert(parseJson, (doc) => {
+        if (doc.sourceType !== 'hackernews') return { ok: false, error: 'wrong sourceType' };
+        if (doc.id !== 'hackernews:item:8863') return { ok: false, error: 'wrong item id' };
+        if (doc.metadata?.hnContent !== 'both') return { ok: false, error: 'wrong hnContent' };
+        // The 2007 discussion is fixed; the linked page may be gone, which `both` tolerates.
+        if (typeof doc.text !== 'string' || !doc.text.includes('[BrandonM]')) {
+          return { ok: false, error: 'discussion text missing known comment' };
+        }
+        if (doc.provenance?.adapterId !== 'hackernews') {
+          return { ok: false, error: 'wrong provenance adapterId' };
+        }
         return { ok: true };
       }),
     },

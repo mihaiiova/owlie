@@ -5,15 +5,16 @@ Local-first content extraction and processing, as a command-line tool.
 ## Status
 
 v0.1 is functional: `extract` (YouTube transcripts, direct podcast media,
-static articles, and bounded RSS/Atom feed batches), `list` (bounded feed entries), `process`
+static articles, Hacker News items, and bounded RSS/Atom feed batches), `list` (bounded feed entries
+and Hacker News lists), `process`
 (DeepSeek; single document or `--each` feed batches), `setup`, `doctor`,
 `--help`, and `--version`.
 
 ## Commands
 
 ```text
-owlie extract URL   # YouTube video, direct podcast media, static article, or bounded RSS/Atom feed
-owlie list FEED_URL # list bounded entries of an RSS/Atom feed
+owlie extract URL   # YouTube video, direct podcast media, static article, Hacker News item, or bounded RSS/Atom feed
+owlie list URL      # list bounded entries of an RSS/Atom feed or a Hacker News list
 owlie process ...   # process text or a document with an LLM
 owlie setup         # configure LLM or local Whisper model interactively
 owlie doctor        # report local environment health
