@@ -10,6 +10,7 @@ import {
   MALFORMED_ARTICLE,
   MALFORMED_JSON_LD_ARTICLE,
   NO_ARTICLE,
+  STRUCTURED_ARTICLE,
   UNDECLARED_LONG_ARTICLE,
   WEBSITE_HOMEPAGE,
 } from './fixtures.js';
@@ -28,6 +29,14 @@ const fetcher: HttpFetcher = {
     };
   },
 };
+
+function htmlFetcher(text: string): HttpFetcher {
+  return {
+    async fetch(url) {
+      return { url, contentType: 'text/html; charset=utf-8', text };
+    },
+  };
+}
 
 describe('normalizeDate', () => {
   it('canonicalizes valid timestamps to a stable ISO 8601 UTC form', () => {
@@ -96,6 +105,35 @@ describe('ArticleAdapter.extract', () => {
       adapterId: 'article',
     });
     expect(document.provenance.contentFingerprint.algorithm).toBe('sha256');
+  });
+
+  it('keeps paragraph, heading, list and line breaks in the text', async () => {
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(STRUCTURED_ARTICLE) });
+    const document = await adapter.extract(
+      await adapter.resolveItem({ url: 'https://example.com/articles/structured' }),
+    );
+
+    expect(document.text).toContain(
+      'The opening paragraph explains why structure matters for anyone who reads extracted text, and it wraps across source lines on purpose.\n\nEscaped markup\n\nWrite',
+    );
+    expect(document.text).toContain('\n\nFirst point\nSecond point\n\n');
+    expect(document.text).toContain('\n\nA quoted remark that stands on its own.\n\n');
+    expect(document.text).toContain('One line\nNext line after a break');
+    expect(document.text).not.toMatch(/\n{3,}/);
+    expect(document.text).not.toMatch(/^\s|\s$/);
+    expect(document.text.split('\n').every((line) => line === line.trim())).toBe(true);
+  });
+
+  it('keeps literal angle-bracket text and preformatted lines', async () => {
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(STRUCTURED_ARTICLE) });
+    const document = await adapter.extract(
+      await adapter.resolveItem({ url: 'https://example.com/articles/structured' }),
+    );
+
+    expect(document.text).toContain(
+      'Write <div class="x"> to open a block, because 3 < 4 && 5 > 2 holds.',
+    );
+    expect(document.text).toContain('const a = 1;\nif (a < 2) {\nreturn <b>;\n}');
   });
 
   it('uses the final post-redirect URL for the document identity', async () => {
