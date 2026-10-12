@@ -134,6 +134,17 @@ describe('ArticleAdapter.extract', () => {
       'Write <div class="x"> to open a block, because 3 < 4 && 5 > 2 holds.',
     );
     expect(document.text).toContain('const a = 1;\nif (a < 2) {\nreturn <b>;\n}');
+    expect(document.text).toContain('\n\nfirst\nsecond\n\n');
+  });
+
+  it('keeps disclosure blocks and table cells apart', async () => {
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(STRUCTURED_ARTICLE) });
+    const document = await adapter.extract(
+      await adapter.resolveItem({ url: 'https://example.com/articles/structured' }),
+    );
+
+    expect(document.text).toContain('\n\nQuestion\n\nAnswer\n\n');
+    expect(document.text).toContain('\nCell one Cell two\n');
   });
 
   it('uses the final post-redirect URL for the document identity', async () => {

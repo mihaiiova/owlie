@@ -111,6 +111,9 @@ if (a &lt; 2) {
 return &lt;b&gt;;
 }</code></pre>
       <blockquote>A quoted remark that stands on its own.</blockquote>
+      <pre><code>first<br>second</code></pre>
+      <details><summary>Question</summary>Answer</details>
+      <table><tr><td>Cell one</td><td>Cell two</td></tr></table>
       <p>One line<br>Next line after a break, closing the story with enough words to be read.</p>
     </article>
   </body>
