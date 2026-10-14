@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: 'npm'
     directory: '/'
+    # Day-to-day work integrates on development; main only receives releases.
+    target-branch: 'development'
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5
@@ -22,3 +24,7 @@ updates:
         patterns: ['vitest', '@vitest/*']
       changesets:
         patterns: ['@changesets/*']
+      # The provider packages are typed against the ai core, so a provider bump
+      # alone fails typecheck; keep them in one PR.
+      ai-sdk:
+        patterns: ['ai', '@ai-sdk/*']
