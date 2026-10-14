@@ -1,56 +1,80 @@
 # Owlie CLI
 
-[![codecov](https://codecov.io/gh/mihaiiova/owlie-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie-cli)
+[![npm](https://img.shields.io/npm/v/@owlieio/owlie)](https://www.npmjs.com/package/@owlieio/owlie)
+[![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
-An open-source, general-purpose web content extractor.
+Turn any URL into clean text you can read, pipe, or hand to an LLM: articles,
+YouTube transcripts, podcast episodes, RSS/Atom feeds, and Hacker News threads.
 
-Give Owlie a URL (an article, a video, a podcast episode, a feed, or a
-discussion) and it returns normalized, provenance-stamped content that people
-and programs can search, store, or process with an LLM of their choice. It runs
-on your own machine or inside another product as a subprocess.
+## Install
 
-> **Status: functional core (v0.1 milestone complete).** Release history is in
-> the [changelog](CHANGELOG.md). The v0.1 milestone covers: `owlie extract` (article
-> pages, YouTube transcripts, local podcast transcription, Hacker News
-> discussions, and bounded feed batches — from a feed URL or an HTML page URL
-> that exposes one), `owlie resolve` (validated audio media URLs), `owlie list`
-> (RSS/Atom feeds, direct or discovered, and Hacker News lists) and
-> `owlie process --each` (RSS/Atom feeds, direct or discovered), and `owlie
-process` (text, documents, or URLs with DeepSeek or OpenAI — a single URL is
-> extracted through the universal dispatch including the static-article
-> adapter). The repository compiles, lints,
-> and tests cleanly. See [Product scope](docs/product-scope.md) for what works
-> and what does not.
-
-## Quick start
+Requires Node.js 22 or later.
 
 ```bash
-# Extract a transcript from an individual YouTube video (pure-JS, no Python)
-owlie extract "https://www.youtube.com/watch?v=..."
-
-# Transcribe podcast audio locally (faster-whisper) from a direct media URL,
-# an Apple Podcasts episode URL, or a declarative server-rendered episode page
-owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
-
-# List or batch-extract the bounded items of an RSS/Atom feed, supplied as a
-# feed URL or an HTML page URL that exposes one
-owlie list "https://example.com/feed.xml" --limit 20
-owlie extract "https://example.com/" --limit 20
-
-# List the Hacker News front page, then read a story's discussion,
-# its linked article, or both in one document
-owlie list "https://news.ycombinator.com/" --limit 30 --json
-owlie extract "https://news.ycombinator.com/item?id=8863" --hn-content both
-
-# Process text, a document, or a URL with DeepSeek or OpenAI
-owlie extract "https://www.youtube.com/watch?v=..." |
-  owlie process --prompt "Summarize this"
+npm i -g @owlieio/owlie
 ```
 
-See [ADR 0005](docs/decisions/0005-v0-1-scope.md) for the full v0.1 scope and
-non-goals.
+Or try it without installing:
 
-## Examples
+```bash
+npx @owlieio/owlie@latest extract "https://paulgraham.com/greatwork.html"
+```
+
+## Try it
+
+```bash
+owlie extract "https://paulgraham.com/greatwork.html"       # an article as plain text
+owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # a video's transcript
+owlie list "https://simonwillison.net/atom/everything/" --limit 3
+```
+
+```text
+$ owlie list "https://simonwillison.net/atom/everything/" --limit 3
+listing feed
+Simon Willison's Weblog
+Hello Python 3.15, goodbye 3.10, and now I can use 3.11 — https://simonwillison.net/2026/Oct/12/python-3-15/ (2026-10-12T18:15:38.000Z)
+web-edit 0.1a0 — https://simonwillison.net/2026/Oct/12/web-edit/ (2026-10-12T15:54:36.000Z)
+datasette-ports 0.4 — https://simonwillison.net/2026/Oct/12/datasette-ports/ (2026-10-12T04:57:07.000Z)
+```
+
+Results go to stdout and progress goes to stderr, so every command composes over
+pipes. Add `--json` for a versioned, machine-readable envelope.
+
+> **Status: pre-1.0 (0.x), actively developed.** The commands in this README
+> work today; the `--json` protocol is versioned. Release notes are in the
+> [changelog](CHANGELOG.md), and [Product scope](docs/product-scope.md) lists
+> what works, what is planned, and what is out of scope.
+
+## Recipes
+
+### Read an article
+
+```bash
+owlie extract "https://paulgraham.com/greatwork.html"          # plain text with paragraphs
+owlie extract "https://paulgraham.com/greatwork.html" --json   # title, text, metadata, provenance
+```
+
+### Get a YouTube transcript
+
+```bash
+owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --language en,es
+```
+
+### Summarize a feed with an LLM
+
+`owlie process` uses your own DeepSeek or OpenAI key. Run `owlie setup` once,
+or pass a key and model directly:
+
+```bash
+export OPENAI_API_KEY=sk-...
+owlie process "https://simonwillison.net/atom/everything/" --each --limit 5 \
+  --model openai/gpt-4o-mini --prompt "Summarize this post in two sentences"
+```
+
+Each feed item is read in full and streamed as one JSONL record.
+
+## More examples
 
 Every command writes its result to **stdout** and diagnostics/progress to
 **stderr**, so commands compose over Unix pipes. JSON output (`--json`) is never
@@ -85,17 +109,12 @@ owlie extract "https://example.com/posts/a-story" --json
 owlie extract "https://example.com/feed.xml" --limit 20
 owlie extract "https://example.com/" --limit 20
 
+# A Hacker News story's discussion, its linked article, or both in one document
+owlie extract "https://news.ycombinator.com/item?id=8863" --hn-content both
+
 # Force either path for a page URL (no fallback)
 owlie extract "https://example.com/" --article
 owlie extract "https://example.com/posts/a-story" --feed
-```
-
-### Resolve
-
-```bash
-# Print the validated audio media URL without downloading or transcribing
-owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
-owlie resolve "https://publisher.example/episodes/my-episode" --podcast-page --json
 ```
 
 ### List
@@ -105,6 +124,15 @@ owlie resolve "https://publisher.example/episodes/my-episode" --podcast-page --j
 owlie list "https://example.com/feed.xml" --limit 20
 owlie list "https://example.com/" --limit 20
 owlie list "https://example.com/feed.xml" --json   # collection + item metadata + truncated
+owlie list "https://news.ycombinator.com/" --limit 30   # the Hacker News front page
+```
+
+### Resolve
+
+```bash
+# Print the validated audio media URL without downloading or transcribing
+owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
+owlie resolve "https://publisher.example/episodes/my-episode" --podcast-page --json
 ```
 
 ### Process
@@ -171,166 +199,9 @@ owlie process transcript.txt --prompt "Summarize this" --env-file ./credentials.
 owlie extract "https://www.youtube.com/watch?v=..." --quiet
 ```
 
-### Hosted mode
-
-```bash
-# Deterministic invocation for a hosted subprocess: flags and injected process
-# environment only (no .env, saved profile, or model-cache fallback).
-owlie --hosted process transcript.txt --prompt "Summarize this"
-owlie --hosted doctor --json   # reports configurationSource: hosted
-
-# Send all extraction traffic (pages, feeds, media, YouTube) through a proxy.
-# Set a proxy URL or a Webshare pair, never both; hosted mode reads process env.
-OWLIE_PROXY_URL="socks5://user:pass@proxy.example:1080" owlie --hosted extract URL --json
-OWLIE_WEBSHARE_PROXY_USERNAME=… OWLIE_WEBSHARE_PROXY_PASSWORD=… owlie --hosted extract URL --json
-```
-
-## Global options
-
-| Option                                                                  | Applies to                                  | Description                                                                                                               |
-| ----------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--help`, `-h`                                                          | all                                         | Show help (or help for a command)                                                                                         |
-| `--version`, `-V`                                                       | all                                         | Show version (`--version --json` emits the versioned envelope)                                                            |
-| `--quiet`, `-q`                                                         | all                                         | Suppress diagnostics on stderr                                                                                            |
-| `--json`                                                                | all                                         | Emit the versioned JSON subprocess protocol on stdout (`{ schemaVersion, command, result }` envelope, or versioned JSONL) |
-| `--env-file PATH`                                                       | all                                         | Load an explicit environment file                                                                                         |
-| `--hosted`                                                              | all                                         | Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)                                 |
-| `--model MODEL`                                                         | `process`                                   | Select the model (`provider/model-id`, or `model-id`)                                                                     |
-| `--refresh`                                                             | `models`                                    | Bypass the model cache                                                                                                    |
-| `--language LANG`                                                       | `extract`                                   | Comma-separated transcript languages (default `en`)                                                                       |
-| `--limit N`                                                             | `list`, `extract` (feeds), `process --each` | Bound listing/extraction (default 10, max 500)                                                                            |
-| `--timeout-ms N`                                                        | all networked commands                      | One invocation-wide deadline across listing, HTTP, extraction/transcription, feeds, and providers                         |
-| `--max-network-bytes N`                                                 | all networked commands                      | Cap total network download bytes through the core fetch seam and direct media                                             |
-| `--max-stdout-bytes N`                                                  | all networked commands                      | Cap total stdout bytes before the protocol boundary                                                                       |
-| `--max-media-bytes N`                                                   | `extract` (direct media)                    | Cap the download size in bytes (direct-media override)                                                                    |
-| `--each`                                                                | `process`                                   | Process each linked item of an RSS/Atom feed                                                                              |
-| `--input FILE`                                                          | `process`                                   | Read input from a file instead of a positional argument or stdin                                                          |
-| `--input-format text\|json`                                             | `process`                                   | Declare the input format (`text` default)                                                                                 |
-| `--podcast-media` / `--podcast-page` / `--podcast-apple`                | `extract`, `resolve`                        | Authoritative resolver selection (no fallback)                                                                            |
-| `--hn-content discussion\|article\|both`                                | `extract` (Hacker News items)               | Read the discussion (default), the linked article, or both in one document                                                |
-| `--max-comments N` / `--comment-depth N` / `--max-top-level-comments N` | `extract` (Hacker News items)               | Bound the comment tree (defaults 100 / 2 / 30; max 300 / 3 / 100)                                                         |
-
-## Exit codes
-
-| Code | Meaning         |
-| ---- | --------------- |
-| 0    | Success         |
-| 1    | General error   |
-| 2    | Usage error     |
-| 3    | Not implemented |
-| 130  | Cancelled       |
-
-## Planned sources
-
-Individual items:
-
-- YouTube video (v0.1)
-- Article page (`owlie extract URL`, `process URL`, and linked-item feed
-  extraction)
-- Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
-- Reddit post, discovered through a subreddit feed (deferred)
-- RSS/Atom entry (bounded feed extraction via `owlie extract`)
-- Hacker News item: discussion, linked article, or both (`owlie extract`)
-
-Collections (deferred — not implemented in v0.1):
-
-- YouTube playlist
-- Subreddit (via Reddit's public Atom feeds)
-- RSS/Atom feed (bounded `owlie list` and `owlie extract`, plus one-hop
-  discovery from an HTML page URL, are functional)
-- Hacker News front page, newest, best, Ask HN, Show HN, and a user's
-  submissions (bounded `owlie list` is functional)
-
-## Planned operations
-
-- `extract` normalized text from an individual item (article page, YouTube
-  video, or podcast) or the bounded linked items of an RSS/Atom feed (direct URL or discovered
-  page)
-- `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
-- `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
-  JSONL record per item
-- `list` items in a collection (RSS/Atom feeds, direct or discovered, and
-  Hacker News lists)
-- `search` collection item titles, descriptions, and feed-provided content
-  (deferred)
-- `extract` a transcript from podcast media, an Apple Podcasts episode, or a
-  declarative episode page via local Whisper (v0.1)
-- `process` each item in other (non-feed) collections with an LLM (deferred)
-
-Owlie CLI does **not** monitor sources or schedule recurring work.
-
-## What currently works
-
-```bash
-owlie --help
-owlie --version
-owlie doctor [--json]
-owlie extract URL   # article page, YouTube video, podcast media/Apple episode/episode page, Hacker News item, or bounded feed (direct or discovered page)
-owlie resolve URL   # print the validated audio media URL without transcribing
-owlie list URL      # list entries in an RSS/Atom feed or a Hacker News list
-owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
-owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
-owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)
-owlie auth add|list|remove PROVIDER  # manage API keys in the local store
-owlie setup        # configure providers, models, and API keys
-owlie capabilities [--json]  # report the artifact, schema, and catalog manifest
-owlie --version --json  # versioned scalar version response
-```
-
-`--quiet`/`-q` suppresses diagnostics, `--json` emits machine-readable output,
-and `--env-file PATH` loads an explicit environment file — all available on any
-command. `--hosted` makes a single invocation deterministic (flags and process
-environment only; it disables dotenv, saved configuration, and model-cache
-fallback, and rejects `auth`/`setup`). `process` also accepts `--input FILE` and
-`--input-format text|json`; `extract` and `resolve` accept the
-`--podcast-media`/`--podcast-page`/`--podcast-apple` resolver-selection flags.
-
-The remaining planned commands (`search`, `config`) are not exposed: they
-report an "unknown command" usage error (exit code 2) rather than pretending
-to work.
-
-`owlie list` exposes the RSS adapter's bounded listing, and `owlie extract`
-dispatches a direct URL to the YouTube or podcast adapter — or, for a feed
-URL (or an HTML page URL that exposes one), extracts its bounded linked items
-into one JSON envelope. Bounded one-hop feed discovery fetches only the
-supplied page, reads `<link rel="alternate">` elements with a constrained
-tokenizer, and otherwise probes six fixed same-origin conventional paths; it
-never executes JavaScript or follows links recursively. `owlie resolve`
-prints a validated audio media URL without transcribing it, with optional
-`--podcast-media`/`--podcast-page`/`--podcast-apple` resolver selection. Remote text
-fetches allow only globally routable destinations by default, canonically
-classify IPv4/IPv6 addresses, reject URL userinfo, and omit URL query and
-fragment data from diagnostics. For direct podcast media, `--timeout-ms` applies
-one deadline across resolution, download, ffprobe, ffmpeg, and local Whisper;
-`--max-media-bytes` caps the download (the existing safe HTTP cap remains the
-default). Both values must be positive integers. `ffprobe` validates downloaded
-media before transcoding, independently of weak or absent HTTP content types;
-invalid media is rejected. The configured Whisper model must already be local,
-because extraction never downloads model weights. Cancellation terminates active
-local transcription commands and removes temporary downloads/intermediates.
-
-Every networked command also accepts an invocation-wide `--timeout-ms` deadline
-plus `--max-network-bytes` and `--max-stdout-bytes` budgets. Cancellation
-(SIGINT/SIGTERM or an expired deadline) exits 130 with a versioned
-`kind: "cancelled"` terminal record in `--json` mode, distinct from ordinary
-errors.
-
-## Non-goals
-
-Owlie CLI does not provide:
-
-- a web UI, authentication, billing, or credits
-- source monitoring, schedules, or cron
-- a local database or persistent job records
-- Reddit OAuth, comment-tree extraction, or HTML scraping
-- generic webpage crawling or browser-rendered extraction (the reusable
-  `article` adapter is limited to directly supplied, server-rendered editorial
-  HTML obtained through Owlie's safe HTTP fetcher; feed discovery from a
-  supplied page is bounded and one-hop, not a crawl)
-- telemetry
-
-Those responsibilities, where they exist at all, belong to the products that
-use Owlie.
+Every flag, the hosted-mode details, and how extraction behaves are in the
+[CLI reference](docs/cli-reference.md); exit codes and the `--json` protocol are
+in the [CLI contract](docs/cli-contract.md).
 
 ## Using Owlie from another product
 
@@ -412,6 +283,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 - [Architecture](docs/architecture.md)
 - [Product scope](docs/product-scope.md)
+- [CLI reference](docs/cli-reference.md)
 - [CLI contract](docs/cli-contract.md)
 - [Output formats](docs/output-formats.md)
 - [Configuration](docs/configuration.md)
