@@ -181,7 +181,10 @@ function plainText(html: string): string {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
     .replace(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi, (_match, inner: string) => {
       const lines = inner.replace(/<br\b[^>]*>/gi, '\n');
-      preformatted.push(decodeHTML(stripTags(lines)).replace(/^\n+|\s+$/g, ''));
+      const text = decodeHTML(stripTags(lines)).replace(/^\n+|\s+$/g, '');
+      // An empty block is only a separator, so normal collapsing applies to it.
+      if (!text) return '\n\n';
+      preformatted.push(text);
       return `\n\n\uE000${preformatted.length - 1}\uE000\n\n`;
     })
     // Source whitespace (indentation, soft wraps) is not meaningful in HTML.

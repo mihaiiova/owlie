@@ -137,6 +137,21 @@ describe('ArticleAdapter.extract', () => {
     expect(document.text).toContain('\n\nfirst\nsecond\n\n');
   });
 
+  it('drops empty preformatted blocks without leaving extra blank lines', async () => {
+    const html = STRUCTURED_ARTICLE.replace(
+      '<blockquote>',
+      '<pre><code></code></pre><pre>  </pre><blockquote>',
+    ).replace('</table>', '</table><pre><code></code></pre>');
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(html) });
+    const document = await adapter.extract(
+      await adapter.resolveItem({ url: 'https://example.com/articles/structured' }),
+    );
+
+    expect(document.text).toContain('}\n\nA quoted remark that stands on its own.');
+    expect(document.text).not.toMatch(/\n{3,}/);
+    expect(document.text).not.toMatch(/^\s|\s$/);
+  });
+
   it('keeps disclosure blocks and table cells apart', async () => {
     const adapter = new ArticleAdapter({ fetcher: htmlFetcher(STRUCTURED_ARTICLE) });
     const document = await adapter.extract(
