@@ -88,3 +88,33 @@ export const WEBSITE_HOMEPAGE = `<!doctype html>
         ${LONG_BODY}
   </main></body>
 </html>`;
+
+export const STRUCTURED_ARTICLE = `<!doctype html>
+<html>
+  <head>
+    <title>Structured story</title>
+    <meta property="og:type" content="article" />
+  </head>
+  <body>
+    <article>
+      <h1>Structured story</h1>
+      <p>The opening paragraph explains why structure matters for anyone who reads
+        extracted text, and it wraps across source lines on purpose.</p>
+      <h2>Escaped markup</h2>
+      <p>Write <code>&lt;div class="x"&gt;</code> to open a block, because 3 &lt; 4 &amp;&amp; 5 &gt; 2 holds.</p>
+      <ul>
+        <li>First point</li>
+        <li>Second <em>point</em></li>
+      </ul>
+      <pre><code>const a = 1;
+if (a &lt; 2) {
+return &lt;b&gt;;
+}</code></pre>
+      <blockquote>A quoted remark that stands on its own.</blockquote>
+      <pre><code>first<br>second</code></pre>
+      <details><summary>Question</summary>Answer</details>
+      <table><tr><td>Cell one</td><td>Cell two</td></tr></table>
+      <p>One line<br>Next line after a break, closing the story with enough words to be read.</p>
+    </article>
+  </body>
+</html>`;

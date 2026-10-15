@@ -75,6 +75,62 @@ Output serialization in v0.1: `text` (raw), `markdown`, and `json`. `jsonl`
 is used by `process --each` to stream one record per attempted feed item;
 other commands do not use `jsonl`.
 
+## Planned sources
+
+Individual items:
+
+- YouTube video (v0.1)
+- Article page (`owlie extract URL`, `process URL`, and linked-item feed
+  extraction)
+- Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
+- Reddit post, discovered through a subreddit feed (deferred)
+- RSS/Atom entry (bounded feed extraction via `owlie extract`)
+- Hacker News item: discussion, linked article, or both (`owlie extract`)
+
+Collections (deferred — not implemented in v0.1):
+
+- YouTube playlist
+- Subreddit (via Reddit's public Atom feeds)
+- RSS/Atom feed (bounded `owlie list` and `owlie extract`, plus one-hop
+  discovery from an HTML page URL, are functional)
+- Hacker News front page, newest, best, Ask HN, Show HN, and a user's
+  submissions (bounded `owlie list` is functional)
+
+## Planned operations
+
+- `extract` normalized text from an individual item (article page, YouTube
+  video, or podcast) or the bounded linked items of an RSS/Atom feed (direct URL or discovered
+  page)
+- `process` a document with an LLM (v0.1: DeepSeek or OpenAI)
+- `process` each item in a bounded RSS/Atom feed with an LLM, streaming one
+  JSONL record per item
+- `list` items in a collection (RSS/Atom feeds, direct or discovered, and
+  Hacker News lists)
+- `search` collection item titles, descriptions, and feed-provided content
+  (deferred)
+- `extract` a transcript from podcast media, an Apple Podcasts episode, or a
+  declarative episode page via local Whisper (v0.1)
+- `process` each item in other (non-feed) collections with an LLM (deferred)
+
+Owlie CLI does **not** monitor sources or schedule recurring work.
+
+## Non-goals
+
+Owlie CLI does not provide:
+
+- a web UI, authentication, billing, or credits
+- source monitoring, schedules, or cron
+- a local database or persistent job records
+- Reddit OAuth, comment-tree extraction, or HTML scraping
+- generic webpage crawling or browser-rendered extraction (the reusable
+  `article` adapter is limited to directly supplied, server-rendered editorial
+  HTML obtained through Owlie's safe HTTP fetcher; feed discovery from a
+  supplied page is bounded and one-hop, not a crawl)
+- telemetry
+
+Those responsibilities, where they exist at all, belong to the products that
+use Owlie (see [Consumer responsibilities](#consumer-responsibilities)).
+
 ## Deferred capabilities
 
 - Collection search (`search`) and `owlie run`. Bounded RSS/Atom `list` and
