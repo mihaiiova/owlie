@@ -13,7 +13,13 @@ import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
 import { parseCollectionLimit } from '../limits.js';
-import { feedLocator, listedItemMetadata, resolveFeedCollectionUrl } from '../feed.js';
+import {
+  feedLocator,
+  listedItemMetadata,
+  resolveAppleShowCollection,
+  resolveFeedCollectionUrl,
+  withCollectionMetadata,
+} from '../feed.js';
 import {
   createCommandSpinner,
   writeCommandError,
@@ -23,7 +29,7 @@ import {
 import type { SpinnerLike } from '../spinner.js';
 
 /** Injectable seams for `owlie list` (tests substitute an offline adapter). */
-import { extractionNetwork } from '../proxy.js';
+import { extractionNetwork, lazyExtractionNetwork } from '../proxy.js';
 import type { ExtractionNetworkDeps } from '../proxy.js';
 
 export interface ListDeps {
@@ -167,19 +173,24 @@ export async function runListCommand(
       spinner.start('listing Hacker News');
       result = await listCollection(hackerNews, { url }, { limit, signal: deps.signal });
     } else {
+      const network = lazyExtractionNetwork(options, deps.network);
       const adapter =
-        deps.adapter ??
-        new RssAdapter({
-          fetcher: extractionNetwork(options, deps.network).fetcher,
-          policy: deps.networkPolicy,
-        });
+        deps.adapter ?? new RssAdapter({ fetcher: network().fetcher, policy: deps.networkPolicy });
       spinner.start('listing feed');
-      const feedUrl = await resolveFeedCollectionUrl(adapter, url, deps.signal);
-      result = await listCollection(adapter, feedLocator(feedUrl), {
-        limit,
+      const show = await resolveAppleShowCollection(url, {
+        fetcher: () => network().fetcher,
+        policy: deps.networkPolicy,
         signal: deps.signal,
-        ...(options.order === undefined ? {} : { sort: options.order }),
       });
+      const feedUrl = show?.feedUrl ?? (await resolveFeedCollectionUrl(adapter, url, deps.signal));
+      result = withCollectionMetadata(
+        await listCollection(adapter, feedLocator(feedUrl), {
+          limit,
+          signal: deps.signal,
+          ...(options.order === undefined ? {} : { sort: options.order }),
+        }),
+        show?.collectionMetadata,
+      );
     }
     const envelope = buildEnvelope(result);
     spinner.stop();

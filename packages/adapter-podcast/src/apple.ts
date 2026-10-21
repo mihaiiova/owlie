@@ -18,6 +18,21 @@ export interface AppleEpisodeReference {
   episodeId: string;
 }
 
+/** An Apple Podcasts show (no episode id) parsed from its URL. */
+export interface AppleShowReference {
+  country: string;
+  podcastId: string;
+}
+
+/** The public RSS feed behind an Apple Podcasts show. */
+export interface AppleShowFeed {
+  feedUrl: string;
+  podcastId: string;
+  /** Canonical show URL, `https://podcasts.apple.com/<cc>/podcast/id<podcastId>`. */
+  showUrl: string;
+  title?: string;
+}
+
 export interface ApplePodcastsResolverOptions {
   fetcher?: HttpFetcher;
   policy?: HttpFetchPolicy;
@@ -25,29 +40,95 @@ export interface ApplePodcastsResolverOptions {
 
 type Resolution = { mediaUrl: string; title?: string };
 
-/** Parses an Apple Podcasts episode URL without making network requests. */
-export function parseAppleEpisodeUrl(input: string): AppleEpisodeReference | undefined {
+/**
+ * Parses the shared parts of an Apple Podcasts URL: the two-letter country,
+ * the numeric podcast id, and the numeric `i` episode id when present.
+ */
+function parseApplePodcastUrl(
+  input: string,
+): { country: string; podcastId: string; episodeId?: string } | undefined {
   try {
     const url = new URL(input);
     if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'podcasts.apple.com') {
       return undefined;
     }
     const podcastId = url.pathname.match(/\/id(\d+)(?:\/|$)/)?.[1];
-    const episodeId = url.searchParams.get('i');
     const country = url.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
-    if (
-      !podcastId ||
-      !episodeId ||
-      !/^\d+$/.test(episodeId) ||
-      !country ||
-      !/^[a-z]{2}$/.test(country)
-    ) {
-      return undefined;
-    }
-    return { country, podcastId, episodeId };
+    if (!podcastId || !country || !/^[a-z]{2}$/.test(country)) return undefined;
+    const episodeId = url.searchParams.get('i');
+    return episodeId && /^\d+$/.test(episodeId)
+      ? { country, podcastId, episodeId }
+      : { country, podcastId };
   } catch {
     return undefined;
   }
+}
+
+/** Parses an Apple Podcasts episode URL without making network requests. */
+export function parseAppleEpisodeUrl(input: string): AppleEpisodeReference | undefined {
+  const parsed = parseApplePodcastUrl(input);
+  if (parsed?.episodeId === undefined) return undefined;
+  return { country: parsed.country, podcastId: parsed.podcastId, episodeId: parsed.episodeId };
+}
+
+/**
+ * Parses an Apple Podcasts show URL (`/<cc>/podcast/<slug?>/id<digits>` with
+ * no numeric `i` episode id) without making network requests.
+ */
+export function parseAppleShowUrl(input: string): AppleShowReference | undefined {
+  const parsed = parseApplePodcastUrl(input);
+  if (parsed === undefined || parsed.episodeId !== undefined) return undefined;
+  return { country: parsed.country, podcastId: parsed.podcastId };
+}
+
+/**
+ * Resolves an Apple Podcasts show to its public RSS feed through Apple's
+ * lookup API (`feedUrl`). The lookup goes through the supplied safe fetcher,
+ * so proxy, byte budgets, deadlines and cancellation apply.
+ */
+export async function resolveAppleShowFeed(
+  reference: AppleShowReference,
+  options: { fetcher: HttpFetcher; policy?: HttpFetchPolicy; signal?: AbortSignal },
+): Promise<AppleShowFeed> {
+  if (options.signal?.aborted) throw new CancelledError('Apple Podcasts show lookup cancelled');
+  const lookupUrl = new URL('https://itunes.apple.com/lookup');
+  lookupUrl.searchParams.set('id', reference.podcastId);
+  lookupUrl.searchParams.set('country', reference.country);
+  const lookup = await options.fetcher.fetch(lookupUrl.toString(), {
+    signal: options.signal,
+    policy: options.policy,
+  });
+  if (!isAppleLookupContentType(lookup.contentType))
+    throw new ExtractionError(
+      `unexpected lookup response content type ${lookup.contentType ?? 'missing'}`,
+    );
+  let results: Record<string, unknown>[] | undefined;
+  try {
+    results = resultsOf(JSON.parse(lookup.text));
+  } catch {
+    results = undefined;
+  }
+  if (results === undefined) {
+    throw new ExtractionError(
+      `invalid Apple Podcasts lookup response for show ${reference.podcastId}`,
+    );
+  }
+  const show = results[0];
+  if (show === undefined) {
+    throw new ExtractionError(`Apple Podcasts show ${reference.podcastId} was not found`);
+  }
+  if (typeof show.feedUrl !== 'string' || show.feedUrl.trim() === '') {
+    throw new ExtractionError(`Apple Podcasts show ${reference.podcastId} has no public RSS feed`);
+  }
+  const feedUrl = assertSafeHttpUrl(show.feedUrl.trim(), {
+    allowPrivateHosts: options.policy?.allowPrivateHosts,
+  }).toString();
+  return {
+    feedUrl,
+    podcastId: reference.podcastId,
+    showUrl: `https://podcasts.apple.com/${reference.country}/podcast/id${reference.podcastId}`,
+    ...(typeof show.collectionName === 'string' ? { title: show.collectionName } : {}),
+  };
 }
 
 /** Resolves Apple Podcasts episode URLs through Apple's public lookup data. */
@@ -141,20 +222,23 @@ function isAppleLookupContentType(contentType: string | null | undefined): boole
 
 function parseResults(text: string): Record<string, unknown>[] {
   try {
-    const value: unknown = JSON.parse(text);
-    if (
-      !value ||
-      typeof value !== 'object' ||
-      !Array.isArray((value as { results?: unknown }).results)
-    ) {
-      return [];
-    }
-    return (value as { results: unknown[] }).results.filter(
-      (result): result is Record<string, unknown> => Boolean(result) && typeof result === 'object',
-    );
+    return resultsOf(JSON.parse(text)) ?? [];
   } catch {
     return [];
   }
+}
+
+/** The object entries of a lookup body's `results` array; `undefined` when it has none. */
+function resultsOf(value: unknown): Record<string, unknown>[] | undefined {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !Array.isArray((value as { results?: unknown }).results)
+  )
+    return undefined;
+  return (value as { results: unknown[] }).results.filter(
+    (result): result is Record<string, unknown> => Boolean(result) && typeof result === 'object',
+  );
 }
 
 function directEpisodeUrl(result: Record<string, unknown> | undefined): Resolution | undefined {
