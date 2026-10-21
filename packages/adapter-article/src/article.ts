@@ -16,6 +16,7 @@ import {
   DefaultHttpFetcher,
   ExtractionError,
   isHtmlContentType,
+  stopAtFeedHeader,
   type ExtractionOptions,
   type HttpFetcher,
   type HttpFetchPolicy,
@@ -315,6 +316,8 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
       (await this.fetcher.fetch(item.canonicalUrl, {
         signal: options.signal,
         policy: this.policy,
+        // A feed is never an article; its header is enough for discovery.
+        stopReading: stopAtFeedHeader(),
       }));
     assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
     if (!isHtmlContentType(response.contentType)) {

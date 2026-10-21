@@ -499,6 +499,7 @@ async function runFeedProcessing(
   const result = await listCollection(feedAdapter, feedLocator(feedUrl), {
     limit,
     signal: deps.signal,
+    ...(options.order === undefined ? {} : { sort: options.order }),
   });
 
   let failed = false;

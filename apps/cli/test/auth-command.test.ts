@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CancelledError } from '@owlieio/core';
 import { ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo, UserConfig } from 'owlie';
 
@@ -150,5 +151,110 @@ describe('auth command', () => {
     expect(code).toBe(ExitCode.Success);
     expect(JSON.parse(stdout())).toMatchObject({ schemaVersion: 1, command: 'auth', result });
     expect(all()).not.toContain('sk-secret');
+  });
+
+  it('reports a config write failure as a JSON error record', async () => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(
+      ['--json', 'auth', 'add', 'deepseek'],
+      io,
+      deps({
+        prompt: async () => 'sk-secret',
+        readConfig: () => ({}),
+        writeConfig: () => {
+          throw Object.assign(new Error('EACCES: permission denied, open config.json'), {
+            code: 'EACCES',
+          });
+        },
+      }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(stdout()).toBe('');
+    const record = JSON.parse(stderr().trim().split('\n').at(-1) ?? '');
+    expect(record).toMatchObject({ schemaVersion: 1, command: 'auth', kind: 'error' });
+    expect(record.message).toContain('permission denied');
+    expect(stderr()).not.toContain('sk-secret');
+  });
+
+  it('reports a remove write failure as a JSON error record', async () => {
+    const { io, stderr } = capture();
+    const code = await run(
+      ['--json', 'auth', 'remove', 'deepseek'],
+      io,
+      deps({
+        readConfig: () => ({}),
+        writeConfig: () => {
+          throw new Error('ENOSPC: no space left on device');
+        },
+      }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(JSON.parse(stderr().trim())).toMatchObject({ command: 'auth', kind: 'error' });
+  });
+
+  it('reports a rejected prompt as a JSON error record', async () => {
+    const { io, stderr } = capture();
+    const code = await run(
+      ['--json', 'auth', 'add', 'deepseek'],
+      io,
+      deps({
+        prompt: async () => {
+          throw new Error('stdin closed');
+        },
+        readConfig: () => ({}),
+        writeConfig: () => {},
+      }),
+    );
+    expect(code).toBe(ExitCode.Error);
+    expect(JSON.parse(stderr().trim())).toMatchObject({
+      command: 'auth',
+      kind: 'error',
+      message: 'stdin closed',
+    });
+  });
+
+  it('ends a pending prompt at the deadline with a cancelled record', async () => {
+    let written = false;
+    const { io, stderr } = capture();
+    const code = await run(
+      ['--json', '--timeout-ms', '20', 'auth', 'add', 'deepseek'],
+      io,
+      deps({
+        prompt: (_q, o) =>
+          new Promise((_resolve, reject) => {
+            o?.signal?.addEventListener('abort', () => reject(o.signal?.reason), { once: true });
+          }),
+        readConfig: () => ({}),
+        writeConfig: () => {
+          written = true;
+        },
+      }),
+    );
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(written).toBe(false);
+    expect(JSON.parse(stderr().trim())).toMatchObject({ command: 'auth', kind: 'cancelled' });
+  });
+
+  it('does not store a key answered after cancellation', async () => {
+    const controller = new AbortController();
+    let written = false;
+    const { io } = capture();
+    const code = await run(
+      ['auth', 'add', 'deepseek'],
+      io,
+      deps({
+        prompt: async () => {
+          controller.abort(new CancelledError('cancelled'));
+          return 'sk-late';
+        },
+        readConfig: () => ({}),
+        writeConfig: () => {
+          written = true;
+        },
+        signal: controller.signal,
+      }),
+    );
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(written).toBe(false);
   });
 });
