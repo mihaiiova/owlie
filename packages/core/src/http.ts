@@ -3,6 +3,7 @@ import { open, rm } from 'node:fs/promises';
 import ipaddr from 'ipaddr.js';
 
 import { CancelledError, ConfigurationError, ExtractionError } from './errors.js';
+import { isFeedContentType, isHtmlContentType } from './media-type.js';
 
 /** Policy applied to every HTTP fetch. All fields are optional. */
 export interface HttpFetchPolicy {
@@ -10,8 +11,19 @@ export interface HttpFetchPolicy {
   timeoutMs?: number;
   /** Maximum number of redirects to follow. */
   maxRedirects?: number;
-  /** Maximum response body size in bytes. */
+  /**
+   * Maximum response body size in bytes. For text fetches it applies to every
+   * body that is not a feed; see `maxFeedResponseBytes`.
+   */
   maxResponseBytes?: number;
+  /**
+   * Maximum body size in bytes for a text fetch whose declared media type is a
+   * feed (RSS, Atom, or another XML type that is not XHTML). Podcast feeds
+   * carry whole back catalogues, so this defaults to
+   * {@link DEFAULT_MAX_FEED_RESPONSE_BYTES}; `byteBudget` still bounds the
+   * invocation total.
+   */
+  maxFeedResponseBytes?: number;
   /** Opt in to private/local hosts; invalid, multicast, and reserved hosts remain blocked. */
   allowPrivateHosts?: boolean;
   /** Identifying User-Agent header value. */
@@ -225,7 +237,24 @@ export function assertSafeHttpUrl(url: string, options: SafeUrlOptions = {}): UR
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_REDIRECTS = 5;
-const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+/** Default per-response body cap (HTML pages, JSON, media without an override). */
+export const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+/** Default per-response body cap for feed documents (see `maxFeedResponseBytes`). */
+export const DEFAULT_MAX_FEED_RESPONSE_BYTES = 32 * 1024 * 1024;
+
+/**
+ * The body cap for a text response: feed media types (not XHTML) get the
+ * feed cap, everything else (including an undeclared type) the general cap.
+ */
+function textResponseLimit(
+  policy: HttpFetchPolicy | undefined,
+  contentType: string | null,
+): number {
+  if (isFeedContentType(contentType) && !isHtmlContentType(contentType)) {
+    return policy?.maxFeedResponseBytes ?? DEFAULT_MAX_FEED_RESPONSE_BYTES;
+  }
+  return policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+}
 const DEFAULT_USER_AGENT = 'owlie-cli';
 
 function isRedirect(status: number): boolean {
@@ -483,11 +512,15 @@ export class DefaultHttpFetcher implements HttpFetcher {
   }
 
   async fetch(url: string, options: HttpFetchOptions = {}): Promise<HttpTextResponse> {
-    const maxResponseBytes = options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     const result = await this.exchange(
       url,
       (response, signal) =>
-        readBody(response, maxResponseBytes, signal, options.policy?.byteBudget),
+        readBody(
+          response,
+          textResponseLimit(options.policy, response.headers.get('content-type')),
+          signal,
+          options.policy?.byteBudget,
+        ),
       options,
     );
     return { url: result.url, contentType: result.contentType, text: result.body };
