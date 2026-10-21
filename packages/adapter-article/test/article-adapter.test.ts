@@ -415,6 +415,20 @@ describe('ArticleAdapter.classify', () => {
     metadata: {},
   };
 
+  it('fetches with a feed-header stop and classifies a feed as not an article', async () => {
+    let stopReading: ((text: string, type: string | null) => boolean) | undefined;
+    const feedFetcher: HttpFetcher = {
+      async fetch(url, options) {
+        stopReading = options?.stopReading;
+        return { url, contentType: 'application/rss+xml', text: '<rss><channel></channel></rss>' };
+      },
+    };
+    const result = await new ArticleAdapter({ fetcher: feedFetcher }).classify(item);
+    expect(result.isArticle).toBe(false);
+    expect(stopReading?.('<rss><channel><item>', 'application/rss+xml')).toBe(true);
+    expect(stopReading?.('<html><body><item>', 'text/html')).toBe(false);
+  });
+
   it('classifies a declared article and returns its document', async () => {
     const adapter = new ArticleAdapter({ fetcher });
     const result = await adapter.classify(item, { response: htmlResponse(JSON_LD_GRAPH_ARTICLE) });

@@ -46,11 +46,17 @@ formats directly.
 ## Feed listings
 
 `owlie list --json` writes `{ collection, items, truncated }` under the
-versioned envelope. Entries stay in feed document order; consumers sort.
+versioned envelope. Entries stay in feed document order unless `--order newest`
+sorts them by publication date (newest first, undated entries last).
 
 - `collection.title` and `collection.metadata`: `format` (`"rss"` or
   `"atom"`), and when the feed declares them `description`, `siteUrl` (the
   channel or feed `link`), and `imageUrl`. Atom feeds also keep `subtitle`.
+  A listing reached from an Apple Podcasts show URL is the feed's own
+  collection (same `id`, `canonicalUrl` = the feed URL) plus
+  `metadata.apple: { podcastId, showUrl }`, where `showUrl` is the canonical
+  `https://podcasts.apple.com/<cc>/podcast/id<podcastId>`. `extract` feed
+  envelopes carry the same `collection`.
 - Each item has `id` (`rss:entry:<entryId>`), `canonicalUrl` (the entry link
   exactly as the feed gives it, with no tracking-parameter removal; consumers
   apply their own canonical form), and when present `title`, `description`
@@ -67,6 +73,11 @@ versioned envelope. Entries stay in feed document order; consumers sort.
   - `enclosureUrl` (**deprecated**): the first enclosure URL, else the first
     `media:content` URL. Use `enclosures` instead.
   - `duration` and `categories` when the feed declares them.
+  - `transcripts`: `[{ url, type?, language?, rel? }]` from Podcasting 2.0
+    `<podcast:transcript>` tags on RSS 2.0 items, in feed order; `type` is
+    lowercased. Only absolute `http(s)` URLs are kept; other links are dropped
+    without failing the entry, and the key is omitted when none remain. The
+    links are not fetched.
 
 The feed batch of `owlie extract` and the records of `process --each` carry the
 same allowlisted entry metadata, plus `publishedAt`, on each document as

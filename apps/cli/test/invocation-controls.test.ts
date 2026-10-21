@@ -364,3 +364,159 @@ describe('network byte budget propagation', () => {
     expect(seenPolicies[0]?.byteBudget?.remaining).toBe(100);
   });
 });
+
+describe('feed size flag', () => {
+  const FEED = `<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>
+    <item><title>One</title><link>https://example.com/1</link><guid>1</guid></item>
+  </channel></rss>`;
+
+  function recordingFetcher(seen: Array<HttpFetchPolicy | undefined>) {
+    return {
+      async fetch(url: string, options?: { policy?: HttpFetchPolicy }) {
+        seen.push(options?.policy);
+        return { url, contentType: 'application/rss+xml', text: FEED };
+      },
+    };
+  }
+
+  function networkWith(fetcher: ReturnType<typeof recordingFetcher>) {
+    return { env: {}, loadFile: () => ({}), readConfig: () => ({}), createFetcher: () => fetcher };
+  }
+
+  it('threads --max-feed-bytes into the list fetch policy', async () => {
+    const seen: Array<HttpFetchPolicy | undefined> = [];
+    const { io } = capture();
+    const code = await run(['list', FEED_URL, '--max-feed-bytes', '1048576'], io, {
+      list: { network: networkWith(recordingFetcher(seen)) },
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(seen[0]?.maxFeedResponseBytes).toBe(1048576);
+    expect(seen[0]?.byteBudget).toBeUndefined();
+  });
+
+  it('combines --max-feed-bytes with --max-network-bytes', async () => {
+    const seen: Array<HttpFetchPolicy | undefined> = [];
+    const { io } = capture();
+    await run(['list', FEED_URL, '--max-feed-bytes', '2000', '--max-network-bytes', '5000'], io, {
+      list: { network: networkWith(recordingFetcher(seen)) },
+    });
+    expect(seen[0]?.maxFeedResponseBytes).toBe(2000);
+    expect(seen[0]?.byteBudget?.remaining).toBe(5000);
+  });
+
+  it('threads --max-feed-bytes into extract and process --each feed listings', async () => {
+    const extractSeen: Array<HttpFetchPolicy | undefined> = [];
+    await run(['extract', FEED_URL, '--max-feed-bytes', '4096'], capture().io, {
+      extract: {
+        itemAdapters: [specializedAdapter('hello')],
+        network: networkWith(recordingFetcher(extractSeen)),
+      },
+    });
+    expect(extractSeen[0]?.maxFeedResponseBytes).toBe(4096);
+
+    const processSeen: Array<HttpFetchPolicy | undefined> = [];
+    await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--max-feed-bytes', '8192'],
+      capture({ isTTY: true }).io,
+      {
+        process: {
+          itemAdapters: [specializedAdapter('hello')],
+          processor: {
+            id: 'fake',
+            process: async () => ({ output: 'done', format: 'text' as const, metadata: {} }),
+          },
+          network: networkWith(recordingFetcher(processSeen)),
+        },
+      },
+    );
+    expect(processSeen[0]?.maxFeedResponseBytes).toBe(8192);
+  });
+
+  it('rejects an invalid --max-feed-bytes as a usage error', async () => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(['list', FEED_URL, '--max-feed-bytes', '0'], io, {
+      list: { adapter: neverAfterAbortAdapter() },
+    });
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('--max-feed-bytes must be a positive integer');
+  });
+});
+
+describe('feed order flag', () => {
+  function sortRecordingFeed(seen: Array<string | undefined>): CollectionAdapter {
+    return {
+      id: 'rss',
+      sourceType: 'rss',
+      recognize: (locator) => locator.url === FEED_URL,
+      async resolve(locator) {
+        return {
+          id: `rss:feed:${locator.url}`,
+          sourceType: 'rss',
+          canonicalUrl: locator.url,
+          metadata: {},
+        };
+      },
+      async list(collection, options: CollectionListOptions) {
+        seen.push(options.sort);
+        return { collection, items: [], truncated: false };
+      },
+    };
+  }
+
+  it('passes --order newest to the feed listing for list, extract and process --each', async () => {
+    const seen: Array<string | undefined> = [];
+    await run(['list', FEED_URL, '--order', 'newest'], capture().io, {
+      list: { adapter: sortRecordingFeed(seen) },
+    });
+    await run(['extract', FEED_URL, '--order', 'newest'], capture().io, {
+      extract: { itemAdapters: [specializedAdapter()], feedAdapter: sortRecordingFeed(seen) },
+    });
+    await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--order', 'newest'],
+      capture({ isTTY: true }).io,
+      {
+        process: {
+          itemAdapters: [specializedAdapter()],
+          feedAdapter: sortRecordingFeed(seen),
+          processor: {
+            id: 'fake',
+            process: async () => ({ output: 'done', format: 'text' as const, metadata: {} }),
+          },
+        },
+      },
+    );
+    expect(seen).toEqual(['newest', 'newest', 'newest']);
+  });
+
+  it('leaves the order to the adapter (feed order) when --order is absent', async () => {
+    const seen: Array<string | undefined> = [];
+    await run(['list', FEED_URL], capture().io, { list: { adapter: sortRecordingFeed(seen) } });
+    expect(seen).toEqual([undefined]);
+  });
+
+  it('accepts --order feed and rejects other values', async () => {
+    const seen: Array<string | undefined> = [];
+    expect(
+      await run(['list', FEED_URL, '--order', 'feed'], capture().io, {
+        list: { adapter: sortRecordingFeed(seen) },
+      }),
+    ).toBe(ExitCode.Success);
+    expect(seen).toEqual(['feed']);
+
+    const { io, stderr } = capture();
+    expect(
+      await run(['list', FEED_URL, '--order', 'oldest'], io, {
+        list: { adapter: sortRecordingFeed([]) },
+      }),
+    ).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--order must be "feed" or "newest", received "oldest"');
+  });
+
+  it('rejects --order with a Hacker News list URL', async () => {
+    const { io, stderr } = capture();
+    const code = await run(['list', 'https://news.ycombinator.com/', '--order', 'newest'], io, {});
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--order applies to RSS/Atom feeds');
+  });
+});
