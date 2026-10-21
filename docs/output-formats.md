@@ -51,6 +51,11 @@ versioned envelope. Entries stay in feed document order; consumers sort.
 - `collection.title` and `collection.metadata`: `format` (`"rss"` or
   `"atom"`), and when the feed declares them `description`, `siteUrl` (the
   channel or feed `link`), and `imageUrl`. Atom feeds also keep `subtitle`.
+  A listing reached from an Apple Podcasts show URL is the feed's own
+  collection (same `id`, `canonicalUrl` = the feed URL) plus
+  `metadata.apple: { podcastId, showUrl }`, where `showUrl` is the canonical
+  `https://podcasts.apple.com/<cc>/podcast/id<podcastId>`. `extract` feed
+  envelopes carry the same `collection`.
 - Each item has `id` (`rss:entry:<entryId>`), `canonicalUrl` (the entry link
   exactly as the feed gives it, with no tracking-parameter removal; consumers
   apply their own canonical form), and when present `title`, `description`

@@ -368,7 +368,15 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
     }
 
     if (command === 'auth') {
-      return runAuthCommand(parsed.args.slice(1), bounded, options, deps.auth);
+      const combined = compose(deps.auth?.signal);
+      try {
+        return await runAuthCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.auth,
+          signal: combined.signal,
+        });
+      } finally {
+        combined.cleanup();
+      }
     }
 
     if (command === 'models') {
