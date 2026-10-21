@@ -204,6 +204,12 @@ export async function runExtractCommand(
     }
     return ExitCode.Usage;
   }
+  if (isHackerNewsUrl && options.order !== undefined) {
+    if (!options.quiet) {
+      writeUsageError(io, options, 'extract', '--order applies to RSS/Atom feeds, not Hacker News');
+    }
+    return ExitCode.Usage;
+  }
   if (isHackerNewsUrl && options.page !== undefined) {
     if (!options.quiet) {
       writeUsageError(
@@ -538,6 +544,7 @@ async function runFeedExtraction(
   const result = await listCollection(feedAdapter, feedLocator(url), {
     limit,
     signal: deps.signal,
+    ...(options.order === undefined ? {} : { sort: options.order }),
   });
 
   const items: ExtractBatchItem[] = [];

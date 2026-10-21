@@ -64,11 +64,11 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie list URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
+owlie list URL [--limit N] [--order feed|newest] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
+owlie process FEED_URL --each [--limit N] [--order feed|newest] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie auth add <provider> | list | remove <provider>
@@ -255,9 +255,19 @@ collection limits:
   declared media type is RSS, Atom, or another XML type other than XHTML
   (listing, feed batches, discovery probes, and the Apple and episode-page
   feed fallbacks). The default is 32 MiB, because podcast feeds carry their
-  whole back catalogue; HTML pages and other text responses keep 5 MiB. The
-  whole document is still read and parsed before `--limit` applies, and
+  whole back catalogue; HTML pages and other text responses keep 5 MiB.
   `--max-network-bytes` still caps the invocation total.
+- `--order feed|newest` sets the entry order of `list`, `extract` feed batches
+  and `process --each`. `feed` (the default) keeps feed document order, and
+  the download stops as soon as the entry after the first `--limit` entries
+  starts: only that prefix is read, parsed, and charged to
+  `--max-network-bytes` and `--max-feed-bytes`, and `truncated` is `true`.
+  Channel-level metadata that a feed places after its entries is not read in
+  that case. If an entry in the prefix can't be used, the feed is read in full
+  so the result never depends on where the download stopped. `newest` reads
+  the whole feed and sorts entries by publication date, newest first, with
+  undated entries after them in feed order. `--order` with a Hacker News URL
+  is a usage error.
 - `--max-stdout-bytes N` caps total stdout bytes before a response crosses the
   app-facing protocol boundary. Exceeding it is an `OUTPUT_LIMIT_EXCEEDED`
   error (exit 1), not a cancellation.

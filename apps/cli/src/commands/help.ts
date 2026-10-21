@@ -24,6 +24,7 @@ Options:
   --refresh        Bypass the model cache (models only)
   --language LANG  Select transcript languages (comma-separated; default en)
   --limit N        Bound collection listing and feed extraction (max 500)
+  --order feed|newest  Feed entry order: as published in the feed (default) or newest first
   --timeout-ms N   Bound one complete invocation (ms)
   --max-network-bytes N  Cap total network download bytes
   --max-feed-bytes N     Cap one RSS/Atom feed response in bytes (default 32 MiB)
@@ -44,7 +45,7 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
+  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
   'Extract content from a URL. A YouTube video, podcast episode, or article\n' +
   'page writes its normalized text to stdout, or a JSON NormalizedDocument with\n' +
   '--json. A page is an article when it declares one (og:type or JSON-LD) or\n' +
@@ -86,7 +87,7 @@ const RESOLVE_HELP =
   'run in recognition order and never fall back to article extraction.';
 
 const LIST_HELP =
-  'owlie list URL [--limit N] [--json]\n\n' +
+  'owlie list URL [--limit N] [--order feed|newest] [--json]\n\n' +
   'List entries in an RSS/Atom feed, bounded by --limit (default 10, max 500).\n' +
   'A feed URL is used directly; an HTML page URL that exposes a feed is\n' +
   'discovered first. A Hacker News list URL (/, /news, /newest, /best, /ask,\n' +
@@ -94,11 +95,13 @@ const LIST_HELP =
   'score, comment count, and linked URL. Writes a line-oriented summary to\n' +
   'stdout, or a JSON envelope of collection metadata, item metadata, and\n' +
   'truncation state with --json. One feed response may be up to 32 MiB\n' +
-  '(--max-feed-bytes N to change it).';
+  '(--max-feed-bytes N to change it). In the default feed order the download\n' +
+  'stops once the entries --limit needs have arrived; --order newest sorts by\n' +
+  'publication date (undated entries last) and reads the whole feed.';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +
-  'owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id]\n\n' +
+  'owlie process FEED_URL --each [--limit N] [--order feed|newest] --prompt "..." [--model provider/model-id]\n\n' +
   'Process plain text, a normalized document, or a URL with an LLM (DeepSeek\n' +
   'or OpenAI). Reads exactly one input: a positional http(s) URL (extracted\n' +
   'first through the universal YouTube/podcast/article rule), a positional\n' +

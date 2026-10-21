@@ -19,6 +19,33 @@ function pageFetcher(html: string, responses: Record<string, FetchResponse> = {}
 }
 
 describe('GenericEpisodePageResolver', () => {
+  it('reads only the header of a feed-typed page before deferring it', async () => {
+    const feed = `<?xml version="1.0"?><rss version="2.0"><channel><title>Show</title>${'<item><title>x</title></item>'.repeat(500)}</channel></rss>`;
+    let stoppedAt: number | undefined;
+    const fetcher: HttpFetcher = {
+      async fetch(url, options) {
+        for (let end = 32; options?.stopReading && end < feed.length; end += 32) {
+          if (options.stopReading(feed.slice(0, end), 'application/rss+xml')) {
+            stoppedAt = end;
+            return {
+              url,
+              contentType: 'application/rss+xml',
+              text: feed.slice(0, end),
+              partial: true,
+            };
+          }
+        }
+        return { url, contentType: 'application/rss+xml', text: feed };
+      },
+    };
+    const error = await new GenericEpisodePageResolver({ fetcher })
+      .resolve({ url: 'https://feeds.example.com/show' })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NotHandledError);
+    expect(stoppedAt).toBeLessThan(200);
+    expect((error as NotHandledError).deferredResponse?.partial).toBe(true);
+  });
+
   it('resolves JSON-LD audio before lower-priority page signals', async () => {
     const resolver = new GenericEpisodePageResolver({
       fetcher: pageFetcher(`

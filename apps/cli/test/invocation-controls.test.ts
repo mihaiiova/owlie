@@ -442,3 +442,81 @@ describe('feed size flag', () => {
     expect(stderr()).toContain('--max-feed-bytes must be a positive integer');
   });
 });
+
+describe('feed order flag', () => {
+  function sortRecordingFeed(seen: Array<string | undefined>): CollectionAdapter {
+    return {
+      id: 'rss',
+      sourceType: 'rss',
+      recognize: (locator) => locator.url === FEED_URL,
+      async resolve(locator) {
+        return {
+          id: `rss:feed:${locator.url}`,
+          sourceType: 'rss',
+          canonicalUrl: locator.url,
+          metadata: {},
+        };
+      },
+      async list(collection, options: CollectionListOptions) {
+        seen.push(options.sort);
+        return { collection, items: [], truncated: false };
+      },
+    };
+  }
+
+  it('passes --order newest to the feed listing for list, extract and process --each', async () => {
+    const seen: Array<string | undefined> = [];
+    await run(['list', FEED_URL, '--order', 'newest'], capture().io, {
+      list: { adapter: sortRecordingFeed(seen) },
+    });
+    await run(['extract', FEED_URL, '--order', 'newest'], capture().io, {
+      extract: { itemAdapters: [specializedAdapter()], feedAdapter: sortRecordingFeed(seen) },
+    });
+    await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--order', 'newest'],
+      capture({ isTTY: true }).io,
+      {
+        process: {
+          itemAdapters: [specializedAdapter()],
+          feedAdapter: sortRecordingFeed(seen),
+          processor: {
+            id: 'fake',
+            process: async () => ({ output: 'done', format: 'text' as const, metadata: {} }),
+          },
+        },
+      },
+    );
+    expect(seen).toEqual(['newest', 'newest', 'newest']);
+  });
+
+  it('leaves the order to the adapter (feed order) when --order is absent', async () => {
+    const seen: Array<string | undefined> = [];
+    await run(['list', FEED_URL], capture().io, { list: { adapter: sortRecordingFeed(seen) } });
+    expect(seen).toEqual([undefined]);
+  });
+
+  it('accepts --order feed and rejects other values', async () => {
+    const seen: Array<string | undefined> = [];
+    expect(
+      await run(['list', FEED_URL, '--order', 'feed'], capture().io, {
+        list: { adapter: sortRecordingFeed(seen) },
+      }),
+    ).toBe(ExitCode.Success);
+    expect(seen).toEqual(['feed']);
+
+    const { io, stderr } = capture();
+    expect(
+      await run(['list', FEED_URL, '--order', 'oldest'], io, {
+        list: { adapter: sortRecordingFeed([]) },
+      }),
+    ).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--order must be "feed" or "newest", received "oldest"');
+  });
+
+  it('rejects --order with a Hacker News list URL', async () => {
+    const { io, stderr } = capture();
+    const code = await run(['list', 'https://news.ycombinator.com/', '--order', 'newest'], io, {});
+    expect(code).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('--order applies to RSS/Atom feeds');
+  });
+});
