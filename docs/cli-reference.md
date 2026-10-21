@@ -13,7 +13,7 @@ owlie --version [--json]
 owlie doctor [--json]
 owlie extract URL   # article page, YouTube video, podcast media/Apple episode/episode page, Hacker News item, or bounded feed (direct or discovered page)
 owlie resolve URL   # print the validated audio media URL without transcribing
-owlie list URL      # list entries in an RSS/Atom feed or a Hacker News list
+owlie list URL      # list entries in an RSS/Atom feed (direct, discovered, or an Apple Podcasts show) or a Hacker News list
 owlie process FILE|URL --prompt "..." [--model provider/model-id]  # DeepSeek or OpenAI
 owlie process FEED_URL --each --prompt "..."  # stream one JSONL record per feed item
 owlie models [--provider PROVIDER] [--refresh]  # list live models (cached, dynamic)

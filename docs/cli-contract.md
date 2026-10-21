@@ -96,8 +96,11 @@ owlie capabilities [--json]
   `--article` extracts the page as an article (an `EXTRACTION_ERROR` when it
   has no readable body) and `--feed` runs feed discovery only; both are
   authoritative with no fallback, exclude each other and the podcast resolver
-  flags, and `--article` with a YouTube or direct feed URL is a usage error
-  (exit code 2). Apple episodes
+  flags, and `--article` with a YouTube, direct feed, or Apple Podcasts show
+  URL is a usage error (exit code 2). An Apple Podcasts show URL (no numeric
+  `i` episode id) resolves to the show's RSS feed through Apple's public
+  lookup API for both `list` and `extract`, which then behave as for the feed
+  URL; a show without a public feed is an `EXTRACTION_ERROR`. Apple episodes
   resolve through Apple's public lookup API, with a matching RSS enclosure
   fallback. Other episode pages use audio signals only; they never execute
   JavaScript (ADR 0037). Strong signals (JSON-LD `PodcastEpisode`,
