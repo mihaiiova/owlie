@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import type { ModelInfo } from '@owlieio/core';
 import type { UserConfig } from 'owlie';
+import { CancelledError } from '@owlieio/core';
 import { defaultToolAvailable, ExitCode, run } from 'owlie';
 import type { CliDeps, CliIo } from 'owlie';
 
@@ -27,11 +28,20 @@ function scriptedSelect(answers: string[]) {
 }
 
 function makeSetup(opts: {
-  select?: (q: string, options: readonly string[], o?: { default?: string }) => Promise<string>;
-  prompt?: (q: string, o?: { default?: string }) => Promise<string>;
+  select?: (
+    q: string,
+    options: readonly string[],
+    o?: { default?: string; signal?: AbortSignal },
+  ) => Promise<string>;
+  prompt?: (q: string, o?: { default?: string; signal?: AbortSignal }) => Promise<string>;
   listModels?: () => Promise<ModelInfo[]>;
-  toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
+  toolAvailable?: (
+    tool: string,
+    args?: readonly string[],
+    o?: { signal?: AbortSignal },
+  ) => Promise<boolean>;
   readConfig?: () => UserConfig;
+  signal?: AbortSignal;
 }) {
   const writes: UserConfig[] = [];
   const deps: CliDeps = {
@@ -43,6 +53,7 @@ function makeSetup(opts: {
       toolAvailable: opts.toolAvailable,
       readConfig: opts.readConfig ?? (() => ({})),
       writeConfig: (config) => writes.push(config),
+      signal: opts.signal,
     },
   };
   return { deps, writes };
@@ -56,7 +67,105 @@ describe('default setup prerequisite probe', () => {
       return child;
     }) as unknown as typeof import('node:child_process').spawn;
 
-    await expect(defaultToolAvailable('ffmpeg', ['--version'], spawnTool)).resolves.toBe(false);
+    await expect(defaultToolAvailable('ffmpeg', ['--version'], { spawnTool })).resolves.toBe(false);
+  });
+
+  it('passes the signal to the probe and reports cancellation instead of unavailable', async () => {
+    const controller = new AbortController();
+    let received: AbortSignal | undefined;
+    const spawnTool = ((_tool: string, _args: string[], options: { signal?: AbortSignal }) => {
+      received = options.signal;
+      const child = new EventEmitter();
+      options.signal?.addEventListener('abort', () =>
+        child.emit('error', Object.assign(new Error('aborted'), { name: 'AbortError' })),
+      );
+      return child;
+    }) as unknown as typeof import('node:child_process').spawn;
+
+    const probe = defaultToolAvailable('ffmpeg', ['-version'], {
+      spawnTool,
+      signal: controller.signal,
+    });
+    controller.abort(new CancelledError('timed out'));
+    await expect(probe).rejects.toBeInstanceOf(CancelledError);
+    expect(received).toBe(controller.signal);
+  });
+});
+
+/** A prompt that waits until the signal it was given aborts (like readline). */
+function promptUntilAbort(seen: Array<AbortSignal | undefined>) {
+  return (_q: string, o?: { signal?: AbortSignal }) => {
+    seen.push(o?.signal);
+    return new Promise<string>((_resolve, reject) => {
+      o?.signal?.addEventListener('abort', () => reject(o.signal?.reason), { once: true });
+    });
+  };
+}
+
+describe('owlie setup cancellation', () => {
+  it('ends a pending prompt at the --timeout-ms deadline without persisting', async () => {
+    const seen: Array<AbortSignal | undefined> = [];
+    const { deps, writes } = makeSetup({
+      select: scriptedSelect(['Proxy', 'generic']),
+      prompt: promptUntilAbort(seen),
+    });
+    const { io, stderr } = capture();
+    const code = await run(['--timeout-ms', '20', 'setup'], io, deps);
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    expect(stderr()).toContain('timed out');
+    expect(writes).toHaveLength(0);
+  });
+
+  it('passes the signal to select', async () => {
+    const controller = new AbortController();
+    const seen: Array<AbortSignal | undefined> = [];
+    const { deps, writes } = makeSetup({
+      select: async (_q, _options, o) => {
+        seen.push(o?.signal);
+        controller.abort(new CancelledError('cancelled'));
+        throw o?.signal?.reason;
+      },
+      signal: controller.signal,
+    });
+    const { io } = capture();
+    const code = await run(['setup'], io, deps);
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(seen[0]?.aborted).toBe(true);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('does not persist when a prompt answers after cancellation', async () => {
+    const controller = new AbortController();
+    const { deps, writes } = makeSetup({
+      select: scriptedSelect(['Proxy', 'generic']),
+      prompt: async () => {
+        controller.abort(new CancelledError('cancelled'));
+        return 'http://proxy.example:8080';
+      },
+      signal: controller.signal,
+    });
+    const { io } = capture();
+    const code = await run(['setup'], io, deps);
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('does not persist a Whisper model chosen after cancellation', async () => {
+    const controller = new AbortController();
+    const { deps, writes } = makeSetup({
+      select: async (q) => {
+        if (q === 'Setup') return 'Transcription';
+        controller.abort(new CancelledError('cancelled'));
+        return 'small';
+      },
+      toolAvailable: async () => true,
+      signal: controller.signal,
+    });
+    const { io } = capture();
+    const code = await run(['setup'], io, deps);
+    expect(code).toBe(ExitCode.Cancelled);
+    expect(writes).toHaveLength(0);
   });
 });
 
