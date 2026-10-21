@@ -10,7 +10,7 @@ const FEED_URL = 'https://example.com/feed.xml';
 const POST_URL = 'https://example.com/posts/1';
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
 <channel>
   <title>Example &amp; Co</title>
   <link>https://example.com/</link>
@@ -24,6 +24,7 @@ const FEED = `<?xml version="1.0" encoding="UTF-8"?>
     <content:encoded><![CDATA[<p>Rich <b>HTML</b> body</p>]]></content:encoded>
     <enclosure url="https://example.com/ep1.mp3" type="audio/mpeg" length="1000"/>
     <media:content url="https://example.com/ep1.jpg" type="image/jpeg" medium="image"/>
+    <podcast:transcript url="https://example.com/ep1.vtt" type="text/vtt" language="en"/>
   </item>
   <item>
     <title>No guid</title>
@@ -107,6 +108,18 @@ describe('list --json — feed metadata, typed enclosures, entry id source', () 
     expect(stdout()).not.toContain('<b>HTML</b>');
     expect(first.metadata.content).toBeUndefined();
     expect(first.metadata.feedUrl).toBeUndefined();
+  });
+
+  it('lists Podcasting 2.0 transcript links in item metadata', async () => {
+    const { io, stdout } = capture();
+    await run(['list', FEED_URL, '--json'], io, {
+      list: { adapter: new RssAdapter({ fetcher: fetcher(feedPages) }) },
+    });
+    const [first, second] = JSON.parse(stdout()).result.items;
+    expect(first.metadata.transcripts).toEqual([
+      { url: 'https://example.com/ep1.vtt', type: 'text/vtt', language: 'en' },
+    ]);
+    expect(second.metadata).not.toHaveProperty('transcripts');
   });
 
   it('carries entry metadata into feed-batch documents', async () => {
