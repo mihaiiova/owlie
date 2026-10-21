@@ -73,6 +73,11 @@ sorts them by publication date (newest first, undated entries last).
   - `enclosureUrl` (**deprecated**): the first enclosure URL, else the first
     `media:content` URL. Use `enclosures` instead.
   - `duration` and `categories` when the feed declares them.
+  - `transcripts`: `[{ url, type?, language?, rel? }]` from Podcasting 2.0
+    `<podcast:transcript>` tags on RSS 2.0 items, in feed order; `type` is
+    lowercased. Only absolute `http(s)` URLs are kept; other links are dropped
+    without failing the entry, and the key is omitted when none remain. The
+    links are not fetched.
 
 The feed batch of `owlie extract` and the records of `process --each` carry the
 same allowlisted entry metadata, plus `publishedAt`, on each document as
