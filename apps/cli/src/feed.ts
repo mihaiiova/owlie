@@ -1,13 +1,17 @@
 import type {
   CollectionAdapter,
+  CollectionListResult,
   ContentCollection,
   ContentItem,
   ContentLocator,
+  HttpFetcher,
+  HttpFetchPolicy,
   HttpTextResponse,
   ItemAdapter,
   NormalizedDocument,
   ProgressSink,
 } from '@owlieio/core';
+import { parseAppleShowUrl, resolveAppleShowFeed } from '@owlieio/adapter-podcast';
 import { assertNoUrlCredentials, ConfigurationError, OwlieError } from '@owlieio/core';
 import { extractWithFallback } from './dispatch.js';
 
@@ -197,4 +201,45 @@ export async function resolveFeedCollectionUrl(
     throw new ConfigurationError(`no RSS/Atom feed discoverable from ${url}`);
   }
   return discovered;
+}
+
+/** A feed resolved from a non-feed URL, with collection metadata to keep. */
+export interface ResolvedShowFeed {
+  feedUrl: string;
+  /** Merged into the listed collection's metadata (e.g. `apple`). */
+  collectionMetadata: Record<string, unknown>;
+}
+
+/**
+ * Resolves an Apple Podcasts show URL to the show's RSS feed through Apple's
+ * lookup, keeping the Apple link as `metadata.apple`. `undefined` for any
+ * other URL; the fetcher is only requested for a show URL.
+ */
+export async function resolveAppleShowCollection(
+  url: string,
+  options: { fetcher: () => HttpFetcher; policy?: HttpFetchPolicy; signal?: AbortSignal },
+): Promise<ResolvedShowFeed | undefined> {
+  const reference = parseAppleShowUrl(url);
+  if (reference === undefined) return undefined;
+  const show = await resolveAppleShowFeed(reference, {
+    fetcher: options.fetcher(),
+    policy: options.policy,
+    signal: options.signal,
+  });
+  return {
+    feedUrl: show.feedUrl,
+    collectionMetadata: { apple: { podcastId: show.podcastId, showUrl: show.showUrl } },
+  };
+}
+
+/** The list result with extra collection metadata merged in. */
+export function withCollectionMetadata(
+  result: CollectionListResult,
+  metadata: Record<string, unknown> | undefined,
+): CollectionListResult {
+  if (metadata === undefined) return result;
+  return {
+    ...result,
+    collection: { ...result.collection, metadata: { ...result.collection.metadata, ...metadata } },
+  };
 }

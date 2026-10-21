@@ -16,7 +16,7 @@ import {
   resolveItem,
 } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
-import { PodcastAdapter } from '@owlieio/adapter-podcast';
+import { parseAppleShowUrl, PodcastAdapter } from '@owlieio/adapter-podcast';
 import { WhisperLocalTranscriber } from '@owlieio/provider-whisper';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -30,7 +30,9 @@ import {
   extractLinkedItem,
   feedLocator,
   itemRef,
+  resolveAppleShowCollection,
   resolveFeedCollectionUrl,
+  withCollectionMetadata,
   toBatchError,
 } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
@@ -216,6 +218,19 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
+  const isAppleShowUrl = parseAppleShowUrl(url) !== undefined;
+  if (options.page === 'article' && isAppleShowUrl) {
+    if (!options.quiet) {
+      writeUsageError(
+        io,
+        options,
+        'extract',
+        '--article cannot be used with an Apple Podcasts show URL',
+      );
+    }
+    return ExitCode.Usage;
+  }
+
   if (options.page === 'article') {
     const specializedMatch = itemAdapters.some(
       (adapter) => adapter.sourceType === 'youtube' && adapter.recognize({ url }),
@@ -259,6 +274,26 @@ export async function runExtractCommand(
         options,
         deps,
       );
+    }
+    if (isAppleShowUrl) {
+      spinner.start('looking up Apple Podcasts show');
+      const show = await resolveAppleShowCollection(url, {
+        fetcher: () => network().fetcher,
+        policy: deps.networkPolicy,
+        signal: deps.signal,
+      });
+      if (show !== undefined) {
+        return await runFeedExtraction(
+          show.feedUrl,
+          io,
+          itemAdapters,
+          feedAdapter,
+          spinner,
+          options,
+          deps,
+          show.collectionMetadata,
+        );
+      }
     }
     if (options.page === 'feed') {
       const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
@@ -532,13 +567,14 @@ async function runFeedExtraction(
   spinner: SpinnerLike,
   options: CliOptions,
   deps: ExtractDeps,
+  collectionMetadata?: Record<string, unknown>,
 ): Promise<number> {
   const limit = parseCollectionLimit(options.limit);
   spinner.start('extracting feed');
-  const result = await listCollection(feedAdapter, feedLocator(url), {
-    limit,
-    signal: deps.signal,
-  });
+  const result = withCollectionMetadata(
+    await listCollection(feedAdapter, feedLocator(url), { limit, signal: deps.signal }),
+    collectionMetadata,
+  );
 
   const items: ExtractBatchItem[] = [];
   let failed = false;

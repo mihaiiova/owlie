@@ -108,6 +108,8 @@ owlie extract "https://example.com/posts/a-story" --json
 # A direct feed URL or a non-article HTML page that exposes a feed both work.
 owlie extract "https://example.com/feed.xml" --limit 20
 owlie extract "https://example.com/" --limit 20
+# An Apple Podcasts show URL resolves to the show's RSS feed (Apple lookup)
+owlie extract "https://podcasts.apple.com/us/podcast/example/id12345" --limit 5
 
 # A Hacker News story's discussion, its linked article, or both in one document
 owlie extract "https://news.ycombinator.com/item?id=8863" --hn-content both
@@ -125,6 +127,7 @@ owlie list "https://example.com/feed.xml" --limit 20
 owlie list "https://example.com/" --limit 20
 owlie list "https://example.com/feed.xml" --json   # collection + item metadata + truncated
 owlie list "https://news.ycombinator.com/" --limit 30   # the Hacker News front page
+owlie list "https://podcasts.apple.com/us/podcast/example/id12345"   # an Apple Podcasts show's feed
 ```
 
 ### Resolve
