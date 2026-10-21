@@ -21,8 +21,9 @@ export interface SpinnerLike {
   stop(): void;
 }
 
+/** Clears whatever a longer previous message left after this one. */
 export function spinnerLine(frame: string, message: string): string {
-  return `\r${frame} ${message}`;
+  return `\r${frame} ${message}\x1b[K`;
 }
 
 export interface SpinnerOptions {

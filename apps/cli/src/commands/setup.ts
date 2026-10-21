@@ -14,15 +14,22 @@ import { writeDiagnostic } from '../style.js';
 
 export interface SetupDeps {
   /** Detects a local executable without installing it. */
-  toolAvailable?: (tool: string, args?: readonly string[]) => Promise<boolean>;
+  toolAvailable?: (
+    tool: string,
+    args?: readonly string[],
+    options?: { signal?: AbortSignal },
+  ) => Promise<boolean>;
   providers?: ProviderInfo[];
   readConfig?: () => UserConfig;
   writeConfig?: (config: UserConfig) => void;
-  prompt?: (question: string, options?: { default?: string }) => Promise<string>;
+  prompt?: (
+    question: string,
+    options?: { default?: string; signal?: AbortSignal },
+  ) => Promise<string>;
   select?: (
     question: string,
     options: readonly string[],
-    opts?: { default?: string },
+    opts?: { default?: string; signal?: AbortSignal },
   ) => Promise<string>;
   listModels?: (
     provider: ProviderInfo,
@@ -44,31 +51,55 @@ export const WHISPER_MODELS = [
   'large-v3-turbo',
 ] as const;
 
-/** Interactive free-text prompt backed by stdin/stderr (used as the default). */
-export function defaultPrompt(question: string, options?: { default?: string }): Promise<string> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
-  const suffix = options?.default ? ` [${options.default}]` : '';
-  return rl
-    .question(`${question}${suffix}: `)
-    .then((answer) => {
-      rl.close();
-      return answer.trim() || options?.default || '';
-    })
-    .catch((error) => {
-      rl.close();
-      throw error;
-    });
+/** Throws the invocation's cancellation when `signal` has aborted. */
+export function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return;
+  throw signal.reason instanceof CancelledError
+    ? signal.reason
+    : new CancelledError('cancelled', { cause: signal.reason });
 }
 
-/** Probes an executable and treats any nonzero exit as unavailable. */
+/**
+ * Asks one readline question that ends when `signal` aborts (deadline or
+ * SIGINT), so a pending prompt never outlives the invocation.
+ */
+async function askQuestion(text: string, signal: AbortSignal | undefined): Promise<string> {
+  throwIfCancelled(signal);
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return await rl.question(text, signal ? { signal } : {});
+  } catch (error) {
+    throwIfCancelled(signal);
+    throw error;
+  } finally {
+    rl.close();
+  }
+}
+
+/** Interactive free-text prompt backed by stdin/stderr (used as the default). */
+export async function defaultPrompt(
+  question: string,
+  options?: { default?: string; signal?: AbortSignal },
+): Promise<string> {
+  const suffix = options?.default ? ` [${options.default}]` : '';
+  const answer = await askQuestion(`${question}${suffix}: `, options?.signal);
+  return answer.trim() || options?.default || '';
+}
+
+/**
+ * Probes an executable and treats any nonzero exit as unavailable. An aborted
+ * `signal` kills the probe and rejects with the cancellation instead.
+ */
 export async function defaultToolAvailable(
   tool: string,
   args: readonly string[] = ['--version'],
-  spawnTool: typeof spawn = spawn,
+  options: { signal?: AbortSignal; spawnTool?: typeof spawn } = {},
 ): Promise<boolean> {
+  const spawnTool = options.spawnTool ?? spawn;
+  throwIfCancelled(options.signal);
   try {
     await new Promise<void>((resolve, reject) => {
-      const child = spawnTool(tool, [...args], { stdio: 'ignore' });
+      const child = spawnTool(tool, [...args], { stdio: 'ignore', signal: options.signal });
       child.once('error', reject);
       child.once('exit', (code) => {
         if (code === 0) resolve();
@@ -77,30 +108,28 @@ export async function defaultToolAvailable(
     });
     return true;
   } catch {
+    throwIfCancelled(options.signal);
     return false;
   }
 }
 
 /** Interactive numbered menu backed by stdin/stderr (used as the default). */
-export function defaultSelect(
+export async function defaultSelect(
   question: string,
   options: readonly string[],
-  opts?: { default?: string },
+  opts?: { default?: string; signal?: AbortSignal },
 ): Promise<string> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
   const list = options.map((option, index) => `  ${index + 1}. ${option}`).join('\n');
   const defaultIndex = opts?.default ? options.indexOf(opts.default) : -1;
   const defaultLabel = defaultIndex >= 0 ? ` [${defaultIndex + 1}]` : '';
-  return rl.question(`${question}:\n${list}\nSelect${defaultLabel}: `).then((answer) => {
-    rl.close();
-    const trimmed = answer.trim();
-    if (trimmed === '') return opts?.default ?? options[0] ?? '';
-    const numeric = Number(trimmed);
-    if (Number.isInteger(numeric) && numeric >= 1 && numeric <= options.length) {
-      return options[numeric - 1] ?? trimmed;
-    }
-    return trimmed;
-  });
+  const answer = await askQuestion(`${question}:\n${list}\nSelect${defaultLabel}: `, opts?.signal);
+  const trimmed = answer.trim();
+  if (trimmed === '') return opts?.default ?? options[0] ?? '';
+  const numeric = Number(trimmed);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= options.length) {
+    return options[numeric - 1] ?? trimmed;
+  }
+  return trimmed;
 }
 
 export async function runSetupCommand(
@@ -111,8 +140,13 @@ export async function runSetupCommand(
   const providers = deps.providers ?? listProviders();
   const readConfig = deps.readConfig ?? readUserConfig;
   const writeConfig = deps.writeConfig ?? writeUserConfig;
-  const prompt = deps.prompt ?? defaultPrompt;
-  const select = deps.select ?? defaultSelect;
+  const { signal } = deps;
+  const promptSeam = deps.prompt ?? defaultPrompt;
+  const selectSeam = deps.select ?? defaultSelect;
+  const prompt = (question: string, opts: { default?: string } = {}) =>
+    promptSeam(question, { ...opts, signal });
+  const select = (question: string, options: readonly string[], opts: { default?: string } = {}) =>
+    selectSeam(question, options, { ...opts, signal });
   const listModels =
     deps.listModels ??
     ((provider, options) =>
@@ -120,7 +154,15 @@ export async function runSetupCommand(
         { apiKey: options.apiKey, baseUrl: options.baseUrl },
         { signal: options.signal, policy: options.policy },
       ));
-  const toolAvailable = deps.toolAvailable ?? defaultToolAvailable;
+  const toolAvailableSeam = deps.toolAvailable ?? defaultToolAvailable;
+  const toolAvailable = (tool: string, args?: readonly string[]) =>
+    toolAvailableSeam(tool, args, { signal });
+  // Every write re-checks cancellation, so an answer that arrives after the
+  // deadline or SIGINT never persists configuration.
+  const persist = (config: UserConfig) => {
+    throwIfCancelled(signal);
+    writeConfig(config);
+  };
 
   const existing = readConfig();
 
@@ -158,11 +200,11 @@ export async function runSetupCommand(
         modelInfos = await listModels(provider, {
           baseUrl: existingProfile.baseUrl ?? provider.baseUrl,
           apiKey,
-          signal: deps.signal,
+          signal,
           policy: deps.networkPolicy,
         });
       } catch (error) {
-        if (error instanceof CancelledError || deps.signal?.aborted) throw error;
+        if (error instanceof CancelledError || signal?.aborted) throw error;
         if (!options.quiet) {
           const message = error instanceof Error ? error.message : String(error);
           writeDiagnostic(io, 'error', `failed to list models for "${providerId}": ${message}`);
@@ -182,7 +224,7 @@ export async function runSetupCommand(
         return ExitCode.Usage;
       }
 
-      writeConfig({
+      persist({
         ...existing,
         provider: providerId,
         providers: {
@@ -201,6 +243,7 @@ export async function runSetupCommand(
         toolAvailable('ffprobe', ['-version']),
         toolAvailable('python3', ['-c', 'import faster_whisper']),
       ]);
+      throwIfCancelled(signal);
       if (!python || !ffmpeg || !ffprobe || !whisper) {
         if (!options.quiet)
           writeDiagnostic(
@@ -225,7 +268,7 @@ export async function runSetupCommand(
         if (!options.quiet) writeDiagnostic(io, 'warning', `unknown whisper model "${model}"`);
         return ExitCode.Usage;
       }
-      writeConfig({ ...existing, transcription: { provider: 'whisper-local', model } });
+      persist({ ...existing, transcription: { provider: 'whisper-local', model } });
       io.stdout.write('owlie setup complete\n');
       return ExitCode.Success;
     }
@@ -253,7 +296,7 @@ export async function runSetupCommand(
         proxy = { type: 'generic', url };
       }
 
-      writeConfig({ ...existing, proxy });
+      persist({ ...existing, proxy });
       io.stdout.write('owlie setup complete\n');
       return ExitCode.Success;
     }

@@ -3,8 +3,13 @@
 [![npm](https://img.shields.io/npm/v/@owlieio/owlie)](https://www.npmjs.com/package/@owlieio/owlie)
 [![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
-Turn any URL into clean text you can read, pipe, or hand to an LLM: articles,
-YouTube transcripts, podcast episodes, RSS/Atom feeds, and Hacker News threads.
+Ask an LLM anything about a URL, or turn it into clean text you can read or
+pipe: articles, YouTube videos, podcast episodes, RSS/Atom feeds, and Hacker
+News threads.
+
+```bash
+owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Give me the gist, with supporting facts for each claim"
+```
 
 ## Install
 
@@ -21,6 +26,17 @@ npx @owlieio/owlie@latest extract "https://paulgraham.com/greatwork.html"
 ```
 
 ## Try it
+
+`owlie process` reads a URL and runs your prompt on it with your own DeepSeek or
+OpenAI key. Run `owlie setup` once to pick a provider, model and key.
+
+```bash
+owlie setup
+owlie process "https://paulgraham.com/greatwork.html" --prompt "What are the three main ideas?"
+owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Summarize this video"
+```
+
+No key needed to get the text itself, or to list a feed:
 
 ```bash
 owlie extract "https://paulgraham.com/greatwork.html"       # an article as plain text
@@ -47,6 +63,17 @@ pipes. Add `--json` for a versioned, machine-readable envelope.
 
 ## Recipes
 
+### Ask about an article or video
+
+```bash
+owlie process "https://paulgraham.com/greatwork.html" --prompt "Summarize this in five bullet points"
+owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "List every claim with its supporting facts"
+owlie process "https://news.ycombinator.com/item?id=8863" --prompt "What do commenters agree and disagree on?"
+```
+
+Pass `--model openai/gpt-4o-mini` (or another `provider/model`) to skip the
+configured default, and `--json` for a machine-readable result.
+
 ### Read an article
 
 ```bash
@@ -63,8 +90,7 @@ owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --language en,es
 
 ### Summarize a feed with an LLM
 
-`owlie process` uses your own DeepSeek or OpenAI key. Run `owlie setup` once,
-or pass a key and model directly:
+Without `owlie setup`, pass a key and model directly:
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -82,6 +108,37 @@ mixed with progress text. In `--json` mode every successful single-result comman
 writes one versioned envelope `{ schemaVersion, command, result }`; streaming
 commands (`process --each`) write versioned JSONL records. stderr carries
 versioned JSONL progress and terminal error/cancellation records (ADR 0030).
+
+### Process
+
+```bash
+# Process a URL directly (extracted through the universal dispatch first);
+# a feed URL is rejected here — use --each instead
+owlie process "https://example.com/article" --prompt "Summarize this"
+owlie process "https://www.youtube.com/watch?v=..." --prompt "Give me the gist"
+
+# Pipe an extracted transcript into the LLM
+owlie extract "https://www.youtube.com/watch?v=..." | owlie process --prompt "Summarize this"
+
+# Process a file, or declare the input with --input
+owlie process transcript.txt --prompt "Summarize this"
+owlie process --input transcript.txt --prompt "Summarize this"
+
+# Process a normalized JSON document (e.g. a previous extract --json)
+owlie extract "https://www.youtube.com/watch?v=..." --json |
+  owlie process --input-format json --prompt "Extract the key claims"
+
+# Select provider and model explicitly (self-contained)
+owlie process transcript.txt --prompt "Summarize this" --model openai/gpt-4o-mini
+
+# JSON result instead of text/markdown
+owlie process transcript.txt --prompt "Summarize this" --json
+
+# Process each linked item of a feed, streaming one JSONL record per item.
+# A direct feed URL or an HTML page URL that exposes a feed both work.
+owlie process "https://example.com/feed.xml" --each --limit 20 --prompt "Summarize this"
+owlie process "https://example.com/" --each --limit 20 --prompt "Summarize this"
+```
 
 ### Extract
 
@@ -108,6 +165,8 @@ owlie extract "https://example.com/posts/a-story" --json
 # A direct feed URL or a non-article HTML page that exposes a feed both work.
 owlie extract "https://example.com/feed.xml" --limit 20
 owlie extract "https://example.com/" --limit 20
+# An Apple Podcasts show URL resolves to the show's RSS feed (Apple lookup)
+owlie extract "https://podcasts.apple.com/us/podcast/example/id12345" --limit 5
 
 # A Hacker News story's discussion, its linked article, or both in one document
 owlie extract "https://news.ycombinator.com/item?id=8863" --hn-content both
@@ -125,6 +184,7 @@ owlie list "https://example.com/feed.xml" --limit 20
 owlie list "https://example.com/" --limit 20
 owlie list "https://example.com/feed.xml" --json   # collection + item metadata + truncated
 owlie list "https://news.ycombinator.com/" --limit 30   # the Hacker News front page
+owlie list "https://podcasts.apple.com/us/podcast/example/id12345"   # an Apple Podcasts show's feed
 ```
 
 ### Resolve
@@ -133,36 +193,6 @@ owlie list "https://news.ycombinator.com/" --limit 30   # the Hacker News front 
 # Print the validated audio media URL without downloading or transcribing
 owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
 owlie resolve "https://publisher.example/episodes/my-episode" --podcast-page --json
-```
-
-### Process
-
-```bash
-# Pipe an extracted transcript into the LLM
-owlie extract "https://www.youtube.com/watch?v=..." | owlie process --prompt "Summarize this"
-
-# Process a file, or declare the input with --input
-owlie process transcript.txt --prompt "Summarize this"
-owlie process --input transcript.txt --prompt "Summarize this"
-
-# Process a normalized JSON document (e.g. a previous extract --json)
-owlie extract "https://www.youtube.com/watch?v=..." --json |
-  owlie process --input-format json --prompt "Extract the key claims"
-
-# Process a URL directly (extracted through the universal dispatch first);
-# a feed URL is rejected here — use --each instead
-owlie process "https://example.com/article" --prompt "Summarize this"
-
-# Select provider and model explicitly (self-contained)
-owlie process transcript.txt --prompt "Summarize this" --model openai/gpt-4o-mini
-
-# JSON result instead of text/markdown
-owlie process transcript.txt --prompt "Summarize this" --json
-
-# Process each linked item of a feed, streaming one JSONL record per item.
-# A direct feed URL or an HTML page URL that exposes a feed both work.
-owlie process "https://example.com/feed.xml" --each --limit 20 --prompt "Summarize this"
-owlie process "https://example.com/" --each --limit 20 --prompt "Summarize this"
 ```
 
 ### Models

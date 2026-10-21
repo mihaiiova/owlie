@@ -221,3 +221,143 @@ describe('RssAdapter feed media-type gate', () => {
     }
   });
 });
+
+describe('RssAdapter.list ordering and partial reads', () => {
+  const FEED_URL = 'https://example.com/feed.xml';
+
+  function feedOf(items: string[]): string {
+    return `<?xml version="1.0"?><rss version="2.0"><channel><title>Show</title>${items.join('')}</channel></rss>`;
+  }
+
+  function entry(id: string, pubDate?: string, title = id): string {
+    return `<item><title>${title}</title><link>https://example.com/${id}</link><guid>${id}</guid>${
+      pubDate ? `<pubDate>${pubDate}</pubDate>` : ''
+    }</item>`;
+  }
+
+  /** Streams `text` in chunks and honours `stopReading`, like DefaultHttpFetcher. */
+  function streamingFetcher(text: string, chunk = 40) {
+    const calls: Array<{ stopped: boolean; delivered: number; streamed: boolean }> = [];
+    const fetcher: HttpFetcher = {
+      async fetch(url, options) {
+        let delivered = text.length;
+        let stopped = false;
+        if (options?.stopReading) {
+          for (let end = chunk; ; end += chunk) {
+            delivered = Math.min(end, text.length);
+            if (options.stopReading(text.slice(0, delivered), 'application/rss+xml')) {
+              stopped = delivered < text.length;
+              break;
+            }
+            if (delivered === text.length) break;
+          }
+        }
+        calls.push({ stopped, delivered, streamed: options?.stopReading !== undefined });
+        return {
+          url,
+          contentType: 'application/rss+xml',
+          text: text.slice(0, delivered),
+          ...(stopped ? { partial: true } : {}),
+        };
+      },
+    };
+    return { fetcher, calls };
+  }
+
+  const many = feedOf(
+    Array.from({ length: 50 }, (_, i) => entry(`e${i + 1}`, 'Tue, 19 Aug 2025 10:00:00 GMT')),
+  );
+
+  it('stops reading after the entry following the limit, with the same items as a full read', async () => {
+    const full = await new RssAdapter({ fetcher: fakeFetcherFor(many) }).list(
+      await new RssAdapter({ fetcher: fakeFetcherFor(many) }).resolve({ url: FEED_URL }),
+      { limit: 3 },
+    );
+    const { fetcher, calls } = streamingFetcher(many);
+    const adapter = new RssAdapter({ fetcher });
+    const result = await adapter.list(await adapter.resolve({ url: FEED_URL }), { limit: 3 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.stopped).toBe(true);
+    expect(calls[0]!.delivered).toBeLessThan(many.length / 4);
+    expect(result).toEqual(full);
+    expect(result.items.map((item) => item.title)).toEqual(['e1', 'e2', 'e3']);
+    expect(result.truncated).toBe(true);
+    expect(result.collection.title).toBe('Show');
+  });
+
+  it('reads the whole feed when an entry in the prefix is dropped', async () => {
+    const feed = feedOf([entry('e1'), '<item></item>', entry('e3'), entry('e4')]);
+    const { fetcher, calls } = streamingFetcher(feed, 10);
+    const adapter = new RssAdapter({ fetcher });
+    const result = await adapter.list(await adapter.resolve({ url: FEED_URL }), { limit: 2 });
+    const fullItems = (
+      await new RssAdapter({ fetcher: fakeFetcherFor(feed) }).list(
+        await adapter.resolve({ url: FEED_URL }),
+        { limit: 2 },
+      )
+    ).items;
+    expect(result.items).toEqual(fullItems);
+    expect(result.items).toHaveLength(2);
+    expect(calls.at(-1)!.streamed).toBe(false);
+  });
+
+  it('fetches once when the feed has no more entries than the limit', async () => {
+    const feed = feedOf([entry('e1'), entry('e2')]);
+    const { fetcher, calls } = streamingFetcher(feed);
+    const adapter = new RssAdapter({ fetcher });
+    const result = await adapter.list(await adapter.resolve({ url: FEED_URL }), { limit: 5 });
+    expect(calls).toHaveLength(1);
+    expect(result.items).toHaveLength(2);
+    expect(result.truncated).toBe(false);
+  });
+
+  it('is not truncated when the feed has exactly the limit', async () => {
+    const feed = feedOf([entry('e1'), entry('e2')]);
+    const { fetcher } = streamingFetcher(feed);
+    const adapter = new RssAdapter({ fetcher });
+    const result = await adapter.list(await adapter.resolve({ url: FEED_URL }), { limit: 2 });
+    expect(result.truncated).toBe(false);
+  });
+
+  it('sorts by publication date with sort "newest", undated entries last in feed order', async () => {
+    const feed = feedOf([
+      entry('old', 'Mon, 01 Jan 2024 00:00:00 GMT'),
+      entry('undated-a'),
+      entry('new', 'Mon, 01 Sep 2025 00:00:00 GMT'),
+      entry('undated-b'),
+      entry('mid', 'Mon, 01 Jan 2025 00:00:00 GMT'),
+    ]);
+    const { fetcher, calls } = streamingFetcher(feed);
+    const adapter = new RssAdapter({ fetcher });
+    const collection = await adapter.resolve({ url: FEED_URL });
+    const result = await adapter.list(collection, { limit: 10, sort: 'newest' });
+    expect(result.items.map((item) => item.title)).toEqual([
+      'new',
+      'mid',
+      'old',
+      'undated-a',
+      'undated-b',
+    ]);
+    expect(calls[0]!.streamed).toBe(false);
+
+    const top = await adapter.list(collection, { limit: 2, sort: 'newest' });
+    expect(top.items.map((item) => item.title)).toEqual(['new', 'mid']);
+    expect(top.truncated).toBe(true);
+  });
+
+  it('keeps feed order for sort "feed" and rejects an unknown sort', async () => {
+    const adapter = new RssAdapter({ fetcher: fakeFetcherFor(many) });
+    const collection = await adapter.resolve({ url: FEED_URL });
+    const result = await adapter.list(collection, { limit: 2, sort: 'feed' });
+    expect(result.items.map((item) => item.title)).toEqual(['e1', 'e2']);
+    await expect(adapter.list(collection, { limit: 2, sort: 'oldest' })).rejects.toBeInstanceOf(
+      ConfigurationError,
+    );
+  });
+});
+
+function fakeFetcherFor(text: string): HttpFetcher {
+  return {
+    fetch: async (url) => ({ url, contentType: 'application/rss+xml', text }),
+  };
+}

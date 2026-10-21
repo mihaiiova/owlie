@@ -56,7 +56,8 @@ Translation is never performed.
 
 ## Typed failures
 
-- `CaptionsUnavailableError` — no captions/transcript for the video.
+- `CaptionsUnavailableError` — no captions/transcript for the video, including
+  videos with transcripts disabled.
 - `CancelledError` — abort signal or timeout.
 - `ExtractionError` — any other failure (network, blocked, malformed response).
 

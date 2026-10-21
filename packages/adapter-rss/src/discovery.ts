@@ -8,9 +8,11 @@ import type {
 import {
   DefaultHttpFetcher,
   assertSafeHttpUrl,
+  feedHeaderText,
   isFeedContentType,
   isHtmlContentType,
   mediaTypeOf,
+  stopAtFeedHeader,
 } from '@owlieio/core';
 import { decodeXmlEntities, parseFeed, type FeedFormat } from './feed.js';
 
@@ -189,9 +191,12 @@ export class FeedDiscoveryService implements FeedDiscovery {
       return [];
     }
 
+    // A page that turns out to be a feed is only read up to its first entry:
+    // the header is enough to recognize it, and listing reads it again.
     const response = await this.fetcher.fetch(pageUrl.toString(), {
       signal: options.signal,
       policy: this.policy,
+      stopReading: stopAtFeedHeader(),
     });
     return this.discoverFromResponse(response, options);
   }
@@ -225,8 +230,10 @@ export class FeedDiscoveryService implements FeedDiscovery {
 
   private async selfAsFeed(response: HttpTextResponse): Promise<ContentCollection[]> {
     if (!isFeedContentType(response.contentType)) return [];
+    const text = feedHeaderText(response);
+    if (text === undefined) return [];
     try {
-      const feed = await parseFeed(response.text);
+      const feed = await parseFeed(text);
       return this.toCollections([{ url: response.url, format: feed.format }]);
     } catch {
       return [];
