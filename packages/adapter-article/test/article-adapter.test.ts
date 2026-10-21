@@ -137,6 +137,21 @@ describe('ArticleAdapter.extract', () => {
     expect(document.text).toContain('\n\nfirst\nsecond\n\n');
   });
 
+  it('drops empty preformatted blocks without leaving extra blank lines', async () => {
+    const html = STRUCTURED_ARTICLE.replace(
+      '<blockquote>',
+      '<pre><code></code></pre><pre>  </pre><blockquote>',
+    ).replace('</table>', '</table><pre><code></code></pre>');
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(html) });
+    const document = await adapter.extract(
+      await adapter.resolveItem({ url: 'https://example.com/articles/structured' }),
+    );
+
+    expect(document.text).toContain('}\n\nA quoted remark that stands on its own.');
+    expect(document.text).not.toMatch(/\n{3,}/);
+    expect(document.text).not.toMatch(/^\s|\s$/);
+  });
+
   it('keeps disclosure blocks and table cells apart', async () => {
     const adapter = new ArticleAdapter({ fetcher: htmlFetcher(STRUCTURED_ARTICLE) });
     const document = await adapter.extract(
@@ -399,6 +414,20 @@ describe('ArticleAdapter.classify', () => {
     canonicalUrl: 'https://example.com/articles/page',
     metadata: {},
   };
+
+  it('fetches with a feed-header stop and classifies a feed as not an article', async () => {
+    let stopReading: ((text: string, type: string | null) => boolean) | undefined;
+    const feedFetcher: HttpFetcher = {
+      async fetch(url, options) {
+        stopReading = options?.stopReading;
+        return { url, contentType: 'application/rss+xml', text: '<rss><channel></channel></rss>' };
+      },
+    };
+    const result = await new ArticleAdapter({ fetcher: feedFetcher }).classify(item);
+    expect(result.isArticle).toBe(false);
+    expect(stopReading?.('<rss><channel><item>', 'application/rss+xml')).toBe(true);
+    expect(stopReading?.('<html><body><item>', 'text/html')).toBe(false);
+  });
 
   it('classifies a declared article and returns its document', async () => {
     const adapter = new ArticleAdapter({ fetcher });

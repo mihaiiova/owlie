@@ -2,7 +2,7 @@
 
 Podcast episode source adapter for Owlie CLI.
 
-The adapter recognizes direct podcast media URLs, Apple Podcasts episode URLs,
+The adapter recognizes direct podcast media URLs, Apple Podcasts episode and show URLs,
 and safe server-rendered episode pages with declarative audio metadata. It resolves pages through an injected
 safe HTTP fetcher, downloads the resulting media through its safe binary seam,
 and delegates transcription to an injected `Transcriber` (for example
@@ -16,6 +16,10 @@ and delegates transcription to an injected `Transcriber` (for example
   podcast media URLs.
 - `ApplePodcastsResolver` — resolves Apple episode URLs through the public iTunes
   lookup API, with a matching RSS enclosure fallback.
+- `parseAppleShowUrl` / `resolveAppleShowFeed` — recognize an Apple Podcasts
+  show URL (no numeric `i` episode id) without network access, and resolve it
+  to the show's public RSS `feedUrl` through the same lookup API and the
+  injected safe fetcher.
 - `GenericEpisodePageResolver` — resolves audio signals without rendering
   JavaScript. Strong signals (JSON-LD `PodcastEpisode`/`AudioObject`/
   `MusicRecording` with a media URL, or an oEmbed resolving to audio) always

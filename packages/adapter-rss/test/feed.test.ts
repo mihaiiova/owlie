@@ -369,3 +369,50 @@ describe('parseFeed — decoded Atom links (#121)', () => {
     });
   });
 });
+
+describe('Podcasting 2.0 podcast:transcript', () => {
+  const feed = (items: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+<channel><title>Show</title>${items}</channel></rss>`;
+
+  it('exposes every transcript tag on an item in feed order', async () => {
+    const parsed = await parseFeed(
+      feed(`<item><title>One</title><guid>ep-1</guid>
+        <podcast:transcript url="https://cdn.example.com/ep1.vtt" type="text/vtt" language="en"/>
+        <podcast:transcript url="https://cdn.example.com/ep1.srt" type="application/srt" rel="captions"/>
+        <podcast:transcript url="https://cdn.example.com/ep1.json" type="application/json" language="en-US"/>
+        <podcast:transcript url="http://cdn.example.com/ep1.html" type="TEXT/HTML"/>
+      </item>`),
+    );
+    expect(parsed.entries[0]!.metadata.transcripts).toEqual([
+      { url: 'https://cdn.example.com/ep1.vtt', type: 'text/vtt', language: 'en' },
+      { url: 'https://cdn.example.com/ep1.srt', type: 'application/srt', rel: 'captions' },
+      { url: 'https://cdn.example.com/ep1.json', type: 'application/json', language: 'en-US' },
+      { url: 'http://cdn.example.com/ep1.html', type: 'text/html' },
+    ]);
+  });
+
+  it('drops relative, non-http(s) and url-less transcripts without failing the entry', async () => {
+    const parsed = await parseFeed(
+      feed(`<item><title>One</title><guid>ep-1</guid>
+        <podcast:transcript url="/ep1.vtt" type="text/vtt"/>
+        <podcast:transcript url="javascript:alert(1)" type="text/html"/>
+        <podcast:transcript type="text/vtt"/>
+        <podcast:transcript url="https://cdn.example.com/ok.vtt" type="text/vtt"/>
+      </item>
+      <item><title>Two</title><guid>ep-2</guid>
+        <podcast:transcript url="ftp://cdn.example.com/x.vtt" type="text/vtt"/>
+      </item>`),
+    );
+    expect(parsed.entries.map((entry) => entry.id)).toEqual(['ep-1', 'ep-2']);
+    expect(parsed.entries[0]!.metadata.transcripts).toEqual([
+      { url: 'https://cdn.example.com/ok.vtt', type: 'text/vtt' },
+    ]);
+    expect(parsed.entries[1]!.metadata).not.toHaveProperty('transcripts');
+  });
+
+  it('omits the key for entries without transcripts', async () => {
+    const parsed = await parseFeed(feed('<item><title>One</title><guid>ep-1</guid></item>'));
+    expect(parsed.entries[0]!.metadata).not.toHaveProperty('transcripts');
+  });
+});
