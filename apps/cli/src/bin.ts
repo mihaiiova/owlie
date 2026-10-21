@@ -52,6 +52,7 @@ async function main(): Promise<void> {
         resolve: { signal: controller.signal },
         models: { signal: controller.signal },
         setup: { signal: controller.signal },
+        auth: { signal: controller.signal },
       },
     );
     process.exitCode = code;

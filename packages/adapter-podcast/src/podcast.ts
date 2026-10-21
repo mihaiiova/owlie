@@ -22,6 +22,7 @@ import {
   isJsonContentType,
   NotHandledError,
   declaredArticleSignal,
+  stopAtFeedHeader,
 } from '@owlieio/core';
 import { parseFeed } from '@owlieio/adapter-rss';
 import type { FeedEnclosure } from '@owlieio/adapter-rss';
@@ -100,9 +101,12 @@ export class GenericEpisodePageResolver implements PodcastAudioResolver {
       throw new ConfigurationError(`not a recognized podcast episode URL: ${locator.url}`);
     if (options.signal?.aborted) throw new CancelledError('podcast episode resolution cancelled');
 
+    // A feed URL lands here before feed discovery; its header is enough to
+    // defer it, so a large feed is not downloaded whole.
     const page = await this.fetcher.fetch(locator.url, {
       signal: options.signal,
       policy: this.policy,
+      stopReading: stopAtFeedHeader(),
     });
     if (!isHtmlContentType(page.contentType)) {
       throw new NotHandledError(

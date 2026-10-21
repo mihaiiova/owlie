@@ -120,8 +120,11 @@ export function boundedIo(io: CliIo, maxStdoutBytes: number | undefined): CliIo 
  */
 export function networkPolicyFromBytes(
   maxNetworkBytes: number | undefined,
+  maxFeedBytes?: number,
 ): HttpFetchPolicy | undefined {
-  return maxNetworkBytes === undefined
-    ? undefined
-    : { byteBudget: createHttpByteBudget(maxNetworkBytes) };
+  if (maxNetworkBytes === undefined && maxFeedBytes === undefined) return undefined;
+  return {
+    ...(maxNetworkBytes === undefined ? {} : { byteBudget: createHttpByteBudget(maxNetworkBytes) }),
+    ...(maxFeedBytes === undefined ? {} : { maxFeedResponseBytes: maxFeedBytes }),
+  };
 }
