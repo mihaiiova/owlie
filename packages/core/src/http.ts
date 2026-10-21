@@ -83,6 +83,11 @@ export interface HttpTextResponse {
   contentType: string | null;
   /** Decoded response body, capped by the fetch policy. */
   text: string;
+  /**
+   * `true` when `stopReading` ended the download early, so `text` is only a
+   * prefix of the body.
+   */
+  partial?: boolean;
 }
 
 /** Per-request options for a {@link HttpFetcher} call. */
@@ -96,6 +101,13 @@ export interface HttpFetchOptions {
    * leak cross-origin.
    */
   headers?: Record<string, string>;
+  /**
+   * Text fetches only: called with the decoded body so far after each chunk.
+   * Returning `true` stops the download and returns the text read so far
+   * (a prefix of the body). Fetchers that cannot stream may ignore it and
+   * return the whole body, so callers must handle both.
+   */
+  stopReading?: (textSoFar: string, contentType: string | null) => boolean;
 }
 
 /** A seam for safely fetching bounded text from an HTTP(S) URL. */
@@ -266,9 +278,10 @@ async function readBody(
   maxBytes: number,
   signal: AbortSignal,
   budget?: HttpByteBudget,
-): Promise<string> {
+  stopReading?: (textSoFar: string, contentType: string | null) => boolean,
+): Promise<{ text: string; partial: boolean }> {
   const body = response.body;
-  if (!body) return '';
+  if (!body) return { text: '', partial: false };
   if (signal.aborted) throw new CancelledError('fetch timed out or was cancelled');
 
   const reader = body.getReader();
@@ -298,8 +311,12 @@ async function readBody(
       }
       budget?.consume(value.byteLength);
       text += decoder.decode(value, { stream: true });
+      if (stopReading?.(text, response.headers.get('content-type'))) {
+        await reader.cancel().catch(() => undefined);
+        return { text, partial: true };
+      }
     }
-    return text + decoder.decode();
+    return { text: text + decoder.decode(), partial: false };
   } finally {
     signal.removeEventListener('abort', onAbort);
   }
@@ -520,9 +537,15 @@ export class DefaultHttpFetcher implements HttpFetcher {
           textResponseLimit(options.policy, response.headers.get('content-type')),
           signal,
           options.policy?.byteBudget,
+          options.stopReading,
         ),
       options,
     );
-    return { url: result.url, contentType: result.contentType, text: result.body };
+    return {
+      url: result.url,
+      contentType: result.contentType,
+      text: result.body.text,
+      ...(result.body.partial ? { partial: true } : {}),
+    };
   }
 }

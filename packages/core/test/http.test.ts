@@ -931,6 +931,56 @@ describe('DefaultHttpFetcher', () => {
     ).rejects.toThrow(/invocation budget/);
   });
 
+  it('stops reading the body once stopReading returns true', async () => {
+    let pulled = 0;
+    const chunks = ['<rss>', '<item>1</item>', '<item>2</item>', '<item>3</item>', '</rss>'];
+    const fetchFn: HttpFetchFn = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            const next = chunks[pulled++];
+            if (next === undefined) controller.close();
+            else controller.enqueue(new TextEncoder().encode(next));
+          },
+        }),
+        { headers: { 'content-type': 'application/rss+xml' } },
+      );
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    const budget = createHttpByteBudget(1000);
+    const seen: string[] = [];
+    const response = await fetcher.fetch('https://example.com/feed', {
+      policy: { byteBudget: budget },
+      stopReading: (text) => {
+        seen.push(text);
+        return text.includes('<item>2</item>');
+      },
+    });
+    expect(response.text).toBe('<rss><item>1</item><item>2</item>');
+    expect(seen).toEqual(['<rss>', '<rss><item>1</item>', '<rss><item>1</item><item>2</item>']);
+    expect(budget.remaining).toBe(1000 - response.text.length);
+    expect(pulled).toBeLessThan(chunks.length);
+  });
+
+  it('stops before the size limit would be exceeded', async () => {
+    const fetchFn: HttpFetchFn = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('a'.repeat(8)));
+            controller.enqueue(new TextEncoder().encode('b'.repeat(8)));
+            controller.close();
+          },
+        }),
+        { headers: { 'content-type': 'application/rss+xml' } },
+      );
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    const response = await fetcher.fetch('https://example.com/feed', {
+      policy: { maxFeedResponseBytes: 10 },
+      stopReading: () => true,
+    });
+    expect(response.text).toBe('a'.repeat(8));
+  });
+
   it('enforces a shared byte budget across multiple fetches', async () => {
     const fetchFn: HttpFetchFn = async (input) => {
       const url = String(input);

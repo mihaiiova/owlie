@@ -60,6 +60,8 @@ export interface CliOptions {
   page?: 'article' | 'feed';
   /** What `extract` reads for a Hacker News item (`--hn-content`). */
   hnContent?: HackerNewsContent;
+  /** Feed entry order for listings and feed batches (default: feed document order). */
+  order?: 'feed' | 'newest';
   /** Hacker News comment bounds for `extract` (raw flag values). */
   maxComments?: string;
   commentDepth?: string;
@@ -118,6 +120,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--max-feed-bytes',
     '--max-stdout-bytes',
     '--hn-content',
+    '--order',
     '--max-comments',
     '--comment-depth',
     '--max-top-level-comments',
@@ -171,6 +174,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--max-stdout-bytes':
         options.maxStdoutBytes = value;
+        break;
+      case '--order':
+        if (value === 'feed' || value === 'newest') {
+          options.order = value;
+        } else {
+          usageError = `--order must be "feed" or "newest", received "${value}"`;
+        }
         break;
       case '--hn-content':
         if ((HN_CONTENT_VALUES as readonly string[]).includes(value)) {

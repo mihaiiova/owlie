@@ -46,7 +46,8 @@ formats directly.
 ## Feed listings
 
 `owlie list --json` writes `{ collection, items, truncated }` under the
-versioned envelope. Entries stay in feed document order; consumers sort.
+versioned envelope. Entries stay in feed document order unless `--order newest`
+sorts them by publication date (newest first, undated entries last).
 
 - `collection.title` and `collection.metadata`: `format` (`"rss"` or
   `"atom"`), and when the feed declares them `description`, `siteUrl` (the

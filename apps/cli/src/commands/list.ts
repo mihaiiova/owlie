@@ -149,13 +149,21 @@ export async function runListCommand(
     return ExitCode.Usage;
   }
 
+  const isHackerNews = deps.hackerNewsAdapter?.recognize({ url }) ?? isHackerNewsUrl(url);
+  if (isHackerNews && options.order !== undefined) {
+    if (!options.quiet) {
+      writeUsageError(io, options, 'list', '--order applies to RSS/Atom feeds, not Hacker News');
+    }
+    return ExitCode.Usage;
+  }
+
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     const limit = parseListLimit(options.limit);
     let result: CollectionListResult;
     // Recognition is pure, so the network is only built for the adapter that runs.
-    if (deps.hackerNewsAdapter?.recognize({ url }) ?? isHackerNewsUrl(url)) {
+    if (isHackerNews) {
       const hackerNews =
         deps.hackerNewsAdapter ??
         createHackerNewsAdapter({
@@ -176,7 +184,11 @@ export async function runListCommand(
       });
       const feedUrl = show?.feedUrl ?? (await resolveFeedCollectionUrl(adapter, url, deps.signal));
       result = withCollectionMetadata(
-        await listCollection(adapter, feedLocator(feedUrl), { limit, signal: deps.signal }),
+        await listCollection(adapter, feedLocator(feedUrl), {
+          limit,
+          signal: deps.signal,
+          ...(options.order === undefined ? {} : { sort: options.order }),
+        }),
         show?.collectionMetadata,
       );
     }

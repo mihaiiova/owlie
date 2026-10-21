@@ -11,3 +11,5 @@ export * from './processing.js';
 export * from './http.js';
 export * from './media-type.js';
 export * from './page.js';
+export * from './feed-prefix.js';
+export * from './feed-prefix.js';
