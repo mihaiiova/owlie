@@ -23,6 +23,8 @@ export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
   'enclosureUrl',
   'duration',
   'categories',
+  // Podcasting 2.0 `podcast:transcript` links: [{ url, type?, language?, rel? }].
+  'transcripts',
   // Hacker News: item id, post kind, point-in-time score and comment count, linked URL.
   'hnId',
   'kind',
