@@ -50,6 +50,8 @@ export interface CliOptions {
   maxMediaBytes?: string;
   /** Command-wide maximum network download bytes. */
   maxNetworkBytes?: string;
+  /** Per-feed response cap in bytes (default 32 MiB). */
+  maxFeedBytes?: string;
   /** Command-wide maximum stdout bytes. */
   maxStdoutBytes?: string;
   /** Stable name of the selected audio resolver (from a resolver-selection flag). */
@@ -58,6 +60,8 @@ export interface CliOptions {
   page?: 'article' | 'feed';
   /** What `extract` reads for a Hacker News item (`--hn-content`). */
   hnContent?: HackerNewsContent;
+  /** Feed entry order for listings and feed batches (default: feed document order). */
+  order?: 'feed' | 'newest';
   /** Hacker News comment bounds for `extract` (raw flag values). */
   maxComments?: string;
   commentDepth?: string;
@@ -113,8 +117,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--timeout-ms',
     '--max-media-bytes',
     '--max-network-bytes',
+    '--max-feed-bytes',
     '--max-stdout-bytes',
     '--hn-content',
+    '--order',
     '--max-comments',
     '--comment-depth',
     '--max-top-level-comments',
@@ -163,8 +169,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--max-network-bytes':
         options.maxNetworkBytes = value;
         break;
+      case '--max-feed-bytes':
+        options.maxFeedBytes = value;
+        break;
       case '--max-stdout-bytes':
         options.maxStdoutBytes = value;
+        break;
+      case '--order':
+        if (value === 'feed' || value === 'newest') {
+          options.order = value;
+        } else {
+          usageError = `--order must be "feed" or "newest", received "${value}"`;
+        }
         break;
       case '--hn-content':
         if ((HN_CONTENT_VALUES as readonly string[]).includes(value)) {
@@ -268,10 +284,12 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   // value is always a usage error regardless of the selected command.
   let timeoutMs: number | undefined;
   let maxNetworkBytes: number | undefined;
+  let maxFeedBytes: number | undefined;
   let maxStdoutBytes: number | undefined;
   try {
     timeoutMs = parsePositiveIntegerFlag(options.timeoutMs, '--timeout-ms');
     maxNetworkBytes = parsePositiveIntegerFlag(options.maxNetworkBytes, '--max-network-bytes');
+    maxFeedBytes = parsePositiveIntegerFlag(options.maxFeedBytes, '--max-feed-bytes');
     maxStdoutBytes = parsePositiveIntegerFlag(options.maxStdoutBytes, '--max-stdout-bytes');
   } catch (error) {
     if (!options.quiet) writeUsageError(io, options, command ?? 'owlie', (error as Error).message);
@@ -279,7 +297,7 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   const bounded = boundedIo(io, maxStdoutBytes);
-  const networkPolicy = networkPolicyFromBytes(maxNetworkBytes);
+  const networkPolicy = networkPolicyFromBytes(maxNetworkBytes, maxFeedBytes);
   const deadline = timeoutMs === undefined ? undefined : createDeadline(timeoutMs);
 
   const compose = (commandSignal: AbortSignal | undefined) => {
@@ -360,7 +378,15 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
     }
 
     if (command === 'auth') {
-      return runAuthCommand(parsed.args.slice(1), bounded, options, deps.auth);
+      const combined = compose(deps.auth?.signal);
+      try {
+        return await runAuthCommand(parsed.args.slice(1), bounded, options, {
+          ...deps.auth,
+          signal: combined.signal,
+        });
+      } finally {
+        combined.cleanup();
+      }
     }
 
     if (command === 'models') {
