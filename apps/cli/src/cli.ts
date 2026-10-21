@@ -50,6 +50,8 @@ export interface CliOptions {
   maxMediaBytes?: string;
   /** Command-wide maximum network download bytes. */
   maxNetworkBytes?: string;
+  /** Per-feed response cap in bytes (default 32 MiB). */
+  maxFeedBytes?: string;
   /** Command-wide maximum stdout bytes. */
   maxStdoutBytes?: string;
   /** Stable name of the selected audio resolver (from a resolver-selection flag). */
@@ -113,6 +115,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--timeout-ms',
     '--max-media-bytes',
     '--max-network-bytes',
+    '--max-feed-bytes',
     '--max-stdout-bytes',
     '--hn-content',
     '--max-comments',
@@ -162,6 +165,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--max-network-bytes':
         options.maxNetworkBytes = value;
+        break;
+      case '--max-feed-bytes':
+        options.maxFeedBytes = value;
         break;
       case '--max-stdout-bytes':
         options.maxStdoutBytes = value;
@@ -268,10 +274,12 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   // value is always a usage error regardless of the selected command.
   let timeoutMs: number | undefined;
   let maxNetworkBytes: number | undefined;
+  let maxFeedBytes: number | undefined;
   let maxStdoutBytes: number | undefined;
   try {
     timeoutMs = parsePositiveIntegerFlag(options.timeoutMs, '--timeout-ms');
     maxNetworkBytes = parsePositiveIntegerFlag(options.maxNetworkBytes, '--max-network-bytes');
+    maxFeedBytes = parsePositiveIntegerFlag(options.maxFeedBytes, '--max-feed-bytes');
     maxStdoutBytes = parsePositiveIntegerFlag(options.maxStdoutBytes, '--max-stdout-bytes');
   } catch (error) {
     if (!options.quiet) writeUsageError(io, options, command ?? 'owlie', (error as Error).message);
@@ -279,7 +287,7 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
   }
 
   const bounded = boundedIo(io, maxStdoutBytes);
-  const networkPolicy = networkPolicyFromBytes(maxNetworkBytes);
+  const networkPolicy = networkPolicyFromBytes(maxNetworkBytes, maxFeedBytes);
   const deadline = timeoutMs === undefined ? undefined : createDeadline(timeoutMs);
 
   const compose = (commandSignal: AbortSignal | undefined) => {

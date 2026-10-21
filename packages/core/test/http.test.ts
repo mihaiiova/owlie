@@ -8,6 +8,8 @@ import {
   CancelledError,
   ConfigurationError,
   createHttpByteBudget,
+  DEFAULT_MAX_FEED_RESPONSE_BYTES,
+  DEFAULT_MAX_RESPONSE_BYTES,
   DefaultHttpFetcher,
   ExtractionError,
   isBlockedHost,
@@ -859,6 +861,74 @@ describe('DefaultHttpFetcher', () => {
     await expect(
       fetcher.fetch('https://example.com/', { policy: { maxResponseBytes: 10 } }),
     ).rejects.toThrow(ExtractionError);
+  });
+
+  it('defaults to 32 MiB for feed bodies and 5 MiB for everything else', () => {
+    expect(DEFAULT_MAX_FEED_RESPONSE_BYTES).toBe(32 * 1024 * 1024);
+    expect(DEFAULT_MAX_RESPONSE_BYTES).toBe(5 * 1024 * 1024);
+  });
+
+  it('reads a feed larger than 5 MiB under the default feed limit', async () => {
+    const body = 'a'.repeat(6 * 1024 * 1024);
+    for (const type of ['application/rss+xml', 'application/atom+xml', 'text/xml; charset=utf-8']) {
+      const fetchFn: HttpFetchFn = async () => ok(body, { headers: { 'content-type': type } });
+      const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+      const response = await fetcher.fetch('https://example.com/feed');
+      expect(response.text.length, type).toBe(body.length);
+    }
+  });
+
+  it('keeps the 5 MiB default for HTML, XHTML and undeclared bodies', async () => {
+    const body = 'a'.repeat(6 * 1024 * 1024);
+    for (const headers of [
+      { 'content-type': 'text/html' },
+      { 'content-type': 'application/xhtml+xml' },
+      {} as Record<string, string>,
+    ]) {
+      const fetchFn: HttpFetchFn = async () => ok(body, { headers });
+      const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+      await expect(fetcher.fetch('https://example.com/page')).rejects.toThrow(
+        /exceeded 5242880 bytes/,
+      );
+    }
+  });
+
+  it('rejects a feed over the default feed limit', async () => {
+    const body = 'a'.repeat(DEFAULT_MAX_FEED_RESPONSE_BYTES + 1);
+    const fetchFn: HttpFetchFn = async () =>
+      ok(body, { headers: { 'content-type': 'application/rss+xml' } });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await expect(fetcher.fetch('https://example.com/feed')).rejects.toThrow(
+      new RegExp(`exceeded ${DEFAULT_MAX_FEED_RESPONSE_BYTES} bytes`),
+    );
+  });
+
+  it('applies maxFeedResponseBytes to feeds only', async () => {
+    const fetchFn: HttpFetchFn = async (input) =>
+      ok('a'.repeat(100), {
+        headers: {
+          'content-type': String(input).endsWith('/feed') ? 'application/rss+xml' : 'text/html',
+        },
+      });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    const policy = { maxFeedResponseBytes: 10, maxResponseBytes: 1000 };
+    await expect(fetcher.fetch('https://example.com/feed', { policy })).rejects.toThrow(
+      /exceeded 10 bytes/,
+    );
+    await expect(fetcher.fetch('https://example.com/page', { policy })).resolves.toMatchObject({
+      text: 'a'.repeat(100),
+    });
+  });
+
+  it('charges a large feed to the shared byte budget', async () => {
+    const fetchFn: HttpFetchFn = async () =>
+      ok('a'.repeat(100), { headers: { 'content-type': 'application/rss+xml' } });
+    const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+    await expect(
+      fetcher.fetch('https://example.com/feed', {
+        policy: { byteBudget: createHttpByteBudget(50) },
+      }),
+    ).rejects.toThrow(/invocation budget/);
   });
 
   it('enforces a shared byte budget across multiple fetches', async () => {

@@ -64,11 +64,11 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie list URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie list URL [--limit N] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
+owlie process FEED_URL --each [--limit N] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie setup [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie auth add <provider> | list | remove <provider>
@@ -251,6 +251,13 @@ collection limits:
   `HttpFetchPolicy`/`DefaultHttpFetcher` seams (feeds, articles, episode
   pages, Apple lookups) and the direct-media streaming path. `--max-media-bytes`
   remains a direct-media-specific override.
+- `--max-feed-bytes N` caps one feed response: any text response whose
+  declared media type is RSS, Atom, or another XML type other than XHTML
+  (listing, feed batches, discovery probes, and the Apple and episode-page
+  feed fallbacks). The default is 32 MiB, because podcast feeds carry their
+  whole back catalogue; HTML pages and other text responses keep 5 MiB. The
+  whole document is still read and parsed before `--limit` applies, and
+  `--max-network-bytes` still caps the invocation total.
 - `--max-stdout-bytes N` caps total stdout bytes before a response crosses the
   app-facing protocol boundary. Exceeding it is an `OUTPUT_LIMIT_EXCEEDED`
   error (exit 1), not a cancellation.

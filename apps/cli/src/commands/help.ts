@@ -26,6 +26,7 @@ Options:
   --limit N        Bound collection listing and feed extraction (max 500)
   --timeout-ms N   Bound one complete invocation (ms)
   --max-network-bytes N  Cap total network download bytes
+  --max-feed-bytes N     Cap one RSS/Atom feed response in bytes (default 32 MiB)
   --max-stdout-bytes N   Cap total stdout bytes
   --max-media-bytes N  Cap a direct-media download in bytes
   --each           Process each linked item of an RSS/Atom feed (process only)
@@ -43,7 +44,7 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
+  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
   'Extract content from a URL. A YouTube video, podcast episode, or article\n' +
   'page writes its normalized text to stdout, or a JSON NormalizedDocument with\n' +
   '--json. A page is an article when it declares one (og:type or JSON-LD) or\n' +
@@ -61,6 +62,8 @@ const EXTRACT_HELP =
   'record in --json mode.\n' +
   '--max-network-bytes caps total network download bytes for core-fetched\n' +
   'content (feeds, articles, episode pages, Apple lookups) and direct media.\n' +
+  '--max-feed-bytes caps one feed response (default 32 MiB; HTML pages keep\n' +
+  '5 MiB), so podcast feeds with long back catalogues can be read.\n' +
   '--max-stdout-bytes caps total stdout bytes before the protocol boundary.\n' +
   '--max-media-bytes caps a direct-media download; omit it to retain the safe\n' +
   'default.\n' +
@@ -90,7 +93,8 @@ const LIST_HELP =
   '/show, or /submitted?id=USER) lists its stories with their HN id, kind,\n' +
   'score, comment count, and linked URL. Writes a line-oriented summary to\n' +
   'stdout, or a JSON envelope of collection metadata, item metadata, and\n' +
-  'truncation state with --json.';
+  'truncation state with --json. One feed response may be up to 32 MiB\n' +
+  '(--max-feed-bytes N to change it).';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +

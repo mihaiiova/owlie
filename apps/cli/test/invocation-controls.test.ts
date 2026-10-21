@@ -364,3 +364,81 @@ describe('network byte budget propagation', () => {
     expect(seenPolicies[0]?.byteBudget?.remaining).toBe(100);
   });
 });
+
+describe('feed size flag', () => {
+  const FEED = `<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>
+    <item><title>One</title><link>https://example.com/1</link><guid>1</guid></item>
+  </channel></rss>`;
+
+  function recordingFetcher(seen: Array<HttpFetchPolicy | undefined>) {
+    return {
+      async fetch(url: string, options?: { policy?: HttpFetchPolicy }) {
+        seen.push(options?.policy);
+        return { url, contentType: 'application/rss+xml', text: FEED };
+      },
+    };
+  }
+
+  function networkWith(fetcher: ReturnType<typeof recordingFetcher>) {
+    return { env: {}, loadFile: () => ({}), readConfig: () => ({}), createFetcher: () => fetcher };
+  }
+
+  it('threads --max-feed-bytes into the list fetch policy', async () => {
+    const seen: Array<HttpFetchPolicy | undefined> = [];
+    const { io } = capture();
+    const code = await run(['list', FEED_URL, '--max-feed-bytes', '1048576'], io, {
+      list: { network: networkWith(recordingFetcher(seen)) },
+    });
+    expect(code).toBe(ExitCode.Success);
+    expect(seen[0]?.maxFeedResponseBytes).toBe(1048576);
+    expect(seen[0]?.byteBudget).toBeUndefined();
+  });
+
+  it('combines --max-feed-bytes with --max-network-bytes', async () => {
+    const seen: Array<HttpFetchPolicy | undefined> = [];
+    const { io } = capture();
+    await run(['list', FEED_URL, '--max-feed-bytes', '2000', '--max-network-bytes', '5000'], io, {
+      list: { network: networkWith(recordingFetcher(seen)) },
+    });
+    expect(seen[0]?.maxFeedResponseBytes).toBe(2000);
+    expect(seen[0]?.byteBudget?.remaining).toBe(5000);
+  });
+
+  it('threads --max-feed-bytes into extract and process --each feed listings', async () => {
+    const extractSeen: Array<HttpFetchPolicy | undefined> = [];
+    await run(['extract', FEED_URL, '--max-feed-bytes', '4096'], capture().io, {
+      extract: {
+        itemAdapters: [specializedAdapter('hello')],
+        network: networkWith(recordingFetcher(extractSeen)),
+      },
+    });
+    expect(extractSeen[0]?.maxFeedResponseBytes).toBe(4096);
+
+    const processSeen: Array<HttpFetchPolicy | undefined> = [];
+    await run(
+      ['process', FEED_URL, '--each', '--prompt', 'x', '--max-feed-bytes', '8192'],
+      capture({ isTTY: true }).io,
+      {
+        process: {
+          itemAdapters: [specializedAdapter('hello')],
+          processor: {
+            id: 'fake',
+            process: async () => ({ output: 'done', format: 'text' as const, metadata: {} }),
+          },
+          network: networkWith(recordingFetcher(processSeen)),
+        },
+      },
+    );
+    expect(processSeen[0]?.maxFeedResponseBytes).toBe(8192);
+  });
+
+  it('rejects an invalid --max-feed-bytes as a usage error', async () => {
+    const { io, stdout, stderr } = capture();
+    const code = await run(['list', FEED_URL, '--max-feed-bytes', '0'], io, {
+      list: { adapter: neverAfterAbortAdapter() },
+    });
+    expect(code).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain('--max-feed-bytes must be a positive integer');
+  });
+});
