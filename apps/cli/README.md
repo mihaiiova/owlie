@@ -1,43 +1,78 @@
 # @owlieio/owlie
 
-Local-first content extraction and processing, as a command-line tool.
+Ask an LLM anything about a URL, or turn it into clean text you can read or
+pipe: articles, YouTube videos, podcast episodes and shows, RSS/Atom feeds, and
+Hacker News threads.
 
-## Status
+```bash
+npm i -g @owlieio/owlie        # Node.js 22 or later
+owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Give me the gist"
+```
 
-v0.1 is functional: `extract` (YouTube transcripts, direct podcast media,
-static articles, Hacker News items, and bounded RSS/Atom feed batches), `list` (bounded feed entries
-and Hacker News lists), `process`
-(DeepSeek; single document or `--each` feed batches), `setup`, `doctor`,
-`--help`, and `--version`.
+Or without installing: `npx @owlieio/owlie@latest extract "https://paulgraham.com/greatwork.html"`.
+
+## What it reads
+
+| Input                                   | Example                                                            | Command                              |
+| --------------------------------------- | ------------------------------------------------------------------ | ------------------------------------ |
+| Article page                            | `https://paulgraham.com/greatwork.html`                            | `extract`, `process`                 |
+| YouTube video (transcript)              | `https://www.youtube.com/watch?v=…`                                | `extract`, `process`                 |
+| RSS/Atom feed, or a page that links one | `https://simonwillison.net/atom/everything/`                       | `list`, `extract`, `process --each`  |
+| Podcast show (feed or Apple Podcasts)   | `https://podcasts.apple.com/us/podcast/unexplainable/id1554578197` | `list`, `extract`, `process --each`  |
+| Podcast episode (audio, Apple, page)    | `https://podcasts.apple.com/…?i=…`                                 | `resolve`, `extract` (local Whisper) |
+| Hacker News list or item                | `https://news.ycombinator.com/item?id=8863`                        | `list`, `extract`, `process`         |
+
+## Examples
+
+```bash
+# Text, no key needed
+owlie extract "https://paulgraham.com/greatwork.html"
+owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --language en,es
+owlie list "https://simonwillison.net/atom/everything/" --limit 3
+
+# Podcasts: the latest episodes, with audio and publisher transcript links
+owlie list "https://podcasts.apple.com/us/podcast/unexplainable/id1554578197" --limit 5 --json
+owlie list "https://feeds.megaphone.fm/vergecast" --limit 5 --order newest
+owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"
+
+# Ask an LLM with your own DeepSeek or OpenAI key (run `owlie setup` once)
+owlie process "https://news.ycombinator.com/item?id=8863" --prompt "What do commenters agree and disagree on?"
+owlie process "https://simonwillison.net/atom/everything/" --each --limit 5 \
+  --model openai/gpt-4o-mini --prompt "Summarize this post in two sentences"
+
+# Compose over pipes
+owlie extract "https://www.youtube.com/watch?v=…" | owlie process --prompt "List the key claims"
+```
 
 ## Commands
 
 ```text
-owlie extract URL   # YouTube video, direct podcast media, static article, Hacker News item, or bounded RSS/Atom feed
-owlie list URL      # list bounded entries of an RSS/Atom feed or a Hacker News list
-owlie process ...   # process text or a document with an LLM
-owlie setup         # configure LLM or local Whisper model interactively
-owlie doctor        # report local environment health
-owlie help          # show help
+owlie extract URL     article, YouTube transcript, podcast audio, Hacker News item, or a bounded feed batch
+owlie list URL        bounded entries of a feed, podcast show, or Hacker News list
+owlie resolve URL     a podcast episode's validated audio URL (no download)
+owlie process ...     run a prompt on a URL, file, stdin, or each item of a feed
+owlie models          available models per provider
+owlie auth            add, list, or remove provider API keys
+owlie setup           interactive provider, model, key, proxy, and Whisper setup
+owlie doctor          local environment health
+owlie capabilities    machine-readable adapters, schemas, and versions
 ```
 
-Run `owlie --help` or `owlie <command> --help` for full usage.
+Run `owlie --help` or `owlie <command> --help` for every flag.
 
-## Pipe-first contract
+## Contract
 
-- Results go to stdout; diagnostics and progress go to stderr.
-- `extract` writes normalized text for a direct URL (`--json` for the
-  `NormalizedDocument`) or a single JSON envelope for a feed URL.
-- `list` writes a line-oriented summary, or a JSON envelope with `--json`.
-- `process` writes plain text (`--json` for the `ProcessResult`) in
-  single-input mode; `--each` streams one JSONL record per feed item.
-- `--quiet` suppresses progress output.
+- Results go to stdout; progress and diagnostics go to stderr.
+- `--json` writes one versioned envelope `{ schemaVersion, command, result }`;
+  `process --each` streams JSONL records.
+- `--timeout-ms`, `--max-network-bytes`, `--max-feed-bytes` and
+  `--max-stdout-bytes` bound any networked command; cancellation exits 130.
+- `--hosted` makes a run deterministic for products that call `owlie` as a
+  subprocess: flags and injected environment only.
 - Secrets are never printed. No telemetry.
 
-## Configuration
-
-Set `DEEPSEEK_API_KEY` (or run `owlie setup`) to use `owlie process`.
-Configuration is persisted to `~/.config/owlie/config.json`.
+Documentation, the full CLI reference and the changelog are on
+[GitHub](https://github.com/mihaiiova/owlie#readme).
 
 ## License
 
