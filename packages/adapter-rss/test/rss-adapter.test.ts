@@ -345,6 +345,20 @@ describe('RssAdapter.list ordering and partial reads', () => {
     expect(top.truncated).toBe(true);
   });
 
+  it('sorts an entry with an unparsable date with the undated entries', async () => {
+    const feed = feedOf([
+      entry('garbled', 'not a date'),
+      entry('old', 'Mon, 01 Jan 2024 00:00:00 GMT'),
+      entry('undated'),
+      entry('new', 'Mon, 01 Sep 2025 00:00:00 GMT'),
+    ]);
+    const { fetcher } = streamingFetcher(feed);
+    const adapter = new RssAdapter({ fetcher });
+    const collection = await adapter.resolve({ url: FEED_URL });
+    const result = await adapter.list(collection, { limit: 10, sort: 'newest' });
+    expect(result.items.map((item) => item.title)).toEqual(['new', 'old', 'garbled', 'undated']);
+  });
+
   it('keeps feed order for sort "feed" and rejects an unknown sort', async () => {
     const adapter = new RssAdapter({ fetcher: fakeFetcherFor(many) });
     const collection = await adapter.resolve({ url: FEED_URL });
