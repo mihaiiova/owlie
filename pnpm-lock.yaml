@@ -60,6 +60,9 @@ importers:
       '@owlieio/adapter-article':
         specifier: workspace:*
         version: link:../../packages/adapter-article
+      '@owlieio/adapter-arxiv':
+        specifier: workspace:*
+        version: link:../../packages/adapter-arxiv
       '@owlieio/adapter-hackernews':
         specifier: workspace:*
         version: link:../../packages/adapter-hackernews
@@ -117,6 +120,31 @@ importers:
       unpdf:
         specifier: 1.8.1
         version: 1.8.1
+    devDependencies:
+      '@owlieio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(supports-color@7.2.0)
+
+  packages/adapter-arxiv:
+    dependencies:
+      '@owlieio/core':
+        specifier: workspace:*
+        version: link:../core
+      entities:
+        specifier: ^8.0.0
+        version: 8.1.0
+      fast-xml-parser:
+        specifier: ^5.11.2
+        version: 5.11.2
     devDependencies:
       '@owlieio/testing':
         specifier: workspace:*
