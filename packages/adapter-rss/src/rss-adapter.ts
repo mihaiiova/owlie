@@ -17,11 +17,14 @@ import {
   ConfigurationError,
   DefaultHttpFetcher,
   ExtractionError,
+  FeedEntryScanner,
   isFeedContentType,
+  isHtmlContentType,
   type HttpFetcher,
   type HttpFetchPolicy,
 } from '@owlieio/core';
 import { documentFromItem, entryToItem, isFeedUrl, normalizeFeedUrl, parseFeed } from './feed.js';
+import type { ParsedEntry, ParsedFeed } from './feed.js';
 import {
   FeedDiscoveryService,
   type FeedDiscovery,
@@ -86,13 +89,13 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDisc
     options: CollectionListOptions,
   ): Promise<CollectionListResult> {
     assertBoundedLimit(options.limit);
-    const response = await this.fetcher.fetch(collection.canonicalUrl, {
-      signal: options.signal,
-      policy: this.effectivePolicy(),
-    });
-    assertFeedMediaType(response.contentType);
-    const feed = await parseFeed(response.text);
-    const items = feed.entries
+    const order = feedOrder(options.sort);
+    const { feed, truncated } =
+      order === 'feed'
+        ? await this.readFirstEntries(collection, options)
+        : await this.readWholeFeed(collection, options);
+    const entries = order === 'newest' ? newestFirst(feed.entries) : feed.entries;
+    const items = entries
       .slice(0, options.limit)
       .map((entry) => entryToItem(entry, collection.canonicalUrl));
     return {
@@ -102,8 +105,62 @@ export class RssAdapter implements CollectionAdapter, ContentExtractor, FeedDisc
         metadata: { ...collection.metadata, ...feed.metadata, format: feed.format },
       },
       items,
-      truncated: feed.entries.length > options.limit,
+      truncated,
     };
+  }
+
+  /**
+   * Reads only as much of the feed as the first `limit` entries need: the
+   * download stops once the next entry starts, and the parsed prefix is the
+   * result (more entries are known to follow, so it is truncated). When the
+   * whole feed arrives it is parsed as usual. When the prefix can't stand in
+   * for a full read (an entry in it was dropped, or it doesn't parse), the
+   * feed is read again in full, so the result never depends on the cut.
+   */
+  private async readFirstEntries(
+    collection: ContentCollection,
+    options: CollectionListOptions,
+  ): Promise<{ feed: ParsedFeed; truncated: boolean }> {
+    const scanner = new FeedEntryScanner(options.limit);
+    const response = await this.fetchFeed(
+      collection,
+      options.signal,
+      (text, contentType) =>
+        isFeedContentType(contentType) && !isHtmlContentType(contentType) && scanner.scan(text),
+    );
+    scanner.scan(response.text);
+    const prefix = scanner.prefix(response.text);
+    if (prefix === undefined) {
+      const feed = await parseFeed(response.text);
+      return { feed, truncated: feed.entries.length > options.limit };
+    }
+    const feed = await parseFeed(prefix).catch(() => undefined);
+    if (feed !== undefined && feed.entries.length >= options.limit) {
+      return { feed, truncated: true };
+    }
+    return this.readWholeFeed(collection, options);
+  }
+
+  private async readWholeFeed(
+    collection: ContentCollection,
+    options: CollectionListOptions,
+  ): Promise<{ feed: ParsedFeed; truncated: boolean }> {
+    const feed = await parseFeed((await this.fetchFeed(collection, options.signal)).text);
+    return { feed, truncated: feed.entries.length > options.limit };
+  }
+
+  private async fetchFeed(
+    collection: ContentCollection,
+    signal: AbortSignal | undefined,
+    stopReading?: (textSoFar: string, contentType: string | null) => boolean,
+  ): Promise<HttpTextResponse> {
+    const response = await this.fetcher.fetch(collection.canonicalUrl, {
+      signal,
+      policy: this.effectivePolicy(),
+      ...(stopReading ? { stopReading } : {}),
+    });
+    assertFeedMediaType(response.contentType);
+    return response;
   }
 
   async extract(item: ContentItem, options: ExtractionOptions = {}): Promise<NormalizedDocument> {
@@ -178,4 +235,26 @@ function assertFeedMediaType(contentType: string | null): void {
       `refusing to parse a feed with an incompatible content type: ${contentType ?? '(none)'}`,
     );
   }
+}
+
+/** Entry orders a feed listing accepts through `CollectionListOptions.sort`. */
+export type FeedOrder = 'feed' | 'newest';
+
+function feedOrder(sort: string | undefined): FeedOrder {
+  if (sort === undefined) return 'feed';
+  if (sort === 'feed' || sort === 'newest') return sort;
+  throw new ConfigurationError(`unsupported feed order "${sort}" (use "feed" or "newest")`);
+}
+
+/**
+ * Dated entries newest first (stable for equal dates), then undated entries
+ * in feed order.
+ */
+function newestFirst(entries: ParsedEntry[]): ParsedEntry[] {
+  // An unparsable date is kept as raw text, so it sorts with the undated entries.
+  const time = (entry: ParsedEntry) =>
+    entry.publishedAt === undefined ? NaN : Date.parse(entry.publishedAt);
+  const dated = entries.filter((entry) => Number.isFinite(time(entry)));
+  const undated = entries.filter((entry) => !Number.isFinite(time(entry)));
+  return [...dated.sort((a, b) => time(b) - time(a)), ...undated];
 }

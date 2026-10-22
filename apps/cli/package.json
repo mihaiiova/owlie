@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "General-purpose web content extractor: URLs in, normalized content out",
   "keywords": [
     "web-content-extraction",
@@ -40,11 +40,11 @@
     "dist"
   ],
   "dependencies": {
-    "ai": "^7.0.90",
-    "@ai-sdk/deepseek": "^3.0.39",
-    "@ai-sdk/openai": "^4.0.50",
+    "ai": "^7.0.138",
+    "@ai-sdk/deepseek": "^3.0.64",
+    "@ai-sdk/openai": "^4.0.92",
     "@hallelx/youtube-transcript": "^0.2.0",
-    "undici": "^7.0.0"
+    "undici": "^7.30.0"
   },
   "scripts": {
     "build": "tsup",

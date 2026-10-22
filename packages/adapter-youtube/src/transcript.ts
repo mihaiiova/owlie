@@ -1,6 +1,8 @@
 import {
   GenericProxyConfig,
+  NoTranscriptFound,
   RequestBlocked,
+  TranscriptsDisabled,
   WebshareProxyConfig,
   YouTubeTranscriptApi,
 } from '@hallelx/youtube-transcript';
@@ -207,6 +209,16 @@ export class YouTubeTranscriptClient implements TranscriptClient {
       }
       if (error instanceof CaptionsUnavailableError || error instanceof CancelledError) {
         throw error;
+      }
+      if (error instanceof TranscriptsDisabled) {
+        throw new CaptionsUnavailableError('YouTube transcripts are disabled for this video', {
+          cause: error,
+        });
+      }
+      if (error instanceof NoTranscriptFound) {
+        throw new CaptionsUnavailableError('No YouTube transcripts are available for this video', {
+          cause: error,
+        });
       }
       if (error instanceof RequestBlocked) {
         throw new ExtractionError(

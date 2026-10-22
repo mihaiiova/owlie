@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { RequestBlocked } from '@hallelx/youtube-transcript';
+import {
+  NoTranscriptFound,
+  RequestBlocked,
+  TranscriptsDisabled,
+  VideoUnavailable,
+} from '@hallelx/youtube-transcript';
 import { CancelledError, CaptionsUnavailableError, ExtractionError } from '@owlieio/core';
 import { pickTranscript, YouTubeTranscriptClient } from '@owlieio/adapter-youtube';
 import type { FetchedTrack, TranscriptSource, TranscriptTrack } from '@owlieio/adapter-youtube';
@@ -107,6 +112,30 @@ describe('YouTubeTranscriptClient.fetch', () => {
   it('maps other failures to ExtractionError', async () => {
     const client = new YouTubeTranscriptClient({ source: sourceOf([], new Error('boom')) });
     await expect(client.fetch('id')).rejects.toBeInstanceOf(ExtractionError);
+  });
+
+  it('maps disabled transcripts to CaptionsUnavailableError', async () => {
+    const client = new YouTubeTranscriptClient({
+      source: sourceOf([], new TranscriptsDisabled('videoId')),
+    });
+    await expect(client.fetch('id')).rejects.toBeInstanceOf(CaptionsUnavailableError);
+    await expect(client.fetch('id')).rejects.toThrow(/transcripts are disabled/);
+  });
+
+  it('maps a missing transcript to CaptionsUnavailableError', async () => {
+    const client = new YouTubeTranscriptClient({
+      source: sourceOf([], new NoTranscriptFound('videoId', ['en'], { toString: () => '' })),
+    });
+    await expect(client.fetch('id')).rejects.toBeInstanceOf(CaptionsUnavailableError);
+  });
+
+  it('keeps an unavailable video as ExtractionError', async () => {
+    const client = new YouTubeTranscriptClient({
+      source: sourceOf([], new VideoUnavailable('videoId')),
+    });
+    const error = await client.fetch('id').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ExtractionError);
+    expect(error).not.toBeInstanceOf(CaptionsUnavailableError);
   });
 
   it('maps a blocked request to a proxy-setup hint', async () => {

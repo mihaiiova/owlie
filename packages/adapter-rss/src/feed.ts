@@ -17,6 +17,17 @@ export interface FeedEnclosure {
   length?: number;
 }
 
+/** A Podcasting 2.0 `<podcast:transcript>` link on an RSS 2.0 item. */
+export interface FeedTranscript {
+  /** Absolute `http(s)` URL of the transcript file. */
+  url: string;
+  /** Lowercased MIME type (e.g. `text/vtt`, `application/srt`), when declared. */
+  type?: string;
+  language?: string;
+  /** `captions` when the file is a closed-captions file. */
+  rel?: string;
+}
+
 /** A `media:content` element, kept separate from enclosures. */
 export interface FeedMedia {
   url: string;
@@ -380,6 +391,7 @@ function parseRss20Entry(item: unknown): ParsedEntry | null {
     metadata: compact({
       ...mediaMetadata(source, rssEnclosures(item), mediaContents(item)),
       duration: clean(item['itunes:duration']),
+      transcripts: transcriptsOf(item),
       categories: categories(item),
     }),
   };
@@ -463,6 +475,39 @@ function atomEnclosures(link: unknown): FeedEnclosure[] {
     .filter((record) => record['@_rel'] === 'enclosure')
     .map((record) => enclosure(attribute(record, 'href'), record))
     .filter((value): value is FeedEnclosure => value !== undefined);
+}
+
+/**
+ * The item's `<podcast:transcript>` links in feed order. Only absolute
+ * `http(s)` URLs are kept; a relative, other-scheme, or missing URL drops
+ * that link, never the entry. `undefined` when none remain.
+ */
+function transcriptsOf(item: Record<string, unknown>): FeedTranscript[] | undefined {
+  const transcripts = toArray<unknown>(item['podcast:transcript'])
+    .filter(isRecord)
+    .flatMap((record) => {
+      const url = absoluteHttpUrl(attribute(record, 'url'));
+      if (url === undefined) return [];
+      return [
+        compact({
+          url,
+          type: attribute(record, 'type')?.toLowerCase(),
+          language: attribute(record, 'language'),
+          rel: attribute(record, 'rel'),
+        }) as unknown as FeedTranscript,
+      ];
+    });
+  return transcripts.length > 0 ? transcripts : undefined;
+}
+
+function absoluteHttpUrl(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function mediaContents(item: Record<string, unknown>): FeedMedia[] {
