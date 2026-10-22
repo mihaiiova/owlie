@@ -1,5 +1,21 @@
 # @owlieio/owlie
 
+## 0.8.0
+
+### Minor Changes
+
+- 9f7d564: Apple Podcasts show URLs (`https://podcasts.apple.com/<cc>/podcast/<slug>/id<digits>`, no `?i=` episode id) now work with `owlie list` and `owlie extract`. They resolve to the show's RSS feed through Apple's public lookup, then behave exactly like the feed URL. The collection gains `metadata.apple: { podcastId, showUrl }`. A show without a public feed fails with `EXTRACTION_ERROR`, and `--article` with a show URL is a usage error (#153).
+- 3e028ed: Feed listings stop downloading once they have the entries `--limit` asks for, so listing a few episodes of a very large podcast feed reads a small prefix instead of the whole file (and counts only that against `--max-network-bytes` and `--max-feed-bytes`). New `--order feed|newest` on `list`, `extract` feed batches and `process --each`: `newest` reads the whole feed and sorts entries by publication date, undated entries last; `feed` (the default) keeps document order. Library consumers get `HttpFetchOptions.stopReading` and `CollectionListOptions.sort: 'feed' | 'newest'` on `RssAdapter`.
+- c0a627c: Feed responses get their own 32 MiB size limit, so podcast feeds with long back catalogues (700+ episodes) can be listed and extracted instead of failing at 5 MiB. The limit applies to any response with an RSS, Atom or XML media type (not XHTML): listing, feed batches, discovery probes and the Apple and episode-page feed fallbacks. HTML pages keep 5 MiB. The new `--max-feed-bytes N` flag changes it; `--max-network-bytes` still caps the invocation total. Library consumers can set `HttpFetchPolicy.maxFeedResponseBytes` (#122).
+- 09af775: Feed entries expose Podcasting 2.0 `<podcast:transcript>` links as `metadata.transcripts: [{ url, type?, language?, rel? }]` in `owlie list --json`, `extract` feed batches and `process --each`, so consumers can use a publisher's transcript instead of transcribing the audio. Only absolute `http(s)` links are kept, and they are not fetched (#143).
+
+### Patch Changes
+
+- ca09151: Dependency updates: the AI SDK packages, `undici` and `fast-xml-parser`.
+- e9744ca: `owlie setup` and `owlie auth add` prompts now end at the `--timeout-ms` deadline or on Ctrl-C (exit 130), and an answer that arrives after cancellation is never saved. `owlie auth` failures such as a read-only config directory or a full disk are reported as JSON error records in `--json` mode instead of raw text (#126).
+- 01b9771: The progress spinner clears the rest of its line on every frame, so a shorter status such as `waiting for llm response` no longer leaves characters from a longer previous one (for example a YouTube video id) on screen.
+- 878578e: YouTube videos with transcripts disabled, or with no transcript at all, now fail with `CAPTIONS_UNAVAILABLE` instead of `EXTRACTION_ERROR`, so consumers can tell "this video has no captions" from a fetch failure without matching on the message. Blocked requests, unavailable videos and network failures stay `EXTRACTION_ERROR` (#129).
+
 ## 0.7.1
 
 ### Patch Changes

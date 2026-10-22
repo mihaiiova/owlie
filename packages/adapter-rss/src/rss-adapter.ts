@@ -251,8 +251,10 @@ function feedOrder(sort: string | undefined): FeedOrder {
  * in feed order.
  */
 function newestFirst(entries: ParsedEntry[]): ParsedEntry[] {
-  const dated = entries.filter((entry) => entry.publishedAt !== undefined);
-  const undated = entries.filter((entry) => entry.publishedAt === undefined);
-  const time = (entry: ParsedEntry) => Date.parse(entry.publishedAt!);
+  // An unparsable date is kept as raw text, so it sorts with the undated entries.
+  const time = (entry: ParsedEntry) =>
+    entry.publishedAt === undefined ? NaN : Date.parse(entry.publishedAt);
+  const dated = entries.filter((entry) => Number.isFinite(time(entry)));
+  const undated = entries.filter((entry) => !Number.isFinite(time(entry)));
   return [...dated.sort((a, b) => time(b) - time(a)), ...undated];
 }
