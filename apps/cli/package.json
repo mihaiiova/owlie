@@ -1,16 +1,26 @@
 {
   "name": "@owlieio/owlie",
   "version": "0.8.1-dev",
-  "description": "General-purpose web content extractor: URLs in, normalized content out",
+  "description": "Ask an LLM about any URL, or turn it into clean text: articles, YouTube transcripts, podcasts, RSS/Atom feeds and Hacker News",
   "keywords": [
+    "cli",
+    "llm",
     "web-content-extraction",
     "article-extraction",
-    "transcripts",
+    "readability",
     "youtube",
+    "youtube-transcript",
+    "transcripts",
     "podcast",
+    "apple-podcasts",
+    "whisper",
     "rss",
-    "cli",
-    "llm"
+    "atom",
+    "feed",
+    "hacker-news",
+    "deepseek",
+    "openai",
+    "jsonl"
   ],
   "type": "module",
   "engines": {
@@ -23,6 +33,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mihaiiova/owlie.git"
+  },
+  "homepage": "https://github.com/mihaiiova/owlie#readme",
+  "bugs": {
+    "url": "https://github.com/mihaiiova/owlie/issues"
   },
   "bin": {
     "owlie": "./dist/bin.js"
