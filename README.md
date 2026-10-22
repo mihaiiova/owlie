@@ -4,8 +4,8 @@
 [![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
 Ask an LLM anything about a URL, or turn it into clean text you can read or
-pipe: articles, YouTube videos, podcast episodes, RSS/Atom feeds, and Hacker
-News threads.
+pipe: articles, YouTube videos, podcast episodes and shows, RSS/Atom feeds, and
+Hacker News threads.
 
 ```bash
 owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Give me the gist, with supporting facts for each claim"
@@ -87,6 +87,22 @@ owlie extract "https://paulgraham.com/greatwork.html" --json   # title, text, me
 owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --language en,es
 ```
+
+### Follow a podcast
+
+A show's RSS feed or its Apple Podcasts link both work. Each episode lists its
+audio file, duration, and any publisher transcript (`<podcast:transcript>`)
+links, so you can skip transcribing when the show publishes one.
+
+```bash
+owlie list "https://podcasts.apple.com/us/podcast/unexplainable/id1554578197" --limit 5
+owlie list "https://feeds.megaphone.fm/vergecast" --limit 5 --order newest --json
+owlie resolve "https://podcasts.apple.com/us/podcast/example/id12345?i=67890"   # one episode's audio URL
+```
+
+Large feeds are cut short once `--limit` entries are read; `--order newest`
+reads the whole feed (up to `--max-feed-bytes`, 32 MiB by default) and sorts by
+date.
 
 ### Summarize a feed with an LLM
 
@@ -185,6 +201,7 @@ owlie list "https://example.com/" --limit 20
 owlie list "https://example.com/feed.xml" --json   # collection + item metadata + truncated
 owlie list "https://news.ycombinator.com/" --limit 30   # the Hacker News front page
 owlie list "https://podcasts.apple.com/us/podcast/example/id12345"   # an Apple Podcasts show's feed
+owlie list "https://example.com/feed.xml" --order newest   # sort by publication date, not feed order
 ```
 
 ### Resolve
@@ -259,7 +276,7 @@ packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article adapter
-packages/adapter-podcast/    Podcast media, Apple episode, and episode-page adapter
+packages/adapter-podcast/    Podcast media, Apple show and episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-hackernews/ Hacker News adapter (lists and item discussions, official API)
 packages/adapter-reddit/     Reddit adapter (Atom transport only; scaffold)
@@ -277,7 +294,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/testing`            | Fakes, fixtures, contract-test helpers                          |
 | `@owlieio/adapter-youtube`    | YouTube videos (playlists deferred)                             |
 | `@owlieio/adapter-article`    | Safe static server-rendered editorial-page extraction           |
-| `@owlieio/adapter-podcast`    | Podcast media, Apple episodes, and declarative episode pages    |
+| `@owlieio/adapter-podcast`    | Podcast media, Apple shows and episodes, declarative pages      |
 | `@owlieio/adapter-rss`        | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-hackernews` | Hacker News lists and item discussions (official API)           |
 | `@owlieio/adapter-reddit`     | Subreddits via public Atom feeds (scaffold)                     |
