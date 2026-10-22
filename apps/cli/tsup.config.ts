@@ -18,7 +18,8 @@ export default defineConfig({
   // The AI SDK and its provider packages are large and use dynamic `require`
   // internally, so they are kept external (runtime dependencies) rather than
   // bundled. The transcript library is externalized to avoid bundling its
-  // optional `undici` peer dependency. Only the private @owlieio/* packages
-  // are inlined.
+  // optional `undici` peer dependency. `unpdf` (pdf.js, for PDF documents) is
+  // a runtime dependency too, so tsup leaves it external. Only the private
+  // @owlieio/* packages are inlined.
   external: ['ai', '@ai-sdk/deepseek', '@ai-sdk/openai', '@hallelx/youtube-transcript'],
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   isFeedContentType,
+  isPdfContentType,
+  startsWithPdfSignature,
   isHtmlContentType,
   isJsonContentType,
   mediaTypeOf,
@@ -74,5 +76,33 @@ describe('isFeedContentType', () => {
     expect(isFeedContentType(null)).toBe(false);
     expect(isFeedContentType(undefined)).toBe(false);
     expect(isFeedContentType('')).toBe(false);
+  });
+});
+
+describe('isPdfContentType', () => {
+  it('accepts application/pdf and the legacy x-pdf type', () => {
+    expect(isPdfContentType('application/pdf')).toBe(true);
+    expect(isPdfContentType('Application/PDF; qs=0.001')).toBe(true);
+    expect(isPdfContentType('application/x-pdf')).toBe(true);
+  });
+
+  it('rejects other and missing declarations', () => {
+    expect(isPdfContentType('application/octet-stream')).toBe(false);
+    expect(isPdfContentType('text/html')).toBe(false);
+    expect(isPdfContentType(null)).toBe(false);
+    expect(isPdfContentType('')).toBe(false);
+  });
+});
+
+describe('startsWithPdfSignature', () => {
+  it('detects the %PDF- signature in bytes and in decoded text', () => {
+    expect(startsWithPdfSignature(new TextEncoder().encode('%PDF-1.7\n'))).toBe(true);
+    expect(startsWithPdfSignature('%PDF-1.4 binary')).toBe(true);
+  });
+
+  it('rejects anything else, including a signature that is not at the start', () => {
+    expect(startsWithPdfSignature(new TextEncoder().encode('<html>%PDF-'))).toBe(false);
+    expect(startsWithPdfSignature('%PDF')).toBe(false);
+    expect(startsWithPdfSignature(new Uint8Array())).toBe(false);
   });
 });

@@ -4,8 +4,8 @@
 [![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
 Ask an LLM anything about a URL, or turn it into clean text you can read or
-pipe: articles, YouTube videos, podcast episodes and shows, RSS/Atom feeds, and
-Hacker News threads.
+pipe: articles, PDFs, YouTube videos, podcast episodes and shows, RSS/Atom
+feeds, and Hacker News threads.
 
 ```bash
 owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Give me the gist, with supporting facts for each claim"
@@ -79,6 +79,19 @@ configured default, and `--json` for a machine-readable result.
 ```bash
 owlie extract "https://paulgraham.com/greatwork.html"          # plain text with paragraphs
 owlie extract "https://paulgraham.com/greatwork.html" --json   # title, text, metadata, provenance
+```
+
+### Read a PDF
+
+PDF links and local PDF files are read as text documents: running headers,
+footers and page numbers are dropped, and words hyphenated across lines are
+joined. `--json` adds `metadata.format: "pdf"`, `pageCount`, and the title and
+author from the file. Scanned PDFs (no text layer) are not supported.
+
+```bash
+owlie extract "https://arxiv.org/pdf/1706.03762"
+owlie extract ./report.pdf --json
+owlie process ./paper.pdf --prompt "What problem does this solve, and how?"
 ```
 
 ### Get a YouTube transcript
@@ -176,6 +189,8 @@ owlie extract "https://podcasts.apple.com/us/podcast/example/id12345?i=67890" --
 
 # An article page (declared by og:type/JSON-LD, or with a long readable body)
 owlie extract "https://example.com/posts/a-story" --json
+# A PDF (a .pdf link, a declared application/pdf body, or a local file)
+owlie extract "https://example.com/whitepaper.pdf" --json
 
 # Bounded linked-item extraction from an RSS/Atom feed (one JSON envelope).
 # A direct feed URL or a non-article HTML page that exposes a feed both work.
@@ -275,7 +290,7 @@ apps/cli/                    The owlie executable
 packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
-packages/adapter-article/    Static server-rendered article adapter
+packages/adapter-article/    Static server-rendered article and PDF adapter
 packages/adapter-podcast/    Podcast media, Apple show and episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-hackernews/ Hacker News adapter (lists and item discussions, official API)
@@ -293,7 +308,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/core`               | Types, contracts, limits, safe HTTP policy/fetch, orchestration |
 | `@owlieio/testing`            | Fakes, fixtures, contract-test helpers                          |
 | `@owlieio/adapter-youtube`    | YouTube videos (playlists deferred)                             |
-| `@owlieio/adapter-article`    | Safe static server-rendered editorial-page extraction           |
+| `@owlieio/adapter-article`    | Safe static server-rendered editorial-page and PDF extraction   |
 | `@owlieio/adapter-podcast`    | Podcast media, Apple shows and episodes, declarative pages      |
 | `@owlieio/adapter-rss`        | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-hackernews` | Hacker News lists and item discussions (official API)           |

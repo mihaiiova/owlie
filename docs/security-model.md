@@ -46,6 +46,12 @@ and processing must be built.
   bodies.
 - **Safe HTML-to-text conversion** — strip scripts and dangerous markup when
   converting feed content to text.
+- **Bounded PDF reading** — a PDF is identified by its `%PDF-` signature,
+  fetched through the safe seam (`fetchBytes`: the same SSRF, redirect,
+  proxy, deadline and byte-budget rules as text fetches) under a 25 MB cap,
+  and read with pdf.js (pure JS, no code generation for fonts, logging
+  silenced) for at most 300 pages. Page-sniffing text fetches stop at a PDF's
+  first chunk instead of decoding it (ADR 0039).
 - **Narrow static article extraction** — accept only bounded `text/html` or
   XHTML obtained through the safe HTTP seam; never let an article extractor
   fetch URLs itself, execute scripts, render JavaScript, authenticate, or

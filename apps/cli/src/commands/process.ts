@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type {
   CollectionAdapter,
   ContentProcessor,
@@ -61,6 +60,7 @@ import type { SpinnerLike } from '../spinner.js';
 import { lazyExtractionNetwork } from '../proxy.js';
 import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 import { writeDiagnostic } from '../style.js';
+import { localFileId, localPdfDocument, readLocalPdf } from '../local-pdf.js';
 
 /** Spinner message shown while waiting for the LLM response. */
 const LLM_WAIT_NOTICE = 'waiting for llm response';
@@ -105,7 +105,7 @@ function textDocument(
 ): NormalizedDocument {
   // Local files use a normalized absolute-path identity (not a basename) so
   // two files with the same name in different directories dedupe separately.
-  const sourceId = source.kind === 'stdin' ? 'local:stdin' : `local:file:${resolve(source.path)}`;
+  const sourceId = source.kind === 'stdin' ? 'local:stdin' : localFileId(source.path);
   return {
     schemaVersion: 2,
     id: sourceId,
@@ -186,7 +186,14 @@ async function readDocument(
   source: ProcessInputSource,
   inputFormat: 'text' | 'json' | undefined,
   clock: () => Date,
+  signal?: AbortSignal,
 ): Promise<NormalizedDocument> {
+  // A local PDF is read as a PDF (ADR 0039), never as UTF-8 text.
+  if (source.kind !== 'stdin' && inputFormat !== 'json') {
+    const pdf = await readLocalPdf(source.path);
+    if (pdf)
+      return localPdfDocument(source.path, pdf, { fetchedAt: clock().toISOString(), signal });
+  }
   const raw = source.kind === 'stdin' ? source.content : await readInputFile(source.path);
   return inputFormat === 'json' ? parseDocument(raw, clock) : textDocument(raw, source, clock);
 }
@@ -411,6 +418,7 @@ export async function runProcessCommand(
       source,
       options.inputFormat,
       deps.clock ?? (() => new Date()),
+      deps.signal,
     );
 
     const processor = resolveProcessorForCommand(options, deps);

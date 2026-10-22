@@ -48,6 +48,7 @@ import {
   writeTerminalRecord,
   writeUsageError,
 } from '../protocol.js';
+import { localPdfDocument, readLocalPdf } from '../local-pdf.js';
 import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
@@ -129,6 +130,11 @@ export async function runExtractCommand(
   if (extra !== undefined) {
     if (!options.quiet) writeUsageError(io, options, 'extract', `unexpected argument "${extra}"`);
     return ExitCode.Usage;
+  }
+
+  const localPdf = await readLocalPdf(url);
+  if (localPdf !== undefined) {
+    return runLocalPdfExtraction(url, localPdf, io, options, deps);
   }
 
   let maxMediaBytes: number | undefined;
@@ -446,6 +452,44 @@ async function runDirectOrDiscoveredExtraction(
     throw new ConfigurationError(`no article content or RSS/Atom feed found at ${url}`);
   }
   return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+}
+
+/**
+ * Extracts a local PDF file (ADR 0039). The URL-only flags (resolvers,
+ * `--article`/`--feed`, Hacker News options) do not apply to a file.
+ */
+async function runLocalPdfExtraction(
+  path: string,
+  bytes: Uint8Array,
+  io: CliIo,
+  options: CliOptions,
+  deps: ExtractDeps,
+): Promise<number> {
+  if (
+    options.resolver !== undefined ||
+    options.page !== undefined ||
+    usesHackerNewsFlags(options)
+  ) {
+    if (!options.quiet) {
+      writeUsageError(io, options, 'extract', 'URL options cannot be used with a local PDF file');
+    }
+    return ExitCode.Usage;
+  }
+  const spinner = createCommandSpinner(io, options, deps.spinner);
+  try {
+    spinner.start(`extracting ${path}`);
+    const document = await localPdfDocument(path, bytes, {
+      fetchedAt: (deps.clock?.() ?? new Date()).toISOString(),
+      signal: deps.signal,
+    });
+    spinner.stop();
+    writeDocument(io, options, document);
+    return ExitCode.Success;
+  } catch (error) {
+    spinner.stop();
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
 }
 
 function writeDocument(io: CliIo, options: CliOptions, document: NormalizedDocument): void {

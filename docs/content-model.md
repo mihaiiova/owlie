@@ -45,12 +45,21 @@ Not every document is a transcript:
   items, table rows and line breaks start a new line; preformatted (`<pre>`)
   lines are kept as they are; and escaped text such as `&lt;div&gt;` appears
   literally as `<div>`. Markup itself is not kept.
+- PDF documents (ADR 0039) are article documents (`sourceType: 'article'`,
+  `mediaType: 'text'`) with `metadata.format: 'pdf'`, `metadata.pageCount`
+  and `metadata.pagesRead`. Their text is the PDF's text layer as paragraphs
+  separated by a blank line: running headers, footers and page numbers are
+  dropped, and words hyphenated across a line break are joined. Title, author
+  and `publishedAt` (creation date) come from the PDF info dictionary when
+  present; the title otherwise is the largest upright text on the first page.
+  A PDF longer than the page cap carries the `PDF_TRUNCATED_PAGES` warning.
 - Hacker News documents contain written text: the post and a bounded comment
   tree, the linked article, or both, as chosen by `--hn-content` (ADR 0038).
 - Local documents (`sourceType: 'local'`) contain user-supplied text with no
   remote canonical URL (represented as an empty string). Their identity is
   `local:stdin` for piped stdin or `local:file:<normalized-absolute-path>` for
-  a text file.
+  a file. A local PDF carries the same `metadata.format: 'pdf'` facts as a PDF
+  URL.
 
 ### Provenance
 

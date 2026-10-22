@@ -53,6 +53,9 @@ importers:
       undici:
         specifier: ^7.30.0
         version: 7.30.0
+      unpdf:
+        specifier: 1.8.1
+        version: 1.8.1
     devDependencies:
       '@owlieio/adapter-article':
         specifier: workspace:*
@@ -84,6 +87,9 @@ importers:
       '@owlieio/provider-whisper':
         specifier: workspace:*
         version: link:../../packages/provider-whisper
+      '@owlieio/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
@@ -108,6 +114,9 @@ importers:
       entities:
         specifier: ^8.0.0
         version: 8.0.0
+      unpdf:
+        specifier: 1.8.1
+        version: 1.8.1
     devDependencies:
       '@owlieio/testing':
         specifier: workspace:*
@@ -2141,6 +2150,15 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
+  unpdf@1.8.1:
+    resolution: {integrity: sha512-xkURhy2SoGpOIH0a1gLHNkASPIQYonadDJs2AQwPEfUakafeD9EA1WTWWsaR++gfTCXJpV27W7tU1nXuk82UKQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@napi-rs/canvas': ^0.1.69 || ^1.0.0
+    peerDependenciesMeta:
+      '@napi-rs/canvas':
+        optional: true
+
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
@@ -3957,6 +3975,8 @@ snapshots:
   undici@7.30.0: {}
 
   universalify@0.1.2: {}
+
+  unpdf@1.8.1: {}
 
   uri-js@4.4.1:
     dependencies:

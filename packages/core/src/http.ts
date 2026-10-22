@@ -90,6 +90,26 @@ export interface HttpTextResponse {
   partial?: boolean;
 }
 
+/** A bounded binary response from an HTTP(S) URL. */
+export interface HttpBytesResponse {
+  /** Final, validated URL after redirects. */
+  url: string;
+  /** Declared `Content-Type` header, if the server provided one. */
+  contentType: string | null;
+  /** Raw response body, capped by `maxBytes` or the fetch policy. */
+  bytes: Uint8Array;
+}
+
+/** Options for {@link HttpFetcher.fetchBytes}. */
+export interface HttpFetchBytesOptions extends Omit<HttpFetchOptions, 'stopReading'> {
+  /**
+   * Body cap in bytes for this response, overriding the policy's
+   * `maxResponseBytes` (for example a dedicated document cap). The policy's
+   * `byteBudget` still bounds the invocation total.
+   */
+  maxBytes?: number;
+}
+
 /** Per-request options for a {@link HttpFetcher} call. */
 export interface HttpFetchOptions {
   signal?: AbortSignal;
@@ -118,6 +138,8 @@ export interface HttpFetcher {
     path: string,
     options?: HttpFetchOptions,
   ): Promise<{ url: string; contentType: string | null; bytes: number }>;
+  /** Reads a bounded binary response (such as a PDF) into memory. */
+  fetchBytes?(url: string, options?: HttpFetchBytesOptions): Promise<HttpBytesResponse>;
   fetch(url: string, options?: HttpFetchOptions): Promise<HttpTextResponse>;
 }
 
@@ -317,6 +339,55 @@ async function readBody(
       }
     }
     return { text: text + decoder.decode(), partial: false };
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
+async function readBytes(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+  budget?: HttpByteBudget,
+): Promise<Uint8Array> {
+  const body = response.body;
+  if (!body) return new Uint8Array();
+  if (signal.aborted) throw new CancelledError('fetch timed out or was cancelled');
+
+  const reader = body.getReader();
+  let rejectAbort: ((reason: CancelledError) => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const onAbort = () => {
+    rejectAbort?.(new CancelledError('fetch timed out or was cancelled'));
+    // The body may already be errored by the same abort; cancel() then rejects
+    // with that reason, which must not escape as an unhandled rejection.
+    reader.cancel().catch(() => undefined);
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new ExtractionError(`response body exceeded ${maxBytes} bytes`);
+      }
+      budget?.consume(value.byteLength);
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   } finally {
     signal.removeEventListener('abort', onAbort);
   }
@@ -523,6 +594,17 @@ export class DefaultHttpFetcher implements HttpFetcher {
       url,
       (response, signal) =>
         writeBodyToFile(response, path, maxResponseBytes, signal, options.policy?.byteBudget),
+      options,
+    );
+    return { url: result.url, contentType: result.contentType, bytes: result.body };
+  }
+
+  async fetchBytes(url: string, options: HttpFetchBytesOptions = {}): Promise<HttpBytesResponse> {
+    const maxBytes =
+      options.maxBytes ?? options.policy?.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    const result = await this.exchange(
+      url,
+      (response, signal) => readBytes(response, maxBytes, signal, options.policy?.byteBudget),
       options,
     );
     return { url: result.url, contentType: result.contentType, bytes: result.body };
