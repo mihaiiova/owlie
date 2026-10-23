@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCandidateManifest, buildReport, buildSummary } from './report.mjs';
+import {
+  buildCandidateManifest,
+  buildReport,
+  buildSummary,
+  gatedResult,
+  WATCH_FAILED,
+} from './report.mjs';
 
 const candidate = {
   packageName: 'owlie',
@@ -39,7 +45,7 @@ describe('buildReport', () => {
       ],
       secrets: [],
     });
-    expect(report.summary).toEqual({ total: 3, passed: 1, failed: 1, skipped: 1 });
+    expect(report.summary).toEqual({ total: 3, passed: 1, failed: 1, skipped: 1, watchFailed: 0 });
     expect(report.scenarios[1]).toEqual({
       name: 'extract',
       status: 'failed',
@@ -150,5 +156,38 @@ describe('buildSummary', () => {
     const summary = buildSummary(report);
     expect(summary).toContain('attempt 1 [youtube-access-block]: blocked direct');
     expect(summary).toContain('attempt 2 [deterministic]: proxy failed');
+  });
+});
+
+describe('watch scenarios', () => {
+  const failed = {
+    name: 'real-world x',
+    status: 'failed',
+    attempts: 1,
+    durationMs: 1,
+    diagnostics: 'gone',
+  };
+
+  it('reports a failed non-gating scenario as a watch failure', () => {
+    expect(gatedResult({ gate: false }, failed).status).toBe(WATCH_FAILED);
+    expect(gatedResult({ gate: false }, { ...failed, status: 'passed' }).status).toBe('passed');
+  });
+
+  it('keeps failures of gating and ordinary scenarios', () => {
+    expect(gatedResult({ gate: true }, failed).status).toBe('failed');
+    expect(gatedResult({}, failed).status).toBe('failed');
+  });
+
+  it('counts watch failures apart from failures and lists them in the summary', () => {
+    const report = buildReport({
+      candidate,
+      scenarios: [{ ...failed, status: WATCH_FAILED }],
+      secrets: [],
+    });
+    expect(report.summary).toEqual({ total: 1, passed: 0, failed: 0, skipped: 0, watchFailed: 1 });
+    const summary = buildSummary(report);
+    expect(summary).toContain('1 watch failures');
+    expect(summary).toContain('- WATCH real-world x: gone');
+    expect(summary).not.toContain('FAIL');
   });
 });

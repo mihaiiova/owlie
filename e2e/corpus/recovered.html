@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:type" content="article" />
+    <title>Owlie E2E Recovered Article</title>
+  </head>
+  <body>
+    <article>
+      <h1>Owlie E2E Recovered Article</h1>
+      <p>
+        This page opens with an introduction long enough to pass the minimum article length on its
+        own. The body that follows sits inside a dialog element, which the sanitizer removes, so
+        only a fuller second reading of the page recovers the rest of the article for the reader.
+      </p>
+      <div>
+        <dialog open>
+          <p>
+            A second block keeps the page well above the minimum article length. It describes
+            nothing in particular; its only job is to be ordinary prose that a reader would expect
+            to find in the body of a real post, between the byline and the related stories.
+          </p>
+          <p>
+            Owlie reads this page during release validation. The text sits inside custom elements,
+            the way many publishing platforms wrap each paragraph, and every sentence must survive
+            extraction so the release gate can prove articles built from components are read in
+            full.
+          </p>
+          <p>
+            The third block is here for the same reason. Release validation compares the extracted
+            text with the marker in this paragraph, so a regression that drops custom elements fails
+            the gate instead of shipping quietly to everyone who depends on it.
+          </p>
+          <p>
+            The last paragraph carries the recovery marker. OWLIE_E2E_RECOVERED_MARKER_9c2f60 A
+            second block keeps the page well above the minimum article length. It describes nothing
+            in particular; its only job is to be ordinary prose that a reader would expect to find
+            in the body of a real post, between the byline and the related stories.
+          </p>
+        </dialog>
+      </div>
+    </article>
+  </body>
+</html>
