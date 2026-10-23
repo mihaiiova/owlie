@@ -221,7 +221,8 @@ describe('extract — --article and --feed', () => {
     expect(stdout()).toBe('');
     expect(JSON.parse(stderr().trim().split('\n').at(-1)!)).toMatchObject({
       kind: 'error',
-      code: 'EXTRACTION_ERROR',
+      code: 'ARTICLE_NO_READABLE_TEXT',
+      details: { readableChars: 0, sanitizedChars: 0 },
     });
   });
 

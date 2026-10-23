@@ -44,18 +44,34 @@ with `schemaVersion` and `command` plus the command's record fields.
 
 The closed consumer-facing error taxonomy on stderr terminal records is:
 
-| Code                    | Exit | Meaning                                        |
-| ----------------------- | ---- | ---------------------------------------------- |
-| `USAGE_ERROR`           | 2    | Invalid arguments or flags                     |
-| `VALIDATION_ERROR`      | 2    | Invalid input shape (thrown `ValidationError`) |
-| `CONFIGURATION_ERROR`   | 1    | Missing/conflicting configuration              |
-| `EXTRACTION_ERROR`      | 1    | Content extraction failed                      |
-| `CAPTIONS_UNAVAILABLE`  | 1    | Requested captions are unavailable             |
-| `TRANSCRIPTION_ERROR`   | 1    | Local transcription failed                     |
-| `PROCESSING_ERROR`      | 1    | LLM processing failed                          |
-| `NOT_IMPLEMENTED`       | 3    | Not implemented                                |
-| `OWLIE_ERROR`           | 1    | General failure (fallback)                     |
-| `OUTPUT_LIMIT_EXCEEDED` | 1    | Command wrote more stdout than its byte budget |
+| Code                       | Exit | Meaning                                                                                    |
+| -------------------------- | ---- | ------------------------------------------------------------------------------------------ |
+| `USAGE_ERROR`              | 2    | Invalid arguments or flags                                                                 |
+| `VALIDATION_ERROR`         | 2    | Invalid input shape (thrown `ValidationError`)                                             |
+| `CONFIGURATION_ERROR`      | 1    | Missing/conflicting configuration                                                          |
+| `EXTRACTION_ERROR`         | 1    | Content extraction failed                                                                  |
+| `ARTICLE_NO_READABLE_TEXT` | 1    | An article page has no readable text (often a JavaScript-rendered page, or not an article) |
+| `ARTICLE_TEXT_DROPPED`     | 1    | Readable text was found but sanitizing removed it (an extractor bug)                       |
+| `ARTICLE_TOO_SHORT`        | 1    | The article text is under 200 characters                                                   |
+| `CAPTIONS_UNAVAILABLE`     | 1    | Requested captions are unavailable                                                         |
+| `TRANSCRIPTION_ERROR`      | 1    | Local transcription failed                                                                 |
+| `PROCESSING_ERROR`         | 1    | LLM processing failed                                                                      |
+| `NOT_IMPLEMENTED`          | 3    | Not implemented                                                                            |
+| `OWLIE_ERROR`              | 1    | General failure (fallback)                                                                 |
+| `OUTPUT_LIMIT_EXCEEDED`    | 1    | Command wrote more stdout than its byte budget                                             |
+
+The three `ARTICLE_*` codes replace `EXTRACTION_ERROR` for an article that
+yields no text; their message (`no readable static article content at …`) is
+unchanged. A consumer that matched `EXTRACTION_ERROR` for empty articles must
+accept them too.
+
+An error record may carry `details`: an object of counts, flags and enum
+values that explain the failure (never URLs, page text or titles). It is
+additive; `schemaVersion` stays `1`. The `ARTICLE_*` errors carry
+`declaredSignal` (`og-article` | `json-ld-article` | `none` | `other`),
+`htmlBytes`, `readableChars` (Readability's text), `sanitizedChars` (text left
+after sanitizing) and `customElementCount`. Feed-batch item errors carry the
+same `details`.
 
 Cancellation emits `kind: "cancelled"` instead of `kind: "error"` and exits
 **130** (SIGINT/SIGTERM or an expired invocation deadline). All stderr records

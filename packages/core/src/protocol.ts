@@ -41,6 +41,8 @@ export interface ProtocolErrorRecord extends ProtocolRecord {
   code: string;
   /** Redacted safe diagnostic (no secrets, URL userinfo, query, or fragment). */
   message: string;
+  /** Optional machine-readable facts about the failure (counts, flags, enums). */
+  details?: Record<string, string | number | boolean | null>;
 }
 
 /** A terminal stderr record for cancellation. */

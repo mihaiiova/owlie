@@ -117,6 +117,42 @@ describe('protocol records', () => {
     });
   });
 
+  it('writes error details on the record when the error carries them, redacting URL-like values', () => {
+    const { io, stderrLines } = capture();
+    writeTerminalRecord(
+      io,
+      'extract',
+      new ExtractionError('no readable static article content at https://example.com/a?token=x', {
+        code: 'ARTICLE_TEXT_DROPPED',
+        details: {
+          declaredSignal: 'og-article',
+          readableChars: 1185,
+          sanitizedChars: 67,
+          leaked: 'https://user:pw@example.com/a?q=1#f',
+        },
+      }),
+    );
+    expect(stderrLines()[0]).toEqual({
+      schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
+      command: 'extract',
+      kind: 'error',
+      code: 'ARTICLE_TEXT_DROPPED',
+      message: 'no readable static article content at https://example.com/a',
+      details: {
+        declaredSignal: 'og-article',
+        readableChars: 1185,
+        sanitizedChars: 67,
+        leaked: 'https://example.com/a',
+      },
+    });
+  });
+
+  it('writes no details key for an error without details', () => {
+    const { io, stderrLines } = capture();
+    writeTerminalRecord(io, 'list', new ExtractionError('boom'));
+    expect(stderrLines()[0]).not.toHaveProperty('details');
+  });
+
   it('writes terminal cancellation and configuration records with stable codes', () => {
     const { io, stderrLines } = capture();
     writeTerminalRecord(io, 'process', new CancelledError('aborted'));

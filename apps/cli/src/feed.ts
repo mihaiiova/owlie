@@ -12,7 +12,13 @@ import type {
   ProgressSink,
 } from '@owlieio/core';
 import { parseAppleShowUrl, resolveAppleShowFeed } from '@owlieio/adapter-podcast';
-import { assertNoUrlCredentials, ConfigurationError, OwlieError } from '@owlieio/core';
+import {
+  assertNoUrlCredentials,
+  ConfigurationError,
+  OwlieError,
+  type ErrorDetails,
+} from '@owlieio/core';
+import { redactDetails } from './protocol.js';
 import { extractWithFallback } from './dispatch.js';
 
 /**
@@ -118,7 +124,7 @@ export function itemRef(url: string, title: string | undefined): { url: string; 
 export function toBatchError<S extends 'extraction' | 'processing'>(
   error: unknown,
   stage: S,
-): { code: string; message: string; stage: S } {
+): { code: string; message: string; stage: S; details?: ErrorDetails } {
   const code =
     error instanceof OwlieError
       ? error.code
@@ -126,7 +132,8 @@ export function toBatchError<S extends 'extraction' | 'processing'>(
         ? 'EXTRACTION_ERROR'
         : 'PROCESSING_ERROR';
   const message = error instanceof Error ? error.message : String(error);
-  return { code, message, stage };
+  const details = error instanceof OwlieError ? error.details : undefined;
+  return { code, message, stage, ...(details ? { details: redactDetails(details) } : {}) };
 }
 
 /**
