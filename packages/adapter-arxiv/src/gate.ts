@@ -33,16 +33,23 @@ export class RequestGate {
     private readonly wait: (ms: number, signal?: AbortSignal) => Promise<void> = sleep,
   ) {}
 
-  /** Runs `task` once its turn comes and the interval since the last start has passed. */
+  /**
+   * Runs `task` once the previous task has finished and the interval since
+   * the last start has passed, so requests never overlap.
+   */
   run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-    const turn = this.queue.then(async () => {
+    const result = this.queue.then(async () => {
       const delay = this.last + this.intervalMs - this.now();
       if (delay > 0) await this.wait(delay, signal);
       this.last = this.now();
+      return task();
     });
-    // A cancelled or failed turn must not block the requests behind it.
-    this.queue = turn.catch(() => undefined);
-    return turn.then(task);
+    // A cancelled or failed task must not block the requests behind it.
+    this.queue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 }
 

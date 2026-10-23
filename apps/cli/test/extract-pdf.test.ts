@@ -152,6 +152,17 @@ describe('extract — local PDF files', () => {
     expect(stdout()).toContain('We study how text is extracted from documents');
   });
 
+  it('stops reading a local PDF when the invocation is cancelled', async () => {
+    const path = tempFile('paper.pdf', paperPdf());
+    const controller = new AbortController();
+    controller.abort();
+    const { io } = capture();
+    const code = await run(['extract', path, '--json'], io, {
+      extract: { clock, signal: controller.signal },
+    });
+    expect(code).toBe(ExitCode.Cancelled);
+  });
+
   it('rejects URL-only flags for a local PDF', async () => {
     const path = tempFile('paper.pdf', paperPdf());
     const { io, stderr } = capture();
