@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.9.1-dev",
+  "version": "0.9.1",
   "description": "Ask an LLM about any URL, or turn it into clean text: articles, PDFs, arXiv papers, YouTube transcripts, podcasts, RSS/Atom feeds and Hacker News",
   "keywords": [
     "cli",
