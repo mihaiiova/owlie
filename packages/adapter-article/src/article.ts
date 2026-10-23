@@ -4,6 +4,8 @@ import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } fro
 import type {
   DeclaredArticleSignal,
   DeferredResponseItemAdapter,
+  ExtractionWarning,
+  HttpBytesResponse,
   HttpTextResponse,
 } from '@owlieio/core';
 import {
@@ -16,23 +18,61 @@ import {
   DefaultHttpFetcher,
   ExtractionError,
   isHtmlContentType,
+  isPdfContentType,
+  startsWithPdfSignature,
   stopAtFeedHeader,
   type ExtractionOptions,
   type HttpFetcher,
   type HttpFetchPolicy,
 } from '@owlieio/core';
+import {
+  DEFAULT_MAX_PDF_BYTES,
+  DEFAULT_MAX_PDF_PAGES,
+  extractPdfText,
+  type PdfLimits,
+} from './pdf.js';
 
 export interface ArticleAdapterOptions {
   /** Fetch seam; defaults to the safe core {@link DefaultHttpFetcher}. */
   fetcher?: HttpFetcher;
   /** Fetch policy (SSRF opt-in, timeouts, redirects, size, User-Agent). */
   policy?: HttpFetchPolicy;
+  /** PDF download and page caps (25 MB and 300 pages by default). */
+  pdf?: PdfLimits;
 }
 
 function canonicalizeArticleUrl(input: string): string {
   const url = new URL(input);
   url.hash = '';
   return url.toString();
+}
+
+/** Whether a URL's path names a PDF file, so it is fetched as bytes up front. */
+function isPdfUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith('.pdf');
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a fetched text response is really a PDF (declared, or by its signature). */
+function isPdfResponse(response: HttpTextResponse): boolean {
+  return isPdfContentType(response.contentType) || startsWithPdfSignature(response.text);
+}
+
+/** Stops a text fetch at its first chunk when the body is a PDF. */
+function stopAtPdf(textSoFar: string, contentType: string | null): boolean {
+  return isPdfContentType(contentType) || startsWithPdfSignature(textSoFar);
+}
+
+/** Warning code when a PDF had more pages than the page cap. */
+export const PDF_TRUNCATED_PAGES = 'PDF_TRUNCATED_PAGES';
+
+/** A fetched page: the text response, plus the raw bytes when the body is a PDF. */
+interface FetchedBody {
+  response: HttpTextResponse;
+  pdf?: HttpBytesResponse;
 }
 
 /**
@@ -133,8 +173,11 @@ export const MIN_READABLE_ARTICLE_CHARS = 500;
 export { declaredArticleSignal };
 export type { DeclaredArticleSignal };
 
-/** Why a page was, or was not, classified as an article. */
-export type ArticlePageSignal = DeclaredArticleSignal | 'readable-body';
+/**
+ * Why a page was, or was not, classified as an article. A PDF is always one
+ * (`'pdf'`).
+ */
+export type ArticlePageSignal = DeclaredArticleSignal | 'readable-body' | 'pdf';
 
 /** The result of {@link ArticleAdapter.classify}. */
 export interface ArticlePageClassification {
@@ -218,7 +261,10 @@ export function normalizeDate(value: string): string {
 
 /**
  * Static editorial-page adapter. It accepts only safe HTTP(S) URLs and gives
- * the extractor bounded HTML obtained through Owlie's safe HTTP seam.
+ * the extractor bounded HTML obtained through Owlie's safe HTTP seam. A PDF
+ * (a `.pdf` path, a declared `application/pdf` body, or a body that starts with
+ * `%PDF-`) is fetched as bytes and read as a text document with
+ * `metadata.format: 'pdf'` (ADR 0039).
  */
 export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter {
   static readonly id = 'article';
@@ -227,10 +273,15 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
 
   private readonly fetcher: HttpFetcher;
   private readonly policy: HttpFetchPolicy | undefined;
+  private readonly pdfLimits: Required<PdfLimits>;
 
   constructor(options: ArticleAdapterOptions = {}) {
     this.fetcher = options.fetcher ?? new DefaultHttpFetcher();
     this.policy = options.policy;
+    this.pdfLimits = {
+      maxBytes: options.pdf?.maxBytes ?? DEFAULT_MAX_PDF_BYTES,
+      maxPages: options.pdf?.maxPages ?? DEFAULT_MAX_PDF_PAGES,
+    };
   }
 
   recognize(locator: ContentLocator): boolean {
@@ -261,11 +312,8 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
 
     try {
       if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
-      const response = await this.fetcher.fetch(item.canonicalUrl, {
-        signal: options.signal,
-        policy: this.policy,
-      });
-      const document = await this.extractFromResponse(response, options);
+      const body = await this.fetchBody(item.canonicalUrl, options.signal);
+      const document = await this.extractFromBody(body, options);
       options.progress?.emit({ type: 'completed', target, result: document });
       return document;
     } catch (error) {
@@ -290,7 +338,8 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
       if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
       // Only consume a response whose final URL is safe-validated by core.
       assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
-      const document = await this.extractFromResponse(response, options);
+      const body = await this.fetchBody(response.url, options.signal, response);
+      const document = await this.extractFromBody(body, options);
       options.progress?.emit({ type: 'completed', target, result: document });
       return document;
     } catch (error) {
@@ -304,22 +353,31 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
    * declares an article type (`og:type`, JSON-LD) is an article when it yields
    * readable text; an undeclared page is one when its readable text reaches
    * {@link MIN_READABLE_ARTICLE_CHARS}; a page whose `og:type` declares another
-   * type is not. The response is returned so a caller can reuse it.
+   * type is not. A PDF is always an article, and a PDF that cannot be read
+   * (encrypted, scanned, malformed) fails rather than counting as "not an
+   * article". The response is returned so a caller can reuse it.
    */
   async classify(
     item: ContentItem,
     options: ExtractionOptions & { response?: HttpTextResponse } = {},
   ): Promise<ArticlePageClassification> {
     if (options.signal?.aborted) throw new CancelledError('article classification cancelled');
-    const response =
-      options.response ??
-      (await this.fetcher.fetch(item.canonicalUrl, {
-        signal: options.signal,
-        policy: this.policy,
-        // A feed is never an article; its header is enough for discovery.
-        stopReading: stopAtFeedHeader(),
-      }));
+    // A feed is never an article; its header is enough for discovery. A PDF
+    // stops at its first chunk and is re-fetched as bytes.
+    const body = await this.fetchBody(
+      item.canonicalUrl,
+      options.signal,
+      options.response,
+      stopAtFeedHeader(),
+    );
+    const response = body.response;
     assertSafeHttpUrl(response.url, { allowPrivateHosts: this.policy?.allowPrivateHosts });
+    if (body.pdf) {
+      const document = await this.extractFromPdf(body.pdf, options);
+      options.progress?.emit({ type: 'started', target: item.id });
+      options.progress?.emit({ type: 'completed', target: item.id, result: document });
+      return { isArticle: true, signal: 'pdf', response, document };
+    }
     if (!isHtmlContentType(response.contentType)) {
       return { isArticle: false, signal: 'none', response };
     }
@@ -348,6 +406,104 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
       options.progress?.emit({ type: 'completed', target: item.id, result: document! });
     }
     return { isArticle, signal, response, ...(document ? { document } : {}) };
+  }
+
+  /**
+   * Fetches a page, or reuses `given`, and fetches it again as bytes when it
+   * turns out to be a PDF. A `.pdf` URL is fetched as bytes straight away; if
+   * its body is not a PDF after all (a page behind a `.pdf` path), the bytes
+   * are decoded and handled as the text response they are.
+   */
+  private async fetchBody(
+    url: string,
+    signal: AbortSignal | undefined,
+    given?: HttpTextResponse,
+    stopReading: (textSoFar: string, contentType: string | null) => boolean = stopAtPdf,
+  ): Promise<FetchedBody> {
+    let response = given;
+    if (response === undefined && !isPdfUrl(url)) {
+      response = await this.fetcher.fetch(url, { signal, policy: this.policy, stopReading });
+    }
+    if (response !== undefined && !isPdfResponse(response)) return { response };
+
+    if (!this.fetcher.fetchBytes) {
+      throw new ExtractionError('PDF extraction needs a fetcher that can read binary responses');
+    }
+    const pdf = await this.fetcher.fetchBytes(response?.url ?? url, {
+      signal,
+      policy: this.policy,
+      maxBytes: this.pdfLimits.maxBytes,
+    });
+    if (startsWithPdfSignature(pdf.bytes)) {
+      return {
+        response: response ?? {
+          url: pdf.url,
+          contentType: pdf.contentType,
+          text: '',
+          partial: true,
+        },
+        pdf,
+      };
+    }
+    if (isPdfContentType(pdf.contentType)) {
+      throw new ExtractionError(`response declares a PDF but its body is not one: ${pdf.url}`);
+    }
+    return {
+      response: {
+        url: pdf.url,
+        contentType: pdf.contentType,
+        text: new TextDecoder().decode(pdf.bytes),
+      },
+    };
+  }
+
+  private async extractFromBody(
+    body: FetchedBody,
+    options: ExtractionOptions,
+  ): Promise<NormalizedDocument> {
+    return body.pdf
+      ? await this.extractFromPdf(body.pdf, options)
+      : await this.extractFromResponse(body.response, options);
+  }
+
+  private async extractFromPdf(
+    pdf: HttpBytesResponse,
+    options: ExtractionOptions,
+  ): Promise<NormalizedDocument> {
+    const result = await extractPdfText(pdf.bytes, {
+      maxPages: this.pdfLimits.maxPages,
+      signal: options.signal,
+    });
+    const canonicalUrl = canonicalizeArticleUrl(pdf.url);
+    const warnings: ExtractionWarning[] =
+      result.pagesRead < result.pageCount
+        ? [
+            {
+              code: PDF_TRUNCATED_PAGES,
+              message: `read the first ${result.pagesRead} of ${result.pageCount} PDF pages`,
+            },
+          ]
+        : [];
+    return {
+      schemaVersion: 2,
+      id: `article:${canonicalUrl}`,
+      sourceType: 'article',
+      canonicalUrl,
+      mediaType: 'text',
+      ...(result.title ? { title: result.title } : {}),
+      text: result.text,
+      ...(result.createdAt ? { publishedAt: result.createdAt } : {}),
+      ...(result.author ? { author: result.author } : {}),
+      metadata: { format: 'pdf', pageCount: result.pageCount, pagesRead: result.pagesRead },
+      provenance: buildProvenance({
+        sourceId: `article:${canonicalUrl}`,
+        canonicalUrl,
+        adapterId: ArticleAdapter.id,
+        text: result.text,
+        fetchedAt: extractionFetchedAt(options),
+        warnings,
+      }),
+    };
   }
 
   private async extractFromResponse(

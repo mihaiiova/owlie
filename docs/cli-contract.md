@@ -222,7 +222,8 @@ owlie capabilities [--json]
 - `capabilities` is a non-network, non-secret startup manifest command. With
   `--json` it writes a versioned envelope whose `result` is
   `{ version, protocolSchemaVersion, documentSchemaVersion, commands,
-adapters, providers, resolvers }`; plain output is concise human-readable
+adapters, providers, resolvers, documentFormats }` (`documentFormats` lists the
+  formats the article path reads: `html` and `pdf`, ADR 0039); plain output is concise human-readable
   text. `owlie --version --json` writes the versioned envelope
   `{ schemaVersion: 1, command: "version", result: <version> }` while plain
   `owlie --version` output is unchanged.

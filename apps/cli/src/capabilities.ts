@@ -24,7 +24,12 @@ export interface CapabilitiesReport {
   providers: string[];
   /** Supported podcast resolver ids. */
   resolvers: string[];
+  /** Document formats the article path reads (ADR 0039). */
+  documentFormats: string[];
 }
+
+/** Document formats the article adapter reads: web pages and PDFs (ADR 0039). */
+export const DOCUMENT_FORMATS: readonly string[] = ['html', 'pdf'];
 
 /**
  * Builds the credential-free startup manifest from the published version, the
@@ -40,6 +45,7 @@ export function buildCapabilities(): CapabilitiesReport {
     adapters: [...ADAPTER_IDS],
     providers: [...PROVIDER_IDS],
     resolvers: PODCAST_RESOLVER_REGISTRY.map((registration) => registration.name),
+    documentFormats: [...DOCUMENT_FORMATS],
   };
 }
 
@@ -53,6 +59,7 @@ function formatCapabilities(report: CapabilitiesReport): string {
       `  Adapters: ${report.adapters.join(', ')}`,
       `  Providers: ${report.providers.join(', ')}`,
       `  Resolvers: ${report.resolvers.join(', ')}`,
+      `  Document formats: ${report.documentFormats.join(', ')}`,
     ].join('\n') + '\n'
   );
 }

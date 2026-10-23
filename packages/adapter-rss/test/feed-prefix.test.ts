@@ -122,6 +122,14 @@ describe('stopAtFeedHeader / feedHeaderText', () => {
     expect(stopAtFeedHeader()(feed, null)).toBe(false);
   });
 
+  it('stops a PDF body at its first chunk, whether declared or only signed', () => {
+    expect(stopAtFeedHeader()('%PDF-1.7 ...', 'application/pdf')).toBe(true);
+    expect(stopAtFeedHeader()('x', 'application/pdf')).toBe(true);
+    expect(stopAtFeedHeader()('%PDF-1.7 ...', 'application/octet-stream')).toBe(true);
+    expect(stopAtFeedHeader()('%PDF-1.7 ...', null)).toBe(true);
+    expect(stopAtFeedHeader()('<html>', 'text/html')).toBe(false);
+  });
+
   it('turns a partial body into a parseable header and returns a full body unchanged', async () => {
     const header = feedHeaderText({ text: feed, partial: true });
     expect(header).toBe(rss([]));

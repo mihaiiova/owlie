@@ -37,6 +37,7 @@ describe('capabilities command', () => {
     expect(report.resolvers).toEqual(
       expect.arrayContaining(['podcast-media', 'podcast-apple', 'podcast-page']),
     );
+    expect(report.documentFormats).toEqual(['html', 'pdf']);
   });
 
   it('is configuration- and credential-independent (no env, no config read)', async () => {
@@ -54,6 +55,7 @@ describe('capabilities command', () => {
     expect(stdout()).toContain('owlie');
     expect(stdout()).toContain('Commands:');
     expect(stdout()).toContain('Adapters:');
+    expect(stdout()).toContain('Document formats: html, pdf');
   });
 });
 

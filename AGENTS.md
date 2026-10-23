@@ -20,12 +20,12 @@ consumer.
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (article pages, YouTube transcripts, podcast direct-media URLs, Apple Podcasts
+`owlie extract` (article pages, PDFs from a URL or a local file (ADR 0039), YouTube transcripts, podcast direct-media URLs, Apple Podcasts
 episode URLs, and declarative server-rendered episode pages, Hacker News items — discussion,
 linked article, or both via `--hn-content` (ADR 0038) — and bounded RSS/Atom feed batches —
 from a feed URL or a non-article HTML page URL that exposes one; `--article`/`--feed` force a path),
 `owlie list` (RSS/Atom feeds and Hacker News lists), `owlie resolve` (a validated audio media URL with no download or
-transcription), `owlie process` (DeepSeek or OpenAI; a single local text or
+transcription), `owlie process` (DeepSeek or OpenAI; a single local text, local PDF, or
 stdin document, a normalized JSON document, a single http(s) URL — which
 uses the static-article adapter for pages — or a feed
 `--each` batch, selected
@@ -66,7 +66,7 @@ differ from older v1 plans.
 
 ### v0.1 (current milestone)
 
-Functional commands: `owlie extract URL` (an article page, a YouTube video, podcast direct-media
+Functional commands: `owlie extract URL` (an article page, a PDF, a YouTube video, podcast direct-media
 URL, Apple Podcasts episode URL, declarative server-rendered episode page, a Hacker News item, or a bounded
 RSS/Atom feed — supplied as a feed URL or a non-article HTML page URL that exposes one),
 `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list URL` (a feed or a
@@ -79,7 +79,8 @@ podcast transcription via local faster-whisper, explicit resolver-selection
 flags (`--podcast-media`, `--podcast-page`, `--podcast-apple`) on `extract` and
 `resolve`, a single generic local faster-whisper pipeline with chunked long-form
 transcription, static article extraction via the universal dispatch (`extract
-URL` with page classification per ADR 0035, `process URL`, and linked-item feed extraction), the
+URL` with page classification per ADR 0035, `process URL`, and linked-item feed extraction),
+PDF documents read as articles from URLs and local files (ADR 0039), the
 Hacker News adapter over the official API (bounded list listing and item discussions with
 bounded comment trees, plus the linked article composed in `apps/cli`; ADR 0038), bounded RSS/Atom listing, linked-item
 feed extraction, linked-item feed processing (`process --each`), and bounded

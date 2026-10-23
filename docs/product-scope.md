@@ -1,7 +1,7 @@
 # Product scope
 
 Owlie CLI is an open-source, general-purpose web content extractor: given a
-URL (an article, a video, a podcast episode, a feed, or a discussion), it
+URL (an article, a PDF, a video, a podcast episode, a feed, or a discussion), it
 returns normalized, provenance-stamped content for people and programs, and can
 process it with an LLM. This document separates what exists now, what the v0.1
 milestone delivers, what is deferred, and what belongs to consuming products.
@@ -24,7 +24,8 @@ milestone delivers, what is deferred, and what belongs to consuming products.
 v0.1 is a deliberately small, pipe-first slice. The functional commands are:
 
 - `owlie extract URL` — extract an article page (declared by `og:type` or
-  JSON-LD, or with a long readable body), an available transcript from an
+  JSON-LD, or with a long readable body), a PDF (a link or a local file;
+  ADR 0039), an available transcript from an
   individual YouTube video, a direct podcast media URL, Apple Podcasts episode
   URL, or declarative server-rendered episode page (local faster-whisper,
   chunked), or the bounded linked items of an RSS/Atom feed — supplied as a
@@ -46,9 +47,9 @@ v0.1 is a deliberately small, pipe-first slice. The functional commands are:
   RSS/Atom feed, supplied as a feed URL or an HTML page URL that exposes one,
   or the stories of a Hacker News list (front page, newest, best, Ask HN,
   Show HN, or a user's submissions) through the official HN API.
-- `owlie process [FILE] --prompt "..."` — process plain text or a normalized
-  document with DeepSeek or OpenAI, reading from a positional file, `--input
-FILE`, or stdin. Model selection is `--model provider/model-id` (self-contained),
+- `owlie process [FILE] --prompt "..."` — process plain text, a local PDF, or a
+  normalized document with DeepSeek or OpenAI, reading from a positional file,
+  `--input FILE`, or stdin. Model selection is `--model provider/model-id` (self-contained),
   or a plain `--model id` with the deprecated `--provider` alias,
   `OWLIE_PROVIDER`, or the saved active provider.
 - `owlie models [--provider <provider>] [--refresh] [--json]` — list a
@@ -82,6 +83,8 @@ Individual items:
 - YouTube video (v0.1)
 - Article page (`owlie extract URL`, `process URL`, and linked-item feed
   extraction)
+- PDF document, from a URL or a local file (read as an article; scanned PDFs
+  without a text layer are not supported)
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
@@ -124,8 +127,9 @@ Owlie CLI does not provide:
 - Reddit OAuth, comment-tree extraction, or HTML scraping
 - generic webpage crawling or browser-rendered extraction (the reusable
   `article` adapter is limited to directly supplied, server-rendered editorial
-  HTML obtained through Owlie's safe HTTP fetcher; feed discovery from a
+  HTML or PDFs obtained through Owlie's safe HTTP fetcher; feed discovery from a
   supplied page is bounded and one-hop, not a crawl)
+- OCR for scanned PDFs, or other binary document formats (DOCX, EPUB)
 - telemetry
 
 Those responsibilities, where they exist at all, belong to the products that

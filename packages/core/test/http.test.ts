@@ -282,6 +282,77 @@ describe('DefaultHttpFetcher', () => {
     }
   });
 
+  describe('fetchBytes', () => {
+    it('returns the raw body bytes with the final URL and declared type', async () => {
+      const fetcher = new DefaultHttpFetcher(
+        async () =>
+          new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xff, 0x00]), {
+            headers: { 'content-type': 'application/pdf' },
+          }),
+        publicResolver,
+      );
+      const result = await fetcher.fetchBytes('https://example.com/paper.pdf');
+      expect(result.url).toBe('https://example.com/paper.pdf');
+      expect(result.contentType).toBe('application/pdf');
+      expect([...result.bytes]).toEqual([0x25, 0x50, 0x44, 0x46, 0xff, 0x00]);
+    });
+
+    it('follows redirects with the same per-hop destination checks', async () => {
+      const seen: string[] = [];
+      const fetchFn: HttpFetchFn = async (input) => {
+        seen.push(String(input));
+        if (seen.length === 1) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: 'http://169.254.169.254/secret.pdf' },
+          });
+        }
+        return ok('never');
+      };
+      const fetcher = new DefaultHttpFetcher(fetchFn, publicResolver);
+      await expect(fetcher.fetchBytes('https://example.com/paper.pdf')).rejects.toThrow(
+        ExtractionError,
+      );
+      expect(seen).toHaveLength(1);
+    });
+
+    it('caps the body at maxBytes, falling back to the policy response cap', async () => {
+      const body = () => new Response(new Uint8Array(10));
+      const fetcher = new DefaultHttpFetcher(async () => body(), publicResolver);
+      await expect(
+        fetcher.fetchBytes('https://example.com/a.pdf', { maxBytes: 9 }),
+      ).rejects.toThrow('response body exceeded 9 bytes');
+      await expect(
+        fetcher.fetchBytes('https://example.com/a.pdf', { policy: { maxResponseBytes: 5 } }),
+      ).rejects.toThrow('response body exceeded 5 bytes');
+      await expect(
+        fetcher.fetchBytes('https://example.com/a.pdf', { maxBytes: 10 }),
+      ).resolves.toMatchObject({ bytes: new Uint8Array(10) });
+    });
+
+    it('consumes the shared invocation byte budget', async () => {
+      const budget = createHttpByteBudget(15);
+      const fetcher = new DefaultHttpFetcher(
+        async () => new Response(new Uint8Array(10)),
+        publicResolver,
+      );
+      await fetcher.fetchBytes('https://example.com/a.pdf', { policy: { byteBudget: budget } });
+      expect(budget.remaining).toBe(5);
+      await expect(
+        fetcher.fetchBytes('https://example.com/b.pdf', { policy: { byteBudget: budget } }),
+      ).rejects.toThrow(ExtractionError);
+    });
+
+    it('maps cancellation to CancelledError', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const fetcher = new DefaultHttpFetcher(async () => ok('x'), publicResolver);
+      await expect(
+        fetcher.fetchBytes('https://example.com/a.pdf', { signal: controller.signal }),
+      ).rejects.toThrow(CancelledError);
+    });
+  });
+
   describe('fetchToFile parity', () => {
     function chunkedStream(chunks: Uint8Array[]) {
       let index = 0;
