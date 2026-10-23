@@ -1,12 +1,16 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.8.0",
-  "description": "Ask an LLM about any URL, or turn it into clean text: articles, YouTube transcripts, podcasts, RSS/Atom feeds and Hacker News",
+  "version": "0.9.0",
+  "description": "Ask an LLM about any URL, or turn it into clean text: articles, PDFs, arXiv papers, YouTube transcripts, podcasts, RSS/Atom feeds and Hacker News",
   "keywords": [
     "cli",
     "llm",
     "web-content-extraction",
     "article-extraction",
+    "pdf",
+    "pdf-to-text",
+    "arxiv",
+    "research-papers",
     "readability",
     "youtube",
     "youtube-transcript",
@@ -54,11 +58,12 @@
     "dist"
   ],
   "dependencies": {
-    "ai": "^7.0.138",
     "@ai-sdk/deepseek": "^3.0.64",
     "@ai-sdk/openai": "^4.0.92",
     "@hallelx/youtube-transcript": "^0.2.0",
-    "undici": "^7.30.0"
+    "ai": "^7.0.138",
+    "undici": "^7.30.0",
+    "unpdf": "1.8.1"
   },
   "scripts": {
     "build": "tsup",
@@ -67,6 +72,7 @@
   },
   "devDependencies": {
     "@owlieio/adapter-article": "workspace:*",
+    "@owlieio/adapter-arxiv": "workspace:*",
     "@owlieio/adapter-hackernews": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",
@@ -76,6 +82,7 @@
     "@owlieio/provider-deepseek": "workspace:*",
     "@owlieio/provider-openai": "workspace:*",
     "@owlieio/provider-whisper": "workspace:*",
+    "@owlieio/testing": "workspace:*",
     "@types/node": "^22.10.2",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",

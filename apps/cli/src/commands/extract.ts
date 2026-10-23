@@ -36,7 +36,8 @@ import {
   toBatchError,
 } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { defaultItemAdapters } from '../registry.js';
+import { createArxivCollectionAdapter, defaultItemAdapters } from '../registry.js';
+import { parseArxivCollectionUrl, parseArxivPaperUrl } from '@owlieio/adapter-arxiv';
 import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import {
@@ -48,6 +49,7 @@ import {
   writeTerminalRecord,
   writeUsageError,
 } from '../protocol.js';
+import { localPdfDocument, readLocalPdf } from '../local-pdf.js';
 import { finalizeDocument, ARTICLE_FALLBACK_WARNING } from '../provenance.js';
 import type { SpinnerLike } from '../spinner.js';
 import { writeDiagnostic } from '../style.js';
@@ -62,6 +64,8 @@ export interface ExtractDeps {
   itemAdapters?: readonly ItemAdapter[];
   /** Collection adapter used to recognize and list RSS/Atom feeds. */
   feedAdapter?: CollectionAdapter;
+  /** Collection adapter for arXiv categories and queries (tests substitute an offline one). */
+  arxivCollectionAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
@@ -131,6 +135,23 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
+  const arxivUsage = arxivUsageError(url, options);
+  if (arxivUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'extract', arxivUsage);
+    return ExitCode.Usage;
+  }
+
+  let localPdf: Uint8Array | undefined;
+  try {
+    localPdf = await readLocalPdf(url, deps.signal);
+  } catch (error) {
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
+  if (localPdf !== undefined) {
+    return runLocalPdfExtraction(url, localPdf, io, options, deps);
+  }
+
   let maxMediaBytes: number | undefined;
   let hackerNewsComments: Partial<HackerNewsCommentBounds>;
   try {
@@ -184,6 +205,7 @@ export async function runExtractCommand(
         mediaMaxBytes: maxMediaBytes,
         networkPolicy: deps.networkPolicy,
         hackerNewsComments,
+        arxivAbstractOnly: options.abstractOnly,
       });
     feedAdapter =
       deps.feedAdapter ??
@@ -223,6 +245,8 @@ export async function runExtractCommand(
     }
     return ExitCode.Usage;
   }
+
+  const arxivCollection = parseArxivCollectionUrl(url);
 
   const isAppleShowUrl = parseAppleShowUrl(url) !== undefined;
   if (options.page === 'article' && isAppleShowUrl) {
@@ -301,6 +325,16 @@ export async function runExtractCommand(
         );
       }
     }
+    if (arxivCollection !== undefined && options.page === undefined) {
+      const arxivAdapter =
+        deps.arxivCollectionAdapter ??
+        createArxivCollectionAdapter({
+          fetcher: network().fetcher,
+          networkPolicy: deps.networkPolicy,
+          includeReplacements: options.includeReplacements,
+        });
+      return await runFeedExtraction(url, io, itemAdapters, arxivAdapter, spinner, options, deps);
+    }
     if (options.page === 'feed') {
       const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
       return await runFeedExtraction(
@@ -330,6 +364,27 @@ export async function runExtractCommand(
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
   }
+}
+
+/**
+ * The usage error for arXiv-only flags on a URL they do not apply to, and for
+ * `--order` on an arXiv collection (arXiv sets the order), if any.
+ */
+export function arxivUsageError(
+  url: string,
+  options: Pick<CliOptions, 'abstractOnly' | 'includeReplacements' | 'order'>,
+): string | undefined {
+  const collection = parseArxivCollectionUrl(url);
+  if (options.abstractOnly && collection === undefined && parseArxivPaperUrl(url) === undefined) {
+    return '--abstract-only applies to arXiv paper and collection URLs';
+  }
+  if (options.includeReplacements && collection?.kind !== 'category') {
+    return '--include-replacements applies to arXiv category feeds';
+  }
+  if (collection !== undefined && options.order !== undefined) {
+    return '--order applies to RSS/Atom feeds, not arXiv collections';
+  }
+  return undefined;
 }
 
 /** Whether any Hacker News-only extract flag was given. */
@@ -446,6 +501,44 @@ async function runDirectOrDiscoveredExtraction(
     throw new ConfigurationError(`no article content or RSS/Atom feed found at ${url}`);
   }
   return await runFeedExtraction(feedUrl, io, itemAdapters, feedAdapter, spinner, options, deps);
+}
+
+/**
+ * Extracts a local PDF file (ADR 0039). The URL-only flags (resolvers,
+ * `--article`/`--feed`, Hacker News options) do not apply to a file.
+ */
+async function runLocalPdfExtraction(
+  path: string,
+  bytes: Uint8Array,
+  io: CliIo,
+  options: CliOptions,
+  deps: ExtractDeps,
+): Promise<number> {
+  if (
+    options.resolver !== undefined ||
+    options.page !== undefined ||
+    usesHackerNewsFlags(options)
+  ) {
+    if (!options.quiet) {
+      writeUsageError(io, options, 'extract', 'URL options cannot be used with a local PDF file');
+    }
+    return ExitCode.Usage;
+  }
+  const spinner = createCommandSpinner(io, options, deps.spinner);
+  try {
+    spinner.start(`extracting ${path}`);
+    const document = await localPdfDocument(path, bytes, {
+      fetchedAt: (deps.clock?.() ?? new Date()).toISOString(),
+      signal: deps.signal,
+    });
+    spinner.stop();
+    writeDocument(io, options, document);
+    return ExitCode.Success;
+  } catch (error) {
+    spinner.stop();
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
 }
 
 function writeDocument(io: CliIo, options: CliOptions, document: NormalizedDocument): void {

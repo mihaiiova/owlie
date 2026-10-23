@@ -4,9 +4,9 @@ Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract an article, YouTube video, podcast episode, Hacker News item, or RSS/Atom feed (direct URL or discovered page)
+  extract   Extract an article or PDF, YouTube video, podcast episode, Hacker News item, arXiv paper, or RSS/Atom feed (direct URL or discovered page)
   resolve   Resolve a URL to its validated audio media URL (no transcription)
-  list      List entries in an RSS/Atom feed (direct URL or discovered page) or a Hacker News list
+  list      List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, or an arXiv category or query
   process   Process text, a document, a URL, or a feed's linked items with an LLM
   models    List current models for your LLM providers
   auth      Manage API keys for LLM providers
@@ -37,6 +37,8 @@ Options:
   --max-comments N   Cap Hacker News comments read in total (default 100, max 300)
   --comment-depth N  Hacker News reply levels read (default 2, max 3)
   --max-top-level-comments N  Cap top-level Hacker News comments (default 30, max 100)
+  --abstract-only  Read an arXiv paper's metadata and abstract only (extract only)
+  --include-replacements  Keep new versions of older papers in an arXiv category feed
   --env-file PATH  Load an explicit environment file
   --hosted         Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)
 
@@ -45,7 +47,7 @@ Exit codes:
 `;
 
 const EXTRACT_HELP =
-  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
+  'owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--abstract-only] [--include-replacements] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]\n\n' +
   'Extract content from a URL. A YouTube video, podcast episode, or article\n' +
   'page writes its normalized text to stdout, or a JSON NormalizedDocument with\n' +
   '--json. A page is an article when it declares one (og:type or JSON-LD) or\n' +
@@ -77,7 +79,15 @@ const EXTRACT_HELP =
   'a text post); both writes the article, then the discussion, and keeps the\n' +
   'discussion with a warning when the article cannot be read. --max-comments,\n' +
   '--comment-depth and --max-top-level-comments bound the comment tree.\n' +
-  'These flags apply only to Hacker News item URLs; --article and --feed do not.';
+  'These flags apply only to Hacker News item URLs; --article and --feed do not.\n' +
+  'A PDF link (or a local PDF file) is read as a text document with\n' +
+  'metadata.format "pdf"; scanned PDFs without a text layer are not supported.\n' +
+  'An arXiv paper URL (arxiv.org/abs|pdf|html/ID) reads metadata from the arXiv\n' +
+  'API and the paper from its HTML render (formulas kept as LaTeX), else its\n' +
+  'PDF, else the abstract; --abstract-only skips the paper. An arXiv category\n' +
+  'feed (rss.arxiv.org/rss/CAT, arxiv.org/list/CAT) or API search\n' +
+  '(export.arxiv.org/api/query?search_query=...) extracts its papers as a batch;\n' +
+  'replaced versions are skipped unless --include-replacements is given.';
 
 const RESOLVE_HELP =
   'owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]\n\n' +
@@ -87,7 +97,7 @@ const RESOLVE_HELP =
   'run in recognition order and never fall back to article extraction.';
 
 const LIST_HELP =
-  'owlie list URL [--limit N] [--order feed|newest] [--json]\n\n' +
+  'owlie list URL [--limit N] [--order feed|newest] [--include-replacements] [--json]\n\n' +
   'List entries in an RSS/Atom feed, bounded by --limit (default 10, max 500).\n' +
   'A feed URL is used directly; an HTML page URL that exposes a feed is\n' +
   'discovered first. A Hacker News list URL (/, /news, /newest, /best, /ask,\n' +
@@ -97,7 +107,12 @@ const LIST_HELP =
   'truncation state with --json. One feed response may be up to 32 MiB\n' +
   '(--max-feed-bytes N to change it). In the default feed order the download\n' +
   'stops once the entries --limit needs have arrived; --order newest sorts by\n' +
-  'publication date (undated entries last) and reads the whole feed.';
+  'publication date (undated entries last) and reads the whole feed.\n' +
+  'An arXiv category (rss.arxiv.org/rss/CAT[+CAT], arxiv.org/list/CAT) lists the\n' +
+  'latest announcements, skipping new versions of older papers unless\n' +
+  '--include-replacements is given; an API search\n' +
+  '(export.arxiv.org/api/query?search_query=...) lists the newest submissions\n' +
+  '(max 200). Items carry the arXiv id, version, authors, categories and license.';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +

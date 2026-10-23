@@ -43,3 +43,26 @@ export function isFeedContentType(contentType: string | null | undefined): boole
     (mediaType?.endsWith('+xml') ?? false)
   );
 }
+
+/** Whether the declared media type is PDF (`application/pdf` or the legacy `application/x-pdf`). */
+export function isPdfContentType(contentType: string | null | undefined): boolean {
+  const mediaType = mediaTypeOf(contentType);
+  return mediaType === 'application/pdf' || mediaType === 'application/x-pdf';
+}
+
+const PDF_SIGNATURE = '%PDF-';
+
+/**
+ * Whether a body starts with the `%PDF-` file signature. Accepts raw bytes or a
+ * body already decoded as text (the signature is ASCII, so it survives
+ * decoding). The signature, not the URL extension or declared type, decides
+ * whether a body is a PDF.
+ */
+export function startsWithPdfSignature(body: Uint8Array | string): boolean {
+  if (typeof body === 'string') return body.startsWith(PDF_SIGNATURE);
+  if (body.length < PDF_SIGNATURE.length) return false;
+  for (let index = 0; index < PDF_SIGNATURE.length; index += 1) {
+    if (body[index] !== PDF_SIGNATURE.charCodeAt(index)) return false;
+  }
+  return true;
+}

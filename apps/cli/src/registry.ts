@@ -7,6 +7,7 @@ import type {
 } from '@owlieio/core';
 import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
+import { ArxivCollectionAdapter, ArxivPaperAdapter } from '@owlieio/adapter-arxiv';
 import { HackerNewsAdapter } from '@owlieio/adapter-hackernews';
 import type { HackerNewsCommentBounds } from '@owlieio/adapter-hackernews';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -22,9 +23,9 @@ import { createPodcastResolvers } from './resolvers.js';
  * The functional adapters bundled into `owlie`: the YouTube video item
  * adapter, the direct-media podcast item adapter, the static article item
  * adapter (universal `extract` dispatch), the RSS/Atom collection adapter
- * (bounded `list` and feed extraction), and the Hacker News list and item
- * adapter. Reddit remains a deferred scaffold and is deliberately not
- * registered.
+ * (bounded `list` and feed extraction), the Hacker News list and item
+ * adapter, and the arXiv paper and collection adapter (ADR 0040). Reddit
+ * remains a deferred scaffold and is deliberately not registered.
  */
 export const ADAPTER_IDS: readonly string[] = [
   YouTubeAdapter.id,
@@ -32,7 +33,23 @@ export const ADAPTER_IDS: readonly string[] = [
   RssAdapter.id,
   ArticleAdapter.id,
   HackerNewsAdapter.id,
+  ArxivPaperAdapter.id,
 ];
+
+/** The arXiv collection adapter (categories and API queries) on the invocation's network. */
+export function createArxivCollectionAdapter(
+  options: {
+    fetcher?: HttpFetcher;
+    networkPolicy?: HttpFetchPolicy;
+    includeReplacements?: boolean;
+  } = {},
+): ArxivCollectionAdapter {
+  return new ArxivCollectionAdapter({
+    fetcher: options.fetcher ?? new DefaultHttpFetcher(),
+    policy: options.networkPolicy,
+    includeReplacements: options.includeReplacements,
+  });
+}
 
 /**
  * The Hacker News adapter on the invocation's extraction network, with the
@@ -54,9 +71,10 @@ export function createHackerNewsAdapter(
 
 /**
  * The default ordered item adapters for universal `extract` dispatch: the
- * specialized YouTube and Hacker News adapters first, then podcast media and declarative
+ * specialized YouTube, Hacker News and arXiv adapters first, then podcast media and declarative
  * episode pages, then the article fallback for any remaining safe HTTP(S)
- * URL. The CLI passes explicit language/transcription configuration and the
+ * URL. The arXiv adapter reads a paper's HTML render and PDF through the same
+ * article adapter (adapters do not depend on each other). The CLI passes explicit language/transcription configuration and the
  * invocation's extraction network: one shared fetcher (proxied when a proxy is
  * configured) for every page, feed, lookup, and media download, plus how the
  * YouTube transcript client reaches YouTube.
@@ -71,9 +89,12 @@ export function defaultItemAdapters(
     mediaMaxBytes?: number;
     networkPolicy?: HttpFetchPolicy;
     hackerNewsComments?: Partial<HackerNewsCommentBounds>;
+    /** arXiv papers: metadata and abstract only (`--abstract-only`). */
+    arxivAbstractOnly?: boolean;
   } = {},
 ): ItemAdapter[] {
   const fetcher = options.fetcher ?? new DefaultHttpFetcher();
+  const article = new ArticleAdapter({ fetcher, policy: options.networkPolicy });
   return [
     new YouTubeAdapter({
       languages: options.languages,
@@ -85,6 +106,12 @@ export function defaultItemAdapters(
       networkPolicy: options.networkPolicy,
       comments: options.hackerNewsComments,
     }),
+    new ArxivPaperAdapter({
+      fetcher,
+      policy: options.networkPolicy,
+      article,
+      abstractOnly: options.arxivAbstractOnly,
+    }),
     new PodcastAdapter({
       fetcher,
       transcriber: new WhisperLocalTranscriber({ model: options.whisperModel }),
@@ -95,7 +122,7 @@ export function defaultItemAdapters(
       },
       resolvers: createPodcastResolvers(fetcher, options.networkPolicy),
     }),
-    new ArticleAdapter({ fetcher, policy: options.networkPolicy }),
+    article,
   ];
 }
 

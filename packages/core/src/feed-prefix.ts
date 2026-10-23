@@ -1,4 +1,9 @@
-import { isFeedContentType, isHtmlContentType } from './media-type.js';
+import {
+  isFeedContentType,
+  isHtmlContentType,
+  isPdfContentType,
+  startsWithPdfSignature,
+} from './media-type.js';
 
 /**
  * Incremental scanner that finds where a feed document can be cut after its
@@ -119,11 +124,18 @@ export class FeedEntryScanner {
  * before the first entry, has arrived; HTML and other bodies are read in full.
  * The resulting `partial` response is enough to tell that the URL is a feed,
  * and {@link feedHeaderText} turns it into a parseable document.
+ *
+ * A PDF (declared `application/pdf`, or a body that starts with `%PDF-`) stops
+ * at its first chunk: it is never a page or a feed, its text decoding is
+ * meaningless, and whoever reads it re-fetches it as bytes, so a large PDF is
+ * not downloaded under the text-body cap first.
  */
 export function stopAtFeedHeader(): (textSoFar: string, contentType: string | null) => boolean {
   const scanner = new FeedEntryScanner(0);
   return (text, contentType) =>
-    isFeedContentType(contentType) && !isHtmlContentType(contentType) && scanner.scan(text);
+    isPdfContentType(contentType) ||
+    startsWithPdfSignature(text) ||
+    (isFeedContentType(contentType) && !isHtmlContentType(contentType) && scanner.scan(text));
 }
 
 /**

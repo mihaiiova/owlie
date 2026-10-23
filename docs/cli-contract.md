@@ -6,9 +6,9 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract a YouTube video, a podcast, a Hacker News item, or a feed's linked items   (v0.1)
+owlie extract  Extract an article or PDF, a YouTube video, a podcast, a Hacker News item, an arXiv paper, or a feed's linked items   (v0.1)
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
-owlie list     List entries in an RSS/Atom feed (direct URL or discovered page) or a Hacker News list (functional)
+owlie list     List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, or an arXiv category or search (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie models   List current models for your LLM providers     (v0.1)
 owlie auth     Manage API keys for LLM providers             (v0.1)
@@ -64,9 +64,9 @@ redact secrets, URL userinfo, query strings, and fragments.
 ## v0.1 command surface
 
 ```text
-owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
+owlie extract URL [--article | --feed | --podcast-media | --podcast-page | --podcast-apple] [--hn-content discussion|article|both] [--max-comments N] [--comment-depth N] [--max-top-level-comments N] [--abstract-only] [--include-replacements] [--json] [--language LANG] [--limit N] [--order feed|newest] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N] [--max-media-bytes N]
 owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
-owlie list URL [--limit N] [--order feed|newest] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
+owlie list URL [--limit N] [--order feed|newest] [--include-replacements] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie process [FILE] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
 owlie process FEED_URL --each [--limit N] [--order feed|newest] --prompt "..." [--model provider/model-id] [--timeout-ms N] [--max-network-bytes N] [--max-feed-bytes N] [--max-stdout-bytes N]
 owlie models [--provider <provider>] [--refresh] [--json] [--timeout-ms N] [--max-network-bytes N] [--max-stdout-bytes N]
@@ -148,6 +148,18 @@ owlie capabilities [--json]
   pointing to `owlie list`. `--hn-content` and the comment flags on a non-HN
   URL, and `--article`/`--feed` on an HN URL, are usage errors (exit code 2).
   `news.ycombinator.com/rss` is not an HN URL here: it stays an RSS feed.
+- `extract` on a PDF link (a `.pdf` path, a declared `application/pdf` body,
+  or a body starting with `%PDF-`) or a local PDF file writes an article (or
+  `local`) document with `metadata.format: "pdf"` (ADR 0039). Encrypted,
+  scanned (no text layer) and malformed PDFs are `EXTRACTION_ERROR`s.
+- `extract` on an arXiv paper URL (`arxiv.org/abs|pdf|html/<id>`) writes one
+  `NormalizedDocument` with `sourceType: "arxiv"` and `adapterId: "arxiv"`
+  (ADR 0040): metadata from the arXiv API, then the HTML render (formulas as
+  LaTeX), else the PDF, else the abstract with an `ARXIV_ABSTRACT_ONLY`
+  warning. `--abstract-only` reads metadata and the abstract only. On an arXiv
+  category feed (`rss.arxiv.org/rss/<cat>`, `arxiv.org/list/<cat>`) or API
+  search (`export.arxiv.org/api/query?search_query=…`), `extract` writes the
+  bounded batch envelope below. API requests are spaced three seconds apart.
 - `extract` on an RSS/Atom feed URL — or an HTML page URL that exposes one —
   performs a bounded linked-item batch
   extraction and always writes a single versioned JSON envelope (regardless of
@@ -181,6 +193,12 @@ owlie capabilities [--json]
   item fetches are capped at three per requested story
   (`collection.metadata.fetchCapReached` when the cap stops the listing). An
   HN item URL is a `CONFIGURATION_ERROR` pointing to `owlie extract`.
+  An arXiv category URL lists its latest announcements and an arXiv search URL
+  its newest submissions (ADR 0040, at most 200). Items carry `arxivId`,
+  `version`, `announceType`, `authors`, `categories`, `primaryCategory`,
+  `license` and `doi`; replacements are skipped unless `--include-replacements`
+  is given. `--order` with an arXiv URL, and `--abstract-only` or
+  `--include-replacements` where they do not apply, are usage errors.
 - `process` reads exactly one input — a positional http(s) URL, a positional
   file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
   (exit code 2). A URL is extracted first through the universal
@@ -222,7 +240,8 @@ owlie capabilities [--json]
 - `capabilities` is a non-network, non-secret startup manifest command. With
   `--json` it writes a versioned envelope whose `result` is
   `{ version, protocolSchemaVersion, documentSchemaVersion, commands,
-adapters, providers, resolvers }`; plain output is concise human-readable
+adapters, providers, resolvers, documentFormats }` (`documentFormats` lists the
+  formats the article path reads: `html` and `pdf`, ADR 0039); plain output is concise human-readable
   text. `owlie --version --json` writes the versioned envelope
   `{ schemaVersion: 1, command: "version", result: <version> }` while plain
   `owlie --version` output is unchanged.

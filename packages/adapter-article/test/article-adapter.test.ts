@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ArticleAdapter } from '@owlieio/adapter-article';
+import {
+  ArticleAdapter,
+  DEFAULT_MAX_PDF_BYTES,
+  PDF_TRUNCATED_PAGES,
+} from '@owlieio/adapter-article';
 import { CancelledError, ExtractionError } from '@owlieio/core';
 import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
@@ -19,6 +23,7 @@ import {
   MIN_READABLE_ARTICLE_CHARS,
   normalizeDate,
 } from '../src/article.js';
+import { buildPdf, paperPdf } from '@owlieio/testing';
 
 const fetcher: HttpFetcher = {
   async fetch() {
@@ -503,5 +508,182 @@ describe('ArticleAdapter.classify', () => {
         signal: controller.signal,
       }),
     ).rejects.toBeInstanceOf(CancelledError);
+  });
+});
+
+describe('ArticleAdapter on PDFs', () => {
+  interface Calls {
+    text: string[];
+    bytes: { url: string; maxBytes?: number }[];
+  }
+
+  function pdfFetcher(
+    responses: {
+      text?: (url: string) => { contentType: string | null; text: string };
+      bytes?: (url: string) => { contentType: string | null; bytes: Uint8Array };
+    },
+    calls: Calls = { text: [], bytes: [] },
+  ): HttpFetcher {
+    return {
+      async fetch(url, options) {
+        calls.text.push(url);
+        const { contentType, text } = responses.text!(url);
+        const stopped = options?.stopReading?.(text.slice(0, 16), contentType) ?? false;
+        return {
+          url,
+          contentType,
+          text: stopped ? text.slice(0, 16) : text,
+          ...(stopped ? { partial: true } : {}),
+        };
+      },
+      async fetchBytes(url, options) {
+        calls.bytes.push({ url, maxBytes: options?.maxBytes });
+        return { url, ...responses.bytes!(url) };
+      },
+    };
+  }
+
+  const pdfBytes = () => ({ contentType: 'application/pdf', bytes: paperPdf() });
+  const item = (url: string) => new ArticleAdapter({ fetcher }).resolveItem({ url });
+
+  it('fetches a .pdf URL as bytes up front and reads it as a PDF article', async () => {
+    const calls: Calls = { text: [], bytes: [] };
+    const adapter = new ArticleAdapter({ fetcher: pdfFetcher({ bytes: pdfBytes }, calls) });
+    const document = await adapter.extract(await item('https://example.com/papers/study.pdf#p=2'));
+
+    expect(calls.text).toEqual([]);
+    expect(calls.bytes).toEqual([
+      { url: 'https://example.com/papers/study.pdf', maxBytes: DEFAULT_MAX_PDF_BYTES },
+    ]);
+    expect(document).toMatchObject({
+      id: 'article:https://example.com/papers/study.pdf',
+      sourceType: 'article',
+      mediaType: 'text',
+      title: 'A Study of Careful Extraction',
+      author: 'Ada Example',
+      publishedAt: '2024-01-15T08:30:00.000Z',
+      metadata: { format: 'pdf', pageCount: 3, pagesRead: 3 },
+    });
+    expect(document.text).toContain('We study how text is extracted from documents');
+    expect(document.provenance.warnings).toEqual([]);
+  });
+
+  it('re-fetches a declared application/pdf body without an extension as bytes', async () => {
+    const calls: Calls = { text: [], bytes: [] };
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher(
+        {
+          text: () => ({ contentType: 'application/pdf', text: '%PDF-1.4 binary...' }),
+          bytes: pdfBytes,
+        },
+        calls,
+      ),
+    });
+    const document = await adapter.extract(await item('https://arxiv.org/pdf/2401.12345'));
+    expect(calls.text).toEqual(['https://arxiv.org/pdf/2401.12345']);
+    expect(calls.bytes.map((call) => call.url)).toEqual(['https://arxiv.org/pdf/2401.12345']);
+    expect(document.metadata).toMatchObject({ format: 'pdf' });
+  });
+
+  it('recognizes a PDF by its signature when the declared type is generic', async () => {
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({
+        text: () => ({ contentType: 'application/octet-stream', text: '%PDF-1.4 binary' }),
+        bytes: () => ({ contentType: 'application/octet-stream', bytes: paperPdf() }),
+      }),
+    });
+    const document = await adapter.extract(await item('https://example.com/download?id=7'));
+    expect(document.metadata).toMatchObject({ format: 'pdf' });
+  });
+
+  it('reads a .pdf URL that serves a page as the page it is', async () => {
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({
+        bytes: () => ({
+          contentType: 'text/html; charset=utf-8',
+          bytes: new TextEncoder().encode(CLEAN_ARTICLE),
+        }),
+      }),
+    });
+    const document = await adapter.extract(await item('https://example.com/report.pdf'));
+    expect(document.metadata).toEqual({});
+    expect(document.text.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a .pdf URL whose body is neither a PDF nor a page', async () => {
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({
+        bytes: () => ({ contentType: 'application/pdf', bytes: new TextEncoder().encode('oops') }),
+      }),
+    });
+    await expect(adapter.extract(await item('https://example.com/report.pdf'))).rejects.toThrow(
+      'response declares a PDF but its body is not one: https://example.com/report.pdf',
+    );
+  });
+
+  it('applies the configured caps and warns when pages were skipped', async () => {
+    const calls: Calls = { text: [], bytes: [] };
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({ bytes: pdfBytes }, calls),
+      pdf: { maxBytes: 1_000_000, maxPages: 2 },
+    });
+    const document = await adapter.extract(await item('https://example.com/study.pdf'));
+    expect(calls.bytes[0]?.maxBytes).toBe(1_000_000);
+    expect(document.metadata).toMatchObject({ pageCount: 3, pagesRead: 2 });
+    expect(document.provenance.warnings).toEqual([
+      { code: PDF_TRUNCATED_PAGES, message: 'read the first 2 of 3 PDF pages' },
+    ]);
+  });
+
+  it('fails clearly when the fetcher cannot read binary responses', async () => {
+    const adapter = new ArticleAdapter({ fetcher });
+    await expect(adapter.extract(await item('https://example.com/study.pdf'))).rejects.toThrow(
+      'PDF extraction needs a fetcher that can read binary responses',
+    );
+  });
+
+  it('extracts a deferred PDF response by re-fetching it as bytes', async () => {
+    const adapter = new ArticleAdapter({ fetcher: pdfFetcher({ bytes: pdfBytes }) });
+    const document = await adapter.extractDeferred(await item('https://example.com/doc'), {
+      url: 'https://example.com/doc',
+      contentType: 'application/pdf',
+      text: '%PDF-',
+      partial: true,
+    });
+    expect(document.metadata).toMatchObject({ format: 'pdf' });
+  });
+
+  it('classifies a PDF as an article and returns its document', async () => {
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({
+        text: () => ({ contentType: 'application/pdf', text: '%PDF-1.4 binary' }),
+        bytes: pdfBytes,
+      }),
+    });
+    const page = await adapter.classify(await item('https://example.com/doc'));
+    expect(page).toMatchObject({ isArticle: true, signal: 'pdf' });
+    expect(page.document?.metadata).toMatchObject({ format: 'pdf' });
+  });
+
+  it('classifies a deferred PDF response handed over by another adapter', async () => {
+    const adapter = new ArticleAdapter({ fetcher: pdfFetcher({ bytes: pdfBytes }) });
+    const page = await adapter.classify(await item('https://example.com/doc'), {
+      response: { url: 'https://example.com/doc', contentType: 'application/pdf', text: '' },
+    });
+    expect(page).toMatchObject({ isArticle: true, signal: 'pdf' });
+  });
+
+  it('surfaces an unreadable PDF instead of classifying it as a non-article page', async () => {
+    const adapter = new ArticleAdapter({
+      fetcher: pdfFetcher({
+        bytes: () => ({
+          contentType: 'application/pdf',
+          bytes: buildPdf([{ lines: ['Secret.'] }], { encrypted: true }),
+        }),
+      }),
+    });
+    await expect(adapter.classify(await item('https://example.com/secret.pdf'))).rejects.toThrow(
+      'PDF is encrypted',
+    );
   });
 });

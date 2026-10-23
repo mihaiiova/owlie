@@ -62,6 +62,10 @@ export interface CliOptions {
   hnContent?: HackerNewsContent;
   /** Feed entry order for listings and feed batches (default: feed document order). */
   order?: 'feed' | 'newest';
+  /** arXiv papers: read metadata and the abstract only (`extract`). */
+  abstractOnly?: boolean;
+  /** arXiv category feeds: keep `replace` announcements (`list`, `extract`). */
+  includeReplacements?: boolean;
   /** Hacker News comment bounds for `extract` (raw flag values). */
   maxComments?: string;
   commentDepth?: string;
@@ -239,6 +243,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--hosted':
         options.hosted = true;
         break;
+      case '--abstract-only':
+        options.abstractOnly = true;
+        break;
+      case '--include-replacements':
+        options.includeReplacements = true;
+        break;
       case '--article':
       case '--feed': {
         const page = arg === '--article' ? 'article' : 'feed';
@@ -264,6 +274,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
           }
         }
       }
+    }
+  }
+
+  if (usageError === undefined && options.resolver !== undefined) {
+    const arxivFlag = options.abstractOnly
+      ? '--abstract-only'
+      : options.includeReplacements
+        ? '--include-replacements'
+        : undefined;
+    if (arxivFlag) {
+      const resolverFlag = resolverFlagForName(options.resolver) ?? options.resolver;
+      usageError = `cannot combine "${arxivFlag}" and "${resolverFlag}"`;
     }
   }
 
@@ -317,6 +339,19 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
     if (parsed.usageError) {
       if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', parsed.usageError);
+      return ExitCode.Usage;
+    }
+
+    // The arXiv flags are read by extract (and list, for replacements) only;
+    // anywhere else they would be silently ignored.
+    const misplacedArxivFlag =
+      options.abstractOnly && command !== 'extract'
+        ? '--abstract-only applies to extract'
+        : options.includeReplacements && command !== 'extract' && command !== 'list'
+          ? '--include-replacements applies to extract and list'
+          : undefined;
+    if (misplacedArxivFlag && !parsed.helpRequested) {
+      if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', misplacedArxivFlag);
       return ExitCode.Usage;
     }
 
