@@ -13,6 +13,13 @@ The workflow proves the published artifact can:
 - list a real RSS/Atom feed and extract its linked article;
 - extract a real static article and a known-caption YouTube video;
 - list the Hacker News front page and extract a fixed old HN discussion;
+- read every supported source type on real URLs from the
+  [real-world catalog](#real-world-url-catalog): podcast feeds, Apple Podcasts
+  shows and episodes, episode pages, PDFs, arXiv papers and listings,
+  articles, homepages and feeds, called the way the app calls them;
+- keep exact outcomes on the controlled corpus: custom-element and recovered
+  articles, the specific empty-article error code with its `details`, a PDF
+  from a link and from a local file, and direct media;
 - process text with DeepSeek, including the `extract → process` pipeline and
   bounded `process --each`;
 - keep the stdout/stderr and exit-code contracts intact at the installed
@@ -36,6 +43,16 @@ The scenario inventory lives in `scripts/release-e2e/scenarios.mjs`:
 | extract feed                   | `owlie extract <feed> --limit 2 --json`                                      | Pages feed + article                      |
 | list hacker news               | `owlie list https://news.ycombinator.com/ --limit 2 --json`                  | Hacker News API                           |
 | extract hacker news item       | `owlie extract <HN item 8863> --hn-content both --json`                      | Hacker News API (+ its linked page)       |
+| extract custom-element article | `owlie --hosted extract <custom-elements> --article --json`                  | Pages article                             |
+| classify declared article      | `owlie --hosted extract <custom-elements> --limit 1 --json`                  | Pages article                             |
+| extract recovered article      | `owlie --hosted extract <recovered> --article --json`                        | Pages article                             |
+| empty article error            | `owlie --hosted extract <short-article> --article --json` (expects exit 1)   | Pages article                             |
+| extract corpus pdf link        | `owlie --hosted extract <sample.pdf URL> --json`                             | Pages PDF                                 |
+| extract local pdf              | `owlie extract e2e/corpus/sample.pdf --json`                                 | none                                      |
+| resolve direct media           | `owlie --hosted resolve <audio.wav> --json`                                  | Pages audio                               |
+| process pdf link               | `owlie process <sample.pdf URL> --prompt "Reply with exactly: OK" --json`    | Pages PDF + DeepSeek                      |
+| real-world `<id>`              | per catalog entry kind (below)                                               | the entry's site                          |
+| real-world `<id>` identity     | feed + Apple show `list`, Apple lookup, `resolve` of the episode             | the show's feed, Apple                    |
 | process file                   | `owlie process <file> --prompt "Reply with exactly: OK" --json`              | DeepSeek                                  |
 | extract → process pipeline     | `extract <youtube>` piped into `process --json`                              | YouTube + DeepSeek                        |
 | process feed --each            | `owlie process <feed> --each --limit 2 --prompt "Reply with exactly: OK"`    | Pages feed + article + DeepSeek           |
@@ -59,8 +76,72 @@ verification (`pnpm verify:extractor-runtime`, see
 [`docs/testing-strategy.md`](testing-strategy.md) and ADR 0025). It is not used
 by the release E2E scenarios.
 
+The corpus also holds the pages whose exact outcome a real site cannot be
+relied on to keep: `custom-elements.html` (body text inside custom elements,
+declared `og:type` article with a feed link), `recovered.html` (a body inside
+`<dialog>` that only the fallback reader recovers, with an
+`article_text_recovered` warning), `short-article.html` (fails with
+`ARTICLE_TOO_SHORT` and its `details`), and `sample.pdf` (two pages with a
+text layer, generated with `buildPdf` from `@owlieio/testing`). The default
+suite reads each of these through the real adapters offline
+(`scripts/release-e2e/corpus.test.ts`), so a corpus change that would fail
+the live run fails `pnpm test` first.
+
 Changing the corpus (or its markers) requires updating `e2e/corpus/manifest.json`
-in the same change. Any URL replacement must be reviewed and documented.
+in the same change. Any URL replacement must be reviewed and documented. New
+corpus files reach Pages only when `main` is pushed, so the first validation
+run after a corpus change is the one that proves them live.
+
+## Real-world URL catalog
+
+`e2e/real-world/catalog.json` lists real URLs from around the web, collected
+over time. Each entry runs one command, the way the app runs it (`owlie
+--hosted … --json --timeout-ms … --max-stdout-bytes …`), and must meet its
+kind's contract (`scripts/release-e2e/real-world.mjs`). Real content
+changes, so the contracts are structural; `contains` adds text that must
+appear only when it never changes (an RFC title).
+
+| Kind              | Command                                  | Contract                                                                                                                                        |
+| ----------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `article`         | `extract URL --article`                  | an `article` document with at least `minTextChars` (500) characters                                                                             |
+| `page`            | `extract URL --limit 1`                  | classified as `classifiesAs`: `article` (a document) or `feed` (a feed batch)                                                                   |
+| `feed`            | `list URL --limit 3`                     | an `rss` collection with at least `minItems` (1) linked entries                                                                                 |
+| `podcast-feed`    | `list URL --limit 3 --order newest`      | every episode has an audio enclosure, an `enclosureUrl` and an `entryIdSource`; well-formed `transcripts`; with `transcripts: true`, some exist |
+| `apple-show`      | `list URL --limit 3 --order newest`      | `collection.metadata.apple.podcastId` is the URL's id; the collection is `feedUrl` when given; episodes as for `podcast-feed`                   |
+| `podcast-episode` | `resolve URL`                            | the expected `resolver` and a media URL                                                                                                         |
+| `pdf`             | `extract URL`                            | an `article` document with `metadata.format: "pdf"`, pages read, at least `minTextChars` (200) characters                                       |
+| `arxiv-paper`     | `extract URL` (`--abstract-only` if set) | `id` is the version-less `arxiv:<id>`, `textSource` html or pdf (abstract when abstract-only), the text includes the abstract                   |
+| `arxiv-listing`   | `list URL --limit 2`                     | an `arxiv` collection with at least `minItems` (1) papers whose ids match their `arxivId` (`0` for a category feed)                             |
+
+An `apple-show` entry with `identity: true` and a `feedUrl` adds the podcast
+identity check, the CLI side of the app's identity gate: the feed and the
+Apple show list the same entry ids, and one of the newest episodes (found in
+Apple's public lookup by its GUID) resolves through `podcast-apple` to the
+enclosure of that same feed entry. arXiv entries wait 3 s before running, as
+arXiv asks.
+
+### Adding an entry
+
+Every entry records `id` (a slug), `kind`, `url`, `status`, `origin` and
+`added` (a date), plus `notes` and its kind's options. Add an entry whenever
+a real URL breaks or surprises someone: a user's report, a production alert,
+a new site the app should support. `origin` says where it came from
+(`owlie#172: production 'no readable content' alerts`), so a failure points
+straight back to the case it protects.
+
+- A new entry starts as `"status": "watch"`: it runs and is reported (`WATCH`
+  lines and the `watchFailed` count) but never fails the release. An entry
+  that shows behaviour still to fix stays on watch with `notes` saying what
+  is expected.
+- Promote it to `"gate"` once it has passed reliably, usually after a couple
+  of validation runs. A gate entry that fails blocks the release like any
+  other scenario.
+- When a site goes away or changes for good, replace or remove its entry in
+  the same change that explains why; never weaken a contract to make a dead
+  URL pass.
+
+`pnpm test` validates the catalog (fields, kinds, options, unique ids) and
+requires at least one entry of every kind.
 
 ## One-time setup
 
@@ -153,6 +234,10 @@ DEEPSEEK_API_KEY=... \
 node scripts/release-e2e.mjs --bin apps/cli/dist/bin.js --out /tmp/report.json
 ```
 
+`--only TEXT` runs just the scenarios whose name contains `TEXT`; for
+example `--only real-world` checks the whole catalog, and `--only real-world
+the-daily` one show. DeepSeek is only called by the `process` scenarios.
+
 The default test suite (`pnpm test`) never runs live scenarios; it only
 exercises the deterministic seams (`scripts/release-e2e/*.test.ts`).
 
@@ -160,5 +245,10 @@ exercises the deterministic seams (`scripts/release-e2e/*.test.ts`).
 
 Every newly functional command or distinct mode must add a release scenario to
 `scripts/release-e2e/scenarios.mjs` and this document's table, or record an
-explicit justified exception here. Add a default-suite test for any new pure
+explicit justified exception here. A new source type also adds a catalog kind
+with real entries, and a new corpus page when its exact outcome matters.
+
+Exceptions: podcast transcription with Whisper stays in
+`verify-extractor-runtime` (it needs Python and models), and Reddit stays out
+while its adapter is a deferred scaffold. Add a default-suite test for any new pure
 classification, assertion, or redaction behavior the scenario introduces.

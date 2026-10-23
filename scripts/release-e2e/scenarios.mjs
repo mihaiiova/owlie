@@ -10,12 +10,18 @@ import {
   assertMatch,
   assertNoSecrets,
   assertProtocolEnvelope,
+  jsonAssert,
   parseJson,
   parseJsonLines,
 } from './assertions.mjs';
+import { buildCorpusScenarios } from './corpus-scenarios.mjs';
 import { sanitize } from './redact.mjs';
 
 const DIAGNOSTIC_LIMIT = 500;
+
+/** Every adapter and resolver the release supports; capabilities must report them all. */
+export const REQUIRED_ADAPTERS = ['youtube', 'podcast', 'rss', 'article', 'hackernews', 'arxiv'];
+export const REQUIRED_RESOLVERS = ['podcast-media', 'podcast-apple', 'podcast-page'];
 
 /** Hacker News inputs: the live front page and an old item whose discussion no longer changes. */
 export const HACKER_NEWS_FRONT_PAGE = 'https://news.ycombinator.com/';
@@ -124,20 +130,6 @@ export async function executeScenario({ scenario, ctx, secrets = [] }) {
   };
 }
 
-function jsonAssert(parse, extraChecks) {
-  return (result) => {
-    const exit = assertExitCode(result, 0);
-    if (!exit.ok) return exit;
-    const parsed = parse(result.stdout);
-    if (!parsed.ok) return { ok: false, errors: [parsed.error] };
-    const envelope = assertProtocolEnvelope(parsed.value);
-    if (!envelope.ok) return { ok: false, errors: [envelope.error] };
-    const checks = extraChecks(envelope.value);
-    if (checks.ok) return { ok: true, errors: [] };
-    return { ok: false, errors: [checks.error] };
-  };
-}
-
 /**
  * Builds the release scenario inventory. `spawn` is the synchronous primitive
  * (`spawn({ args, env, input, timeoutMs })` → result); `spawnTty` runs a
@@ -207,12 +199,15 @@ export function buildScenarios(ctx, spawn, spawnTty) {
           return { ok: false, error: 'capabilities missing protocolSchemaVersion' };
         if (report?.documentSchemaVersion !== 2)
           return { ok: false, error: 'capabilities missing documentSchemaVersion' };
-        if (!Array.isArray(report?.adapters) || !report.adapters.includes('youtube'))
-          return { ok: false, error: 'capabilities missing adapter catalog' };
-        if (!Array.isArray(report?.providers) || !report.providers.includes('deepseek'))
-          return { ok: false, error: 'capabilities missing provider catalog' };
-        if (!Array.isArray(report?.resolvers) || !report.resolvers.includes('podcast-apple'))
-          return { ok: false, error: 'capabilities missing resolver catalog' };
+        const missing = (list, wanted) =>
+          wanted.filter((value) => !(Array.isArray(list) && list.includes(value)));
+        const gaps = [
+          ...missing(report?.adapters, REQUIRED_ADAPTERS).map((id) => `adapter ${id}`),
+          ...missing(report?.providers, ['deepseek']).map((id) => `provider ${id}`),
+          ...missing(report?.resolvers, REQUIRED_RESOLVERS).map((id) => `resolver ${id}`),
+          ...missing(report?.documentFormats, ['html', 'pdf']).map((id) => `document format ${id}`),
+        ];
+        if (gaps.length > 0) return { ok: false, error: `capabilities missing ${gaps.join(', ')}` };
         return { ok: true };
       }),
     },
@@ -232,11 +227,9 @@ export function buildScenarios(ctx, spawn, spawnTty) {
             errors.push(envelope.error);
           } else {
             const report = envelope.value;
-            if (!report.adapters?.includes('youtube'))
-              errors.push('doctor missing youtube adapter');
-            if (!report.adapters?.includes('rss')) errors.push('doctor missing rss adapter');
-            if (!report.adapters?.includes('article'))
-              errors.push('doctor missing article adapter');
+            for (const id of REQUIRED_ADAPTERS) {
+              if (!report.adapters?.includes(id)) errors.push(`doctor missing ${id} adapter`);
+            }
             if (!report.providers?.some((provider) => provider.id === 'deepseek'))
               errors.push('doctor missing deepseek provider');
           }
@@ -440,6 +433,7 @@ export function buildScenarios(ctx, spawn, spawnTty) {
         return { ok: true };
       }),
     },
+    ...buildCorpusScenarios(ctx, spawn, spawnTty),
     {
       name: 'process file',
       allowProxyFallback: false,

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "baseUrl": "https://mihaiiova.github.io/owlie",
   "article": {
     "path": "article.html",
@@ -12,5 +12,22 @@
   "audio": {
     "path": "audio.wav",
     "contentType": "audio/wav"
+  },
+  "customElementArticle": {
+    "path": "custom-elements.html",
+    "marker": "OWLIE_E2E_CUSTOM_MARKER_4b8e1d"
+  },
+  "recoveredArticle": {
+    "path": "recovered.html",
+    "marker": "OWLIE_E2E_RECOVERED_MARKER_9c2f60"
+  },
+  "shortArticle": {
+    "path": "short-article.html",
+    "errorCode": "ARTICLE_TOO_SHORT"
+  },
+  "pdf": {
+    "path": "sample.pdf",
+    "marker": "OWLIE_E2E_PDF_MARKER_2d71a5",
+    "pageCount": 2
   }
 }

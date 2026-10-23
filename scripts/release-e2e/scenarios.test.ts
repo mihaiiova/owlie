@@ -225,6 +225,17 @@ describe('buildScenarios', () => {
     proxyConfigHome: '/tmp/xdg-proxy',
     inputFile: '/tmp/input.txt',
     corpus: { marker: 'MARKER', entryCount: 1 },
+    corpusPages: {
+      customElements: { url: 'https://example.com/custom-elements.html', marker: 'CUSTOM' },
+      recovered: { url: 'https://example.com/recovered.html', marker: 'RECOVERED' },
+      shortArticle: {
+        url: 'https://example.com/short-article.html',
+        errorCode: 'ARTICLE_TOO_SHORT',
+      },
+      pdf: { url: 'https://example.com/sample.pdf', marker: 'PDF', pageCount: 2 },
+      audio: { url: 'https://example.com/audio.wav' },
+    },
+    localPdf: '/corpus/sample.pdf',
   };
   const spawn = () => ({ status: 0, stdout: '', stderr: '' });
   const spawnTty = async () => ({
@@ -250,6 +261,14 @@ describe('buildScenarios', () => {
       'extract feed',
       'list hacker news',
       'extract hacker news item',
+      'extract custom-element article',
+      'classify declared article',
+      'extract recovered article',
+      'empty article error',
+      'extract corpus pdf link',
+      'extract local pdf',
+      'resolve direct media',
+      'process pdf link',
       'process file',
       'extract → process pipeline',
       'process feed --each',
@@ -359,7 +378,7 @@ describe('buildScenarios', () => {
         schemaVersion: 1,
         command: 'doctor',
         result: {
-          adapters: ['youtube', 'podcast', 'rss', 'article'],
+          adapters: ['youtube', 'podcast', 'rss', 'article', 'hackernews', 'arxiv'],
           providers: [
             { id: 'deepseek', apiKey: 'set', model: 'not set' },
             { id: 'openai', apiKey: 'not set', model: 'not set' },

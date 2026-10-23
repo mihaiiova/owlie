@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:type" content="article" />
+    <link rel="alternate" type="application/rss+xml" href="feed.xml" />
+    <title>Owlie E2E Custom Element Article</title>
+  </head>
+  <body>
+    <article>
+      <h1>Owlie E2E Custom Element Article</h1>
+      <div class="byline">
+        <p>Owlie Release Bot</p>
+        <p>Release validation</p>
+      </div>
+      <x-article-paragraph
+        ><div class="rich-text">
+          <p>
+            Owlie reads this page during release validation. The text sits inside custom elements,
+            the way many publishing platforms wrap each paragraph, and every sentence must survive
+            extraction so the release gate can prove articles built from components are read in
+            full.
+          </p>
+        </div></x-article-paragraph
+      >
+      <x-article-paragraph
+        ><div class="rich-text">
+          <p>
+            A second block keeps the page well above the minimum article length. It describes
+            nothing in particular; its only job is to be ordinary prose that a reader would expect
+            to find in the body of a real post, between the byline and the related stories.
+          </p>
+        </div></x-article-paragraph
+      >
+      <x-article-paragraph
+        ><div class="rich-text">
+          <p>
+            The third block is here for the same reason. Release validation compares the extracted
+            text with the marker in this paragraph, so a regression that drops custom elements fails
+            the gate instead of shipping quietly to everyone who depends on it.
+            OWLIE_E2E_CUSTOM_MARKER_4b8e1d
+          </p>
+        </div></x-article-paragraph
+      >
+      <x-related-stories><h2>Related stories</h2></x-related-stories>
+    </article>
+  </body>
+</html>
