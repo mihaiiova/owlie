@@ -1,5 +1,12 @@
 # @owlieio/owlie
 
+## 0.9.0
+
+### Minor Changes
+
+- 049796d: Read arXiv. `owlie extract` on an arXiv paper URL (`/abs/`, `/pdf/` or `/html/`, old or new IDs) returns one `arxiv` document. It starts with the title, the authors and the abstract from the arXiv API, then the paper: the HTML render with formulas kept as LaTeX, or the PDF when there is no render, or the abstract alone (`ARXIV_ABSTRACT_ONLY`). `--abstract-only` reads metadata only. `owlie list` and `owlie extract` read arXiv category feeds (`rss.arxiv.org/rss/cs.CL`, `arxiv.org/list/cs.CL`) and API searches (`export.arxiv.org/api/query?search_query=…`), with version-less `arxiv:<id>` identities. Replacements of older papers are skipped unless `--include-replacements` is given. API requests are spaced three seconds apart, and listings are capped at 200.
+- aceab29: Read PDFs. `owlie extract` and `owlie process` read PDF links (a `.pdf` path, a declared `application/pdf` body, or any body that starts with `%PDF-`) and local PDF files as text documents. Running headers, footers and page numbers are dropped, and words hyphenated across lines are joined. PDF documents are articles with `metadata.format: "pdf"`, `pageCount` and `pagesRead`, plus title, author and creation date from the file. Downloads are capped at 25 MB and reading at 300 pages; longer PDFs carry the `PDF_TRUNCATED_PAGES` warning. Encrypted and scanned (text-less) PDFs fail with a clear error. `owlie capabilities` now reports `documentFormats: ["html", "pdf"]`.
+
 ## 0.8.0
 
 ### Minor Changes

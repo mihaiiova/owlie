@@ -135,7 +135,19 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
-  const localPdf = await readLocalPdf(url);
+  const arxivUsage = arxivUsageError(url, options);
+  if (arxivUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'extract', arxivUsage);
+    return ExitCode.Usage;
+  }
+
+  let localPdf: Uint8Array | undefined;
+  try {
+    localPdf = await readLocalPdf(url, deps.signal);
+  } catch (error) {
+    writeCommandError(io, options, 'extract', error);
+    return exitCodeForError(error);
+  }
   if (localPdf !== undefined) {
     return runLocalPdfExtraction(url, localPdf, io, options, deps);
   }
@@ -235,11 +247,6 @@ export async function runExtractCommand(
   }
 
   const arxivCollection = parseArxivCollectionUrl(url);
-  const arxivUsage = arxivUsageError(url, options);
-  if (arxivUsage !== undefined) {
-    if (!options.quiet) writeUsageError(io, options, 'extract', arxivUsage);
-    return ExitCode.Usage;
-  }
 
   const isAppleShowUrl = parseAppleShowUrl(url) !== undefined;
   if (options.page === 'article' && isAppleShowUrl) {

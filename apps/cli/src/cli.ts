@@ -277,6 +277,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
+  if (usageError === undefined && options.resolver !== undefined) {
+    const arxivFlag = options.abstractOnly
+      ? '--abstract-only'
+      : options.includeReplacements
+        ? '--include-replacements'
+        : undefined;
+    if (arxivFlag) {
+      const resolverFlag = resolverFlagForName(options.resolver) ?? options.resolver;
+      usageError = `cannot combine "${arxivFlag}" and "${resolverFlag}"`;
+    }
+  }
+
   if (usageError === undefined && options.page !== undefined && options.resolver !== undefined) {
     const resolverFlag = resolverFlagForName(options.resolver) ?? options.resolver;
     usageError = `cannot combine "--${options.page}" and "${resolverFlag}"`;
@@ -327,6 +339,19 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
     if (parsed.usageError) {
       if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', parsed.usageError);
+      return ExitCode.Usage;
+    }
+
+    // The arXiv flags are read by extract (and list, for replacements) only;
+    // anywhere else they would be silently ignored.
+    const misplacedArxivFlag =
+      options.abstractOnly && command !== 'extract'
+        ? '--abstract-only applies to extract'
+        : options.includeReplacements && command !== 'extract' && command !== 'list'
+          ? '--include-replacements applies to extract and list'
+          : undefined;
+    if (misplacedArxivFlag && !parsed.helpRequested) {
+      if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', misplacedArxivFlag);
       return ExitCode.Usage;
     }
 

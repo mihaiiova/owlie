@@ -1,7 +1,7 @@
 import { open, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ExtractionWarning, NormalizedDocument } from '@owlieio/core';
-import { buildProvenance, startsWithPdfSignature } from '@owlieio/core';
+import { buildProvenance, CancelledError, startsWithPdfSignature } from '@owlieio/core';
 import { extractPdfText, PDF_TRUNCATED_PAGES } from '@owlieio/adapter-article';
 
 /** The stable identity of a local file: its normalized absolute path. */
@@ -54,10 +54,15 @@ export async function localPdfDocument(
 /**
  * Reads a local path that is not a URL and returns its bytes when it is a PDF
  * (by its `%PDF-` signature). Returns `undefined` for a URL-shaped input, a
- * missing or unreadable path, a directory, or any other file.
+ * missing or unreadable path, a directory, or any other file. Throws
+ * {@link CancelledError} when `signal` aborts, including mid-read.
  */
-export async function readLocalPdf(input: string): Promise<Uint8Array | undefined> {
+export async function readLocalPdf(
+  input: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array | undefined> {
   if (/^[a-z][a-z0-9+.-]*:/i.test(input)) return undefined;
+  if (signal?.aborted) throw new CancelledError('reading the local file was cancelled');
   try {
     // Sniff the signature first so a large non-PDF file is never read whole.
     const file = await open(input, 'r');
@@ -68,8 +73,10 @@ export async function readLocalPdf(input: string): Promise<Uint8Array | undefine
     } finally {
       await file.close();
     }
-    return startsWithPdfSignature(head) ? await readFile(input) : undefined;
-  } catch {
+    return startsWithPdfSignature(head) ? await readFile(input, { signal }) : undefined;
+  } catch (error) {
+    if (signal?.aborted)
+      throw new CancelledError('reading the local file was cancelled', { cause: error });
     return undefined;
   }
 }

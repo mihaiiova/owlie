@@ -246,6 +246,26 @@ describe('arXiv flag usage', () => {
     expect(stderr()).toContain(message);
   });
 
+  it.each([
+    [
+      ['process', 'notes.txt', '--prompt', 'x', '--abstract-only'],
+      '--abstract-only applies to extract',
+    ],
+    [
+      ['resolve', 'https://example.com/ep.mp3', '--include-replacements'],
+      '--include-replacements applies to extract and list',
+    ],
+    [
+      ['extract', 'https://arxiv.org/abs/1706.03762', '--podcast-media', '--abstract-only'],
+      'cannot combine "--abstract-only" and "--podcast-media"',
+    ],
+    [['extract', './paper.pdf', '--abstract-only'], '--abstract-only applies to arXiv'],
+  ])('rejects arXiv flags where they would be ignored: %j', async (argv, message) => {
+    const { io, stderr } = capture();
+    expect(await run(argv, io, {})).toBe(ExitCode.Usage);
+    expect(stderr()).toContain(message);
+  });
+
   it('parses the arXiv flags', () => {
     expect(
       parseArgs(['extract', 'x', '--abstract-only', '--include-replacements']).options,

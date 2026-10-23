@@ -190,7 +190,7 @@ async function readDocument(
 ): Promise<NormalizedDocument> {
   // A local PDF is read as a PDF (ADR 0039), never as UTF-8 text.
   if (source.kind !== 'stdin' && inputFormat !== 'json') {
-    const pdf = await readLocalPdf(source.path);
+    const pdf = await readLocalPdf(source.path, signal);
     if (pdf)
       return localPdfDocument(source.path, pdf, { fetchedAt: clock().toISOString(), signal });
   }

@@ -463,6 +463,30 @@ describe('RequestGate', () => {
     expect(waits).toHaveLength(2);
   });
 
+  it('never starts a request while the previous one is still in flight', async () => {
+    const { gate } = instantGate();
+    let release!: () => void;
+    const events: string[] = [];
+    const first = gate.run(
+      () =>
+        new Promise<void>((resolve) => {
+          events.push('first start');
+          release = () => {
+            events.push('first end');
+            resolve();
+          };
+        }),
+    );
+    const second = gate.run(async () => {
+      events.push('second start');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(events).toEqual(['first start']);
+    release();
+    await Promise.all([first, second]);
+    expect(events).toEqual(['first start', 'first end', 'second start']);
+  });
+
   it('does not let a cancelled turn block later requests', async () => {
     let clock = 0;
     const gate = new RequestGate(
