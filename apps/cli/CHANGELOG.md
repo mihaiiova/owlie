@@ -1,5 +1,11 @@
 # @owlieio/owlie
 
+## 0.9.2
+
+### Patch Changes
+
+- No changes to the package's behaviour. Release validation now covers every supported source type on real URLs, a podcast identity check, and exact empty-article and PDF outcomes (#173).
+
 ## 0.9.1
 
 ### Patch Changes
