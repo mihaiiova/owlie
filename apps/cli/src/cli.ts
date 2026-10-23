@@ -62,6 +62,10 @@ export interface CliOptions {
   hnContent?: HackerNewsContent;
   /** Feed entry order for listings and feed batches (default: feed document order). */
   order?: 'feed' | 'newest';
+  /** arXiv papers: read metadata and the abstract only (`extract`). */
+  abstractOnly?: boolean;
+  /** arXiv category feeds: keep `replace` announcements (`list`, `extract`). */
+  includeReplacements?: boolean;
   /** Hacker News comment bounds for `extract` (raw flag values). */
   maxComments?: string;
   commentDepth?: string;
@@ -238,6 +242,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--hosted':
         options.hosted = true;
+        break;
+      case '--abstract-only':
+        options.abstractOnly = true;
+        break;
+      case '--include-replacements':
+        options.includeReplacements = true;
         break;
       case '--article':
       case '--feed': {

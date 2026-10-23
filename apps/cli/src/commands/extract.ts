@@ -36,7 +36,8 @@ import {
   toBatchError,
 } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { defaultItemAdapters } from '../registry.js';
+import { createArxivCollectionAdapter, defaultItemAdapters } from '../registry.js';
+import { parseArxivCollectionUrl, parseArxivPaperUrl } from '@owlieio/adapter-arxiv';
 import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import {
@@ -63,6 +64,8 @@ export interface ExtractDeps {
   itemAdapters?: readonly ItemAdapter[];
   /** Collection adapter used to recognize and list RSS/Atom feeds. */
   feedAdapter?: CollectionAdapter;
+  /** Collection adapter for arXiv categories and queries (tests substitute an offline one). */
+  arxivCollectionAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
@@ -190,6 +193,7 @@ export async function runExtractCommand(
         mediaMaxBytes: maxMediaBytes,
         networkPolicy: deps.networkPolicy,
         hackerNewsComments,
+        arxivAbstractOnly: options.abstractOnly,
       });
     feedAdapter =
       deps.feedAdapter ??
@@ -227,6 +231,13 @@ export async function runExtractCommand(
         `--${options.page} cannot be used with a Hacker News URL (use --hn-content)`,
       );
     }
+    return ExitCode.Usage;
+  }
+
+  const arxivCollection = parseArxivCollectionUrl(url);
+  const arxivUsage = arxivUsageError(url, options);
+  if (arxivUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'extract', arxivUsage);
     return ExitCode.Usage;
   }
 
@@ -307,6 +318,16 @@ export async function runExtractCommand(
         );
       }
     }
+    if (arxivCollection !== undefined && options.page === undefined) {
+      const arxivAdapter =
+        deps.arxivCollectionAdapter ??
+        createArxivCollectionAdapter({
+          fetcher: network().fetcher,
+          networkPolicy: deps.networkPolicy,
+          includeReplacements: options.includeReplacements,
+        });
+      return await runFeedExtraction(url, io, itemAdapters, arxivAdapter, spinner, options, deps);
+    }
     if (options.page === 'feed') {
       const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
       return await runFeedExtraction(
@@ -336,6 +357,27 @@ export async function runExtractCommand(
     writeCommandError(io, options, 'extract', error);
     return exitCodeForError(error);
   }
+}
+
+/**
+ * The usage error for arXiv-only flags on a URL they do not apply to, and for
+ * `--order` on an arXiv collection (arXiv sets the order), if any.
+ */
+export function arxivUsageError(
+  url: string,
+  options: Pick<CliOptions, 'abstractOnly' | 'includeReplacements' | 'order'>,
+): string | undefined {
+  const collection = parseArxivCollectionUrl(url);
+  if (options.abstractOnly && collection === undefined && parseArxivPaperUrl(url) === undefined) {
+    return '--abstract-only applies to arXiv paper and collection URLs';
+  }
+  if (options.includeReplacements && collection?.kind !== 'category') {
+    return '--include-replacements applies to arXiv category feeds';
+  }
+  if (collection !== undefined && options.order !== undefined) {
+    return '--order applies to RSS/Atom feeds, not arXiv collections';
+  }
+  return undefined;
 }
 
 /** Whether any Hacker News-only extract flag was given. */

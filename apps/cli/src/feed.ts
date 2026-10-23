@@ -35,6 +35,14 @@ export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
   'score',
   'commentCount',
   'linkUrl',
+  // arXiv: paper id and version, announcement type, authors, categories, license, DOI.
+  'arxivId',
+  'version',
+  'announceType',
+  'authors',
+  'primaryCategory',
+  'license',
+  'doi',
 ];
 
 /** The allowlisted, HTML-free metadata of a listed item. */
