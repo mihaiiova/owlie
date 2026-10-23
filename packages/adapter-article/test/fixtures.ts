@@ -170,3 +170,13 @@ export const SHORT_ARTICLE = `<!doctype html>
   <head><title>Short note</title><meta property="og:type" content="article" /></head>
   <body><article><h1>Short note</h1><p>We moved the meeting to Thursday at ten.</p></article></body>
 </html>`;
+
+/** A declared article whose introduction survives sanitizing but whose body sits in a dropped element. */
+export const PARTIAL_DIALOG_ARTICLE = `<!doctype html>
+<html>
+  <head><title>Partly dropped story</title><meta property="og:type" content="article" /></head>
+  <body><article>
+    <p>${PROSE_ONE}</p>
+    <div><dialog open><p>${PROSE_TWO}</p><p>${PROSE_TWO.replace('search', 'video')}</p><p>${PROSE_ONE.replace('this month', 'in spring')}</p><p>${PROSE_TWO.replace('search', 'display')}</p></dialog></div>
+  </article></body>
+</html>`;

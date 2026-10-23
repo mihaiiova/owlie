@@ -127,6 +127,20 @@ function readableText(html: string, url: string): string {
   }
 }
 
+/**
+ * Readability's own text when sanitizing kept only part of an article's body:
+ * the page reads as an article and Readability found at least twice the text,
+ * and 500 characters more. Undefined otherwise (the sanitized text stands).
+ */
+function fullerReadableText(response: HttpTextResponse, sanitized: string): string | undefined {
+  const declared = declaredArticleSignal(response.text);
+  if (declared === 'og-non-article') return undefined;
+  const readable = readableText(response.text, response.url);
+  return readable.length >= sanitized.length * 2 && readable.length - sanitized.length >= 500
+    ? readable
+    : undefined;
+}
+
 /** The declared page type, as an error-details enum. */
 function declaredSignalDetail(signal: DeclaredArticleSignal): string {
   return signal === 'og-non-article' ? 'other' : signal;
@@ -593,8 +607,12 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
     if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
     let text = plainText(article?.content ?? '');
     const warnings: ExtractionWarning[] = [];
-    if (text.length < MIN_ARTICLE_TEXT_CHARS) {
-      text = this.recoverOrExplain(response, text, customTags.length);
+    const recovered =
+      text.length < MIN_ARTICLE_TEXT_CHARS
+        ? this.recoverOrExplain(response, text, customTags.length)
+        : fullerReadableText(response, text);
+    if (recovered !== undefined) {
+      text = recovered;
       warnings.push({
         code: ARTICLE_TEXT_RECOVERED,
         message: 'article text recovered from unsanitized readable content',

@@ -14,6 +14,7 @@ import {
   DIALOG_ONLY_ARTICLE,
   DIALOG_ONLY_WEBSITE,
   NESTED_CUSTOM_ARTICLE,
+  PARTIAL_DIALOG_ARTICLE,
   SHORT_ARTICLE,
   JSON_LD_GRAPH_ARTICLE,
   MAIN_WRAPPED_ARTICLE,
@@ -731,6 +732,20 @@ describe('ArticleAdapter on custom elements and empty articles (#172)', () => {
         message: 'article text recovered from unsanitized readable content',
       },
     ]);
+  });
+
+  it('recovers a body sanitizing partly dropped, even when the rest is over 200 characters', async () => {
+    const document = await extractPage(PARTIAL_DIALOG_ARTICLE);
+    expect(document.text).toContain('Google Marketing Platform brings new measurement features');
+    expect(document.text).toContain('audience lists that update on their own');
+    expect(document.provenance.warnings.map((warning) => warning.code)).toEqual([
+      ARTICLE_TEXT_RECOVERED,
+    ]);
+  });
+
+  it('keeps a fully sanitized article as it is, with no warning', async () => {
+    const document = await extractPage(CUSTOM_ELEMENT_ARTICLE);
+    expect(document.provenance.warnings).toEqual([]);
   });
 
   it('says ARTICLE_NO_READABLE_TEXT when Readability finds nothing, keeping the message', async () => {
