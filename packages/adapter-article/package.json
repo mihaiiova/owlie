@@ -28,7 +28,7 @@
     "@owlieio/core": "workspace:*",
     "entities": "^8.0.0",
     "linkedom": "0.18.13",
-    "unpdf": "1.8.1"
+    "unpdf": "1.9.1"
   },
   "devDependencies": {
     "@owlieio/testing": "workspace:*",
