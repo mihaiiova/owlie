@@ -47,7 +47,8 @@ Not every document is a transcript:
   paragraphs, headings and other blocks are separated by a blank line; list
   items, table rows and line breaks start a new line; preformatted (`<pre>`)
   lines are kept as they are; and escaped text such as `&lt;div&gt;` appears
-  literally as `<div>`. Markup itself is not kept.
+  literally as `<div>`. Markup itself is not kept. Content inside custom elements (tag names
+  with a hyphen, such as `<uni-article-paragraph>`) is kept; their tags are not.
 - PDF documents (ADR 0039) are article documents (`sourceType: 'article'`,
   `mediaType: 'text'`) with `metadata.format: 'pdf'`, `metadata.pageCount`
   and `metadata.pagesRead`. Their text is the PDF's text layer as paragraphs
@@ -89,8 +90,13 @@ Every v2 document carries `provenance` with:
 - `contentFingerprint` — `{ algorithm: "sha256", digest }` over the exact
   normalized document `text` UTF-8 bytes (source identity and mutable metadata
   are excluded).
-- `warnings` — structured `{ code, message }` entries (for example
-  `ARTICLE_FALLBACK`).
+- `warnings` — structured `{ code, message }` entries with stable codes, so
+  consumers can count them without reading messages: `ARTICLE_FALLBACK`
+  (article text taken from a page that is not an article),
+  `article_text_recovered` (article text recovered from Readability's
+  unsanitized output because sanitizing removed it), `PDF_TRUNCATED_PAGES`,
+  `ARXIV_ABSTRACT_ONLY`, `ARXIV_WITHDRAWN`, `HN_COMMENTS_TRUNCATED`,
+  `HN_NO_LINKED_ARTICLE`, `HN_ARTICLE_UNAVAILABLE`.
 
 ## Stable identities
 

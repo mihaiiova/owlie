@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARTICLE_TEXT_RECOVERED,
   ArticleAdapter,
   DEFAULT_MAX_PDF_BYTES,
   PDF_TRUNCATED_PAGES,
@@ -9,6 +10,11 @@ import type { HttpFetcher } from '@owlieio/core';
 import { itemAdapterContract } from '@owlieio/testing/contract-tests';
 import {
   CLEAN_ARTICLE,
+  CUSTOM_ELEMENT_ARTICLE,
+  DIALOG_ONLY_ARTICLE,
+  DIALOG_ONLY_WEBSITE,
+  NESTED_CUSTOM_ARTICLE,
+  SHORT_ARTICLE,
   JSON_LD_GRAPH_ARTICLE,
   MAIN_WRAPPED_ARTICLE,
   MALFORMED_ARTICLE,
@@ -685,5 +691,79 @@ describe('ArticleAdapter on PDFs', () => {
     await expect(adapter.classify(await item('https://example.com/secret.pdf'))).rejects.toThrow(
       'PDF is encrypted',
     );
+  });
+});
+
+describe('ArticleAdapter on custom elements and empty articles (#172)', () => {
+  const extractPage = async (html: string, url = 'https://blog.example.com/products/gmp-drop/') => {
+    const adapter = new ArticleAdapter({ fetcher: htmlFetcher(html) });
+    return adapter.extract(await adapter.resolveItem({ url }));
+  };
+  const failure = async (html: string) => {
+    try {
+      await extractPage(html);
+    } catch (error) {
+      return error as ExtractionError;
+    }
+    throw new Error('expected extraction to fail');
+  };
+
+  it('keeps the text of paragraphs inside custom elements, without their tags or scripts', async () => {
+    const document = await extractPage(CUSTOM_ELEMENT_ARTICLE);
+    expect(document.text).toContain('Google Marketing Platform brings new measurement features');
+    expect(document.text).toContain('audience lists that update on their own');
+    expect(document.text).not.toMatch(/uni-article|data-analytics|tracking|color:red/);
+    expect(document.provenance.warnings).toEqual([]);
+  });
+
+  it('keeps paragraphs nested two custom elements deep', async () => {
+    const document = await extractPage(NESTED_CUSTOM_ARTICLE);
+    expect(document.text).toContain('Google Marketing Platform brings new measurement features');
+    expect(document.text).toContain('audience lists that update on their own');
+  });
+
+  it('recovers article text the sanitizer drops, with a warning', async () => {
+    const document = await extractPage(DIALOG_ONLY_ARTICLE);
+    expect(document.text).toContain('Google Marketing Platform brings new measurement features');
+    expect(document.provenance.warnings).toEqual([
+      {
+        code: ARTICLE_TEXT_RECOVERED,
+        message: 'article text recovered from unsanitized readable content',
+      },
+    ]);
+  });
+
+  it('says ARTICLE_NO_READABLE_TEXT when Readability finds nothing, keeping the message', async () => {
+    const error = await failure(NO_ARTICLE);
+    expect(error).toBeInstanceOf(ExtractionError);
+    expect(error.code).toBe('ARTICLE_NO_READABLE_TEXT');
+    expect(error.message).toMatch(/^no readable static article content at /);
+    expect(error.details).toMatchObject({ readableChars: 0, sanitizedChars: 0 });
+  });
+
+  it('says ARTICLE_TEXT_DROPPED when text was found but sanitizing lost it on a non-article page', async () => {
+    const error = await failure(DIALOG_ONLY_WEBSITE);
+    expect(error.code).toBe('ARTICLE_TEXT_DROPPED');
+    expect(error.details).toMatchObject({ declaredSignal: 'other' });
+    expect(Number(error.details?.readableChars)).toBeGreaterThan(200);
+    expect(Number(error.details?.sanitizedChars)).toBeLessThan(200);
+  });
+
+  it('says ARTICLE_TOO_SHORT for a short post', async () => {
+    const error = await failure(SHORT_ARTICLE);
+    expect(error.code).toBe('ARTICLE_TOO_SHORT');
+    expect(error.details).toMatchObject({ declaredSignal: 'og-article', customElementCount: 0 });
+    expect(Number(error.details?.readableChars)).toBeGreaterThan(0);
+  });
+
+  it('reports only counts, flags and enums in the details', async () => {
+    const error = await failure(DIALOG_ONLY_WEBSITE);
+    expect(Object.keys(error.details ?? {}).sort()).toEqual([
+      'customElementCount',
+      'declaredSignal',
+      'htmlBytes',
+      'readableChars',
+      'sanitizedChars',
+    ]);
   });
 });

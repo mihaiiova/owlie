@@ -1,5 +1,10 @@
 export {
+  ARTICLE_NO_READABLE_TEXT,
+  ARTICLE_TEXT_DROPPED,
+  ARTICLE_TEXT_RECOVERED,
+  ARTICLE_TOO_SHORT,
   ArticleAdapter,
+  customElementNames,
   declaredArticleSignal,
   MIN_READABLE_ARTICLE_CHARS,
   PDF_TRUNCATED_PAGES,

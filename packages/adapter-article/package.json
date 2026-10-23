@@ -24,8 +24,10 @@
   },
   "dependencies": {
     "@extractus/article-extractor": "^9.0.1",
+    "@mozilla/readability": "0.6.0",
     "@owlieio/core": "workspace:*",
     "entities": "^8.0.0",
+    "linkedom": "0.18.13",
     "unpdf": "1.8.1"
   },
   "devDependencies": {

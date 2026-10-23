@@ -111,12 +111,18 @@ importers:
       '@extractus/article-extractor':
         specifier: ^9.0.1
         version: 9.0.1
+      '@mozilla/readability':
+        specifier: 0.6.0
+        version: 0.6.0
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core
       entities:
         specifier: ^8.0.0
         version: 8.0.0
+      linkedom:
+        specifier: 0.18.13
+        version: 0.18.13
       unpdf:
         specifier: 1.8.1
         version: 1.8.1
