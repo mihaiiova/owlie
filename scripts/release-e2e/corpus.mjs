@@ -1,5 +1,6 @@
-// Validates the controlled release corpus (article + feed + manifest) against
-// the markers and structure the release E2E gate depends on. Pure.
+// Validates the controlled release corpus (manifest, article, feed, and the
+// per-source pages) against the markers and structure the release E2E gate
+// depends on. Pure.
 
 function countEntries(xml) {
   const items = (String(xml).match(/<item[\s>]/gi) ?? []).length;
@@ -7,11 +8,59 @@ function countEntries(xml) {
   return items + entries;
 }
 
+/** Corpus files that must contain their manifest marker. */
+const MARKED_FILES = ['customElementArticle', 'recoveredArticle', 'pdf'];
+
+/** Every file path the manifest declares, so the runner can read them all. */
+export function corpusPaths(manifest) {
+  const paths = [
+    manifest.customElementArticle?.path,
+    manifest.recoveredArticle?.path,
+    manifest.shortArticle?.path,
+    manifest.pdf?.path,
+  ];
+  return paths.filter((path) => typeof path === 'string' && path !== '');
+}
+
+function validateSourceFiles(manifest, files, errors) {
+  const file = (path) => files[path];
+  for (const key of [...MARKED_FILES, 'shortArticle']) {
+    if (typeof manifest[key]?.path !== 'string' || manifest[key].path === '') {
+      errors.push(`corpus ${key} path is missing or empty`);
+    }
+  }
+  for (const path of corpusPaths(manifest)) {
+    if (typeof file(path) !== 'string' || file(path) === '')
+      errors.push(`corpus file ${path} is missing or empty`);
+  }
+  if (errors.length > 0) return;
+
+  for (const key of MARKED_FILES) {
+    const { path, marker } = manifest[key];
+    if (typeof marker !== 'string' || marker === '')
+      errors.push(`corpus ${key} marker is missing or empty`);
+    else if (!file(path).includes(marker))
+      errors.push(`${path} does not contain the expected marker`);
+  }
+  if (
+    typeof manifest.shortArticle.errorCode !== 'string' ||
+    manifest.shortArticle.errorCode === ''
+  ) {
+    errors.push('corpus shortArticle errorCode is missing or empty');
+  }
+  if (!file(manifest.pdf.path).startsWith('%PDF-'))
+    errors.push(`${manifest.pdf.path} is not a PDF`);
+  if (!Number.isInteger(manifest.pdf.pageCount) || manifest.pdf.pageCount < 1) {
+    errors.push('corpus pdf pageCount must be a positive integer');
+  }
+}
+
 /**
- * @param {{ manifestJson: string, articleHtml: string, feedXml: string }} input
+ * @param {{ manifestJson: string, articleHtml: string, feedXml: string, files?: Record<string, string> }} input
+ *   `files` maps each of {@link corpusPaths} to its content (a PDF read as latin1).
  * @returns {{ ok: boolean, errors: string[], manifest: object | null }}
  */
-export function validateCorpus({ manifestJson, articleHtml, feedXml }) {
+export function validateCorpus({ manifestJson, articleHtml, feedXml, files = {} }) {
   const errors = [];
   let manifest = null;
   try {
@@ -51,6 +100,8 @@ export function validateCorpus({ manifestJson, articleHtml, feedXml }) {
   } else if (!String(feedXml ?? '').includes(articlePath)) {
     errors.push(`feed does not link the article path "${articlePath}"`);
   }
+
+  validateSourceFiles(manifest, files, errors);
 
   return { ok: errors.length === 0, errors, manifest };
 }

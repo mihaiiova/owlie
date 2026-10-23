@@ -26,6 +26,16 @@ export function buildCandidateManifest(input) {
   };
 }
 
+/** A failed real-world `watch` entry: reported, but it does not fail the release. */
+export const WATCH_FAILED = 'watch-failed';
+
+/** The reported result of a scenario: a failure of a non-gating scenario is only a watch failure. */
+export function gatedResult(scenario, result) {
+  return scenario.gate === false && result.status === 'failed'
+    ? { ...result, status: WATCH_FAILED }
+    : result;
+}
+
 /**
  * Builds a sanitized report from candidate identity and scenario results.
  * Diagnostics are redacted against the configured secrets; the returned report
@@ -47,9 +57,10 @@ export function buildReport({ candidate, scenarios, secrets = [] }) {
       if (scenario.status === 'passed') acc.passed += 1;
       else if (scenario.status === 'failed') acc.failed += 1;
       else if (scenario.status === 'skipped') acc.skipped += 1;
+      else if (scenario.status === WATCH_FAILED) acc.watchFailed += 1;
       return acc;
     },
-    { total: 0, passed: 0, failed: 0, skipped: 0 },
+    { total: 0, passed: 0, failed: 0, skipped: 0, watchFailed: 0 },
   );
 
   return { candidate, summary, scenarios: sanitizedScenarios };
@@ -60,9 +71,12 @@ export function buildSummary(report) {
   const { candidate, summary, scenarios } = report;
   const lines = [
     `Release E2E: ${candidate.packageName} ${candidate.version} @ ${candidate.commitSha}`,
-    `Result: ${summary.passed}/${summary.total} passed (${summary.failed} failed, ${summary.skipped} skipped)`,
+    `Result: ${summary.passed}/${summary.total} passed (${summary.failed} failed, ${summary.skipped} skipped, ${summary.watchFailed} watch failures)`,
   ];
   for (const scenario of scenarios) {
+    if (scenario.status === WATCH_FAILED) {
+      lines.push(`- WATCH ${scenario.name}: ${scenario.diagnostics}`);
+    }
     if (scenario.status === 'failed') {
       lines.push(
         `- FAIL ${scenario.name} (${scenario.attempts} attempt(s)): ${scenario.diagnostics}`,

@@ -93,3 +93,29 @@ export function assertProtocolEnvelope(value) {
   }
   return { ok: true, value: value.result, error: undefined };
 }
+
+/**
+ * Builds a scenario assertion for a zero-exit `--json` command: parses stdout
+ * with `parse`, unwraps the protocol envelope, and runs `extraChecks` on the
+ * result (`{ ok: true }` or `{ ok: false, error }`).
+ */
+export function jsonAssert(parse, extraChecks) {
+  return (result) => {
+    const exit = assertExitCode(result, 0);
+    if (!exit.ok) return { ok: false, errors: [exit.error] };
+    const parsed = parse(result.stdout);
+    if (!parsed.ok) return { ok: false, errors: [parsed.error] };
+    const envelope = assertProtocolEnvelope(parsed.value);
+    if (!envelope.ok) return { ok: false, errors: [envelope.error] };
+    const checks = extraChecks(envelope.value);
+    if (checks.ok) return { ok: true, errors: [] };
+    return { ok: false, errors: [checks.error] };
+  };
+}
+
+/** The terminal `kind: "error"` record a failed `--json` command writes on stderr, if any. */
+export function parseErrorRecord(stderr) {
+  const parsed = parseJsonLines(stderr);
+  if (!parsed.ok) return undefined;
+  return parsed.records.findLast((record) => record?.kind === 'error');
+}

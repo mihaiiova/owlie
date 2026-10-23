@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "planet-money-feed",
+      "kind": "podcast-feed",
+      "url": "https://feeds.npr.org/510289/podcast.xml",
+      "status": "gate",
+      "origin": "seed: large public-radio podcast (NPR)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "the-daily-feed",
+      "kind": "podcast-feed",
+      "url": "https://feeds.simplecast.com/54nAGcIl",
+      "status": "gate",
+      "origin": "seed: Simplecast-hosted daily news podcast",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "lex-fridman-feed",
+      "kind": "podcast-feed",
+      "url": "https://lexfridman.com/feed/podcast/",
+      "status": "gate",
+      "origin": "seed: self-hosted WordPress podcast feed",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "huberman-lab-feed",
+      "kind": "podcast-feed",
+      "url": "https://feeds.megaphone.fm/hubermanlab",
+      "status": "gate",
+      "origin": "seed: Megaphone-hosted podcast",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "podcasting-20-feed",
+      "kind": "podcast-feed",
+      "url": "https://feeds.podcastindex.org/pc20.xml",
+      "transcripts": true,
+      "status": "gate",
+      "origin": "seed: podcast:transcript captions (SRT)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "buzzsprout-feed",
+      "kind": "podcast-feed",
+      "url": "https://feeds.buzzsprout.com/1.rss",
+      "transcripts": true,
+      "status": "gate",
+      "origin": "seed: Buzzsprout podcast:transcript links (HTML, JSON, SRT, VTT)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "planet-money-apple",
+      "kind": "apple-show",
+      "url": "https://podcasts.apple.com/us/podcast/planet-money/id290783428",
+      "feedUrl": "https://feeds.npr.org/510289/podcast.xml",
+      "identity": true,
+      "status": "gate",
+      "origin": "owlie#173: the app's podcast identity gate, CLI side",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "the-daily-apple",
+      "kind": "apple-show",
+      "url": "https://podcasts.apple.com/us/podcast/the-daily/id1200361736",
+      "feedUrl": "https://feeds.simplecast.com/Sl5CSM3S",
+      "identity": true,
+      "status": "gate",
+      "origin": "owlie#173: Apple show and episode links",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "buzzsprout-episode-page",
+      "kind": "podcast-episode",
+      "url": "https://www.buzzsprout.com/1/2562823",
+      "resolver": "podcast-page",
+      "status": "gate",
+      "origin": "seed: episode page with declarative audio",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "rfc-9110-pdf",
+      "kind": "pdf",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.pdf",
+      "contains": "HTTP Semantics",
+      "status": "gate",
+      "origin": "seed: immutable standards PDF",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "irs-w9-pdf",
+      "kind": "pdf",
+      "url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf",
+      "status": "gate",
+      "origin": "seed: government form PDF",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "attention-paper",
+      "kind": "arxiv-paper",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "status": "gate",
+      "origin": "owlie#166: arXiv paper (HTML render)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "attention-paper-pdf-link-abstract",
+      "kind": "arxiv-paper",
+      "url": "https://arxiv.org/pdf/1706.03762v1",
+      "abstractOnly": true,
+      "status": "gate",
+      "origin": "app source detection: versioned PDF link, --abstract-only",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "resnet-paper",
+      "kind": "arxiv-paper",
+      "url": "https://arxiv.org/abs/1512.03385",
+      "status": "gate",
+      "origin": "seed: math-heavy paper (formulas)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "arxiv-search",
+      "kind": "arxiv-listing",
+      "url": "https://export.arxiv.org/api/query?search_query=ti:attention+AND+au:vaswani",
+      "status": "gate",
+      "origin": "owlie#166: arXiv API query",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "arxiv-cs-cl",
+      "kind": "arxiv-listing",
+      "url": "https://rss.arxiv.org/rss/cs.CL",
+      "minItems": 0,
+      "status": "gate",
+      "origin": "owlie#166: arXiv category feed (empty on days without announcements)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "blog-google-custom-elements",
+      "kind": "article",
+      "url": "https://blog.google/products/marketingplatform/360/google-marketing-platform-drop-october/",
+      "status": "watch",
+      "origin": "owlie#172: production 'no readable content' alerts; text inside custom elements",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "paul-graham-essay",
+      "kind": "article",
+      "url": "https://paulgraham.com/greatwork.html",
+      "status": "gate",
+      "origin": "seed: undeclared long article (no og:type)",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "wikipedia-article",
+      "kind": "article",
+      "url": "https://en.wikipedia.org/wiki/Barn_owl",
+      "status": "gate",
+      "origin": "seed: encyclopedia page",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "overreacted-home",
+      "kind": "page",
+      "url": "https://overreacted.io/",
+      "classifiesAs": "feed",
+      "status": "gate",
+      "origin": "seed: blog homepage that should resolve to its RSS feed",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "jvns-home",
+      "kind": "page",
+      "url": "https://jvns.ca/",
+      "classifiesAs": "feed",
+      "status": "gate",
+      "origin": "seed: blog homepage that should resolve to its Atom feed",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "the-verge-home",
+      "kind": "page",
+      "url": "https://www.theverge.com/",
+      "classifiesAs": "feed",
+      "status": "gate",
+      "origin": "seed: news homepage that should resolve to its feed",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "simon-willison-home",
+      "kind": "page",
+      "url": "https://simonwillison.net/",
+      "classifiesAs": "feed",
+      "status": "watch",
+      "origin": "seed: blog homepage that should resolve to its feed",
+      "added": "2026-10-23",
+      "notes": "Read as an article today: no og:type and over 500 characters of text wins over its Atom link (cli-contract page classification). Tracked in owlie#181."
+    },
+    {
+      "id": "github-releases-atom",
+      "kind": "feed",
+      "url": "https://github.com/nodejs/node/releases.atom",
+      "status": "gate",
+      "origin": "seed: Atom feed",
+      "added": "2026-10-23"
+    },
+    {
+      "id": "hacker-news-rss",
+      "kind": "feed",
+      "url": "https://news.ycombinator.com/rss",
+      "status": "gate",
+      "origin": "seed: Hacker News RSS stays an RSS feed",
+      "added": "2026-10-23"
+    }
+  ]
+}

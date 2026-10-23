@@ -11,6 +11,9 @@
 //
 // Required environment: OWLIE_E2E_ARTICLE_URL, OWLIE_E2E_RSS_URL,
 // OWLIE_E2E_YOUTUBE_URL, DEEPSEEK_API_KEY. Optional: OWLIE_E2E_PROXY_URL.
+//
+// `--only TEXT` runs just the scenarios whose name contains TEXT (local runs,
+// e.g. `--only real-world`).
 
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,16 +24,29 @@ import { clearTimeout, setTimeout as setTimeoutFn } from 'node:timers';
 import { fileURLToPath } from 'node:url';
 
 import { validateCandidate } from './release-e2e/candidate.mjs';
-import { validateCorpus } from './release-e2e/corpus.mjs';
+import { corpusPaths, validateCorpus } from './release-e2e/corpus.mjs';
+import { buildCatalogScenarios, validateCatalog } from './release-e2e/real-world.mjs';
 import { resolveReleaseConfig } from './release-e2e/config.mjs';
 import { buildScenarios, executeScenario } from './release-e2e/scenarios.mjs';
-import { buildCandidateManifest, buildReport, buildSummary } from './release-e2e/report.mjs';
+import {
+  buildCandidateManifest,
+  buildReport,
+  buildSummary,
+  gatedResult,
+} from './release-e2e/report.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const cliPkg = JSON.parse(readFileSync(join(root, 'apps/cli/package.json'), 'utf8'));
 
 function parseArgs(argv) {
-  const out = { tarball: null, bin: null, expectedVersion: null, commitSha: null, out: null };
+  const out = {
+    tarball: null,
+    bin: null,
+    expectedVersion: null,
+    commitSha: null,
+    out: null,
+    only: null,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
@@ -39,6 +55,7 @@ function parseArgs(argv) {
     else if (arg === '--expected-version') out.expectedVersion = next;
     else if (arg === '--commit') out.commitSha = next;
     else if (arg === '--out') out.out = next;
+    else if (arg === '--only') out.only = next;
   }
   return out;
 }
@@ -67,12 +84,28 @@ function installTarball(tarball) {
   return { dir, bin: join(dir, 'node_modules', '.bin', 'owlie') };
 }
 
+/** A corpus file's content; a missing file reads as empty so validation reports it. */
+function readCorpusFile(path) {
+  try {
+    return readFileSync(path, 'latin1');
+  } catch {
+    return '';
+  }
+}
+
+async function fetchJson(url) {
+  const { fetch, AbortSignal } = globalThis;
+  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  return response.json();
+}
+
 function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex');
 }
 
 async function run(args) {
-  const { tarball, bin, expectedVersion, commitSha, out } = args;
+  const { tarball, bin, expectedVersion, commitSha, out, only } = args;
   const tarballPath = tarball ? resolve(tarball) : null;
 
   // 1. Resolve the candidate and validate the version before any live work.
@@ -87,12 +120,21 @@ async function run(args) {
   // 2. Validate the controlled corpus and read its markers/defaults.
   const corpusDir = join(root, 'e2e/corpus');
   const corpusManifest = JSON.parse(readFileSync(join(corpusDir, 'manifest.json'), 'utf8'));
+  const corpusFiles = Object.fromEntries(
+    corpusPaths(corpusManifest).map((path) => [path, readCorpusFile(join(corpusDir, path))]),
+  );
   const corpusCheck = validateCorpus({
     manifestJson: readFileSync(join(corpusDir, 'manifest.json'), 'utf8'),
     articleHtml: readFileSync(join(corpusDir, 'article.html'), 'utf8'),
     feedXml: readFileSync(join(corpusDir, 'feed.xml'), 'utf8'),
+    files: corpusFiles,
   });
   if (!corpusCheck.ok) fail(`controlled corpus is invalid: ${corpusCheck.errors.join('; ')}`);
+  const corpusUrl = (path) => `${corpusManifest.baseUrl}/${path}`;
+
+  // 2b. Validate the real-world URL catalog.
+  const catalog = validateCatalog(readFileSync(join(root, 'e2e/real-world/catalog.json'), 'utf8'));
+  if (!catalog.ok) fail(`real-world catalog is invalid: ${catalog.errors.join('; ')}`);
 
   // 3. Resolve live configuration, defaulting source URLs from the manifest.
   const mergedEnv = { ...process.env };
@@ -144,6 +186,7 @@ async function run(args) {
       encoding: 'utf8',
       input,
       timeout: timeoutMs,
+      maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, ...env },
     });
     return {
@@ -218,11 +261,37 @@ async function run(args) {
     proxyConfigHome,
     inputFile,
     corpus: { marker: corpusManifest.article.marker, entryCount: corpusManifest.feed.entryCount },
+    corpusPages: {
+      customElements: {
+        url: corpusUrl(corpusManifest.customElementArticle.path),
+        marker: corpusManifest.customElementArticle.marker,
+      },
+      recovered: {
+        url: corpusUrl(corpusManifest.recoveredArticle.path),
+        marker: corpusManifest.recoveredArticle.marker,
+      },
+      shortArticle: {
+        url: corpusUrl(corpusManifest.shortArticle.path),
+        errorCode: corpusManifest.shortArticle.errorCode,
+      },
+      pdf: {
+        url: corpusUrl(corpusManifest.pdf.path),
+        marker: corpusManifest.pdf.marker,
+        pageCount: corpusManifest.pdf.pageCount,
+      },
+      audio: { url: corpusUrl(corpusManifest.audio.path) },
+    },
+    localPdf: join(corpusDir, corpusManifest.pdf.path),
   };
 
+  const sleep = (ms) => new Promise((res) => setTimeoutFn(res, ms));
+  const scenarios = [
+    ...buildScenarios(ctx, spawn, spawnTty),
+    ...buildCatalogScenarios(catalog.entries, { spawn, fetchJson, sleep }),
+  ].filter((scenario) => !only || scenario.name.includes(only));
   const results = [];
-  for (const scenario of buildScenarios(ctx, spawn, spawnTty)) {
-    results.push(await executeScenario({ scenario, ctx, secrets }));
+  for (const scenario of scenarios) {
+    results.push(gatedResult(scenario, await executeScenario({ scenario, ctx, secrets })));
   }
 
   const candidate = {
