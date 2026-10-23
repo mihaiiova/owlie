@@ -3,6 +3,7 @@ import {
   JSON_PROTOCOL_SCHEMA_VERSION,
   OwlieError,
   type ContentItem,
+  type ErrorDetails,
   type ProgressEvent,
   type ProtocolErrorRecord,
   type ProtocolProgressRecord,
@@ -47,6 +48,16 @@ function redactDiagnostic(value: string): string {
     .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[REDACTED]')
     .replace(/\b(api[_-]?key|token|secret|password)\s*([:=])\s*([^\s,"'}\]]+)/gi, '$1$2[REDACTED]');
+}
+
+/** Redacts the string values of error details (they should hold none that need it). */
+export function redactDetails(details: ErrorDetails): ErrorDetails {
+  return Object.fromEntries(
+    Object.entries(details).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? redactDiagnostic(value) : value,
+    ]),
+  );
 }
 
 /** Recursively redacts string fields in metadata carried by an item progress event. */
@@ -121,13 +132,20 @@ export function writeProgressRecord(io: CliIo, command: string, event: ProgressE
 }
 
 /** Writes one versioned JSONL error record to stderr. */
-export function writeErrorRecord(io: CliIo, command: string, code: string, message: string): void {
+export function writeErrorRecord(
+  io: CliIo,
+  command: string,
+  code: string,
+  message: string,
+  details?: ErrorDetails,
+): void {
   const record: ProtocolErrorRecord = {
     schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
     command,
     kind: 'error',
     code,
     message: redactDiagnostic(message),
+    ...(details === undefined ? {} : { details: redactDetails(details) }),
   };
   io.stderr.write(JSON.stringify(record) + '\n');
 }
@@ -157,7 +175,13 @@ export function writeTerminalRecord(
     return;
   }
   const code = error instanceof OwlieError ? error.code : 'OWLIE_ERROR';
-  writeErrorRecord(io, command, code, message);
+  writeErrorRecord(
+    io,
+    command,
+    code,
+    message,
+    error instanceof OwlieError ? error.details : undefined,
+  );
 }
 
 /**

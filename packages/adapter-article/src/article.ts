@@ -1,5 +1,7 @@
 import { extractFromHtml } from '@extractus/article-extractor';
+import { Readability } from '@mozilla/readability';
 import { decodeHTML } from 'entities';
+import { DOMParser } from 'linkedom';
 import type { ContentItem, ContentLocator, ItemAdapter, NormalizedDocument } from '@owlieio/core';
 import type {
   DeclaredArticleSignal,
@@ -23,6 +25,7 @@ import {
   stopAtFeedHeader,
   type ExtractionOptions,
   type HttpFetcher,
+  type ErrorDetails,
   type HttpFetchPolicy,
 } from '@owlieio/core';
 import {
@@ -64,6 +67,83 @@ function isPdfResponse(response: HttpTextResponse): boolean {
 /** Stops a text fetch at its first chunk when the body is a PDF. */
 function stopAtPdf(textSoFar: string, contentType: string | null): boolean {
   return isPdfContentType(contentType) || startsWithPdfSignature(textSoFar);
+}
+
+/** Warning code when article text was recovered from Readability's unsanitized output. */
+export const ARTICLE_TEXT_RECOVERED = 'article_text_recovered';
+
+/** Error codes for an article that yields no usable text, by cause. */
+export const ARTICLE_NO_READABLE_TEXT = 'ARTICLE_NO_READABLE_TEXT';
+export const ARTICLE_TEXT_DROPPED = 'ARTICLE_TEXT_DROPPED';
+export const ARTICLE_TOO_SHORT = 'ARTICLE_TOO_SHORT';
+
+/**
+ * The extractor library's own minimum (`contentLengthThreshold`): article text
+ * shorter than this is not an article. Applied here, so the adapter can tell
+ * why a page came up short.
+ */
+const MIN_ARTICLE_TEXT_CHARS = 200;
+
+/**
+ * Custom element names in a page (HTML spec: a lowercase letter first and a
+ * hyphen), lowercased and deduplicated. Design systems built on Web
+ * Components wrap whole paragraphs in them (`<uni-article-paragraph>`), and
+ * the sanitizer drops any tag it doesn't allow together with its content, so
+ * each page's custom tags are allowed for that page (#172).
+ */
+export function customElementNames(html: string): string[] {
+  const names = new Set<string>();
+  for (const match of html.matchAll(/<([a-z][a-z0-9._]*-[a-z0-9._-]*)[\s/>]/gi)) {
+    names.add(match[1]!.toLowerCase());
+  }
+  return [...names];
+}
+
+/**
+ * The plain text Readability itself finds in a page, before sanitizing, with
+ * scripts, styles, templates and noscript removed. Empty when it finds none.
+ * Uses the same Readability settings as the extractor library.
+ */
+function readableText(html: string, url: string): string {
+  try {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const base = document.createElement('base', {});
+    base.setAttribute('href', url);
+    document.head?.appendChild(base);
+    const result = new Readability(
+      document as unknown as ConstructorParameters<typeof Readability>[0],
+      {
+        nbTopCandidates: 4,
+        charThreshold: 400,
+        keepClasses: true,
+      },
+    ).parse();
+    // The same rule as the library: no length, title or content is no result.
+    if (!result?.length || !result.title || !result.content) return '';
+    const content = result.content.replace(/<(template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+    return plainText(content);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Readability's own text when sanitizing kept only part of an article's body:
+ * the page reads as an article and Readability found at least twice the text,
+ * and 500 characters more. Undefined otherwise (the sanitized text stands).
+ */
+function fullerReadableText(response: HttpTextResponse, sanitized: string): string | undefined {
+  const declared = declaredArticleSignal(response.text);
+  if (declared === 'og-non-article') return undefined;
+  const readable = readableText(response.text, response.url);
+  return readable.length >= sanitized.length * 2 && readable.length - sanitized.length >= 500
+    ? readable
+    : undefined;
+}
+
+/** The declared page type, as an error-details enum. */
+function declaredSignalDetail(signal: DeclaredArticleSignal): string {
+  return signal === 'og-non-article' ? 'other' : signal;
 }
 
 /** Warning code when a PDF had more pages than the page cap. */
@@ -517,13 +597,26 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
     }
     if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
 
+    const customTags = customElementNames(response.text);
+    // The library's length threshold is applied below instead, so a page that
+    // comes up short can be told apart from one whose text was dropped.
     const article = await extractFromHtml(response.text, response.url, {
-      allowedTags: ARTICLE_EXTRACTOR_ALLOWED_TAGS,
+      allowedTags: [...ARTICLE_EXTRACTOR_ALLOWED_TAGS, ...customTags],
+      contentLengthThreshold: 0,
     });
     if (options.signal?.aborted) throw new CancelledError('article extraction cancelled');
-    const text = plainText(article?.content ?? '');
-    if (!text) {
-      throw new ExtractionError(`no readable static article content at ${response.url}`);
+    let text = plainText(article?.content ?? '');
+    const warnings: ExtractionWarning[] = [];
+    const recovered =
+      text.length < MIN_ARTICLE_TEXT_CHARS
+        ? this.recoverOrExplain(response, text, customTags.length)
+        : fullerReadableText(response, text);
+    if (recovered !== undefined) {
+      text = recovered;
+      warnings.push({
+        code: ARTICLE_TEXT_RECOVERED,
+        message: 'article text recovered from unsanitized readable content',
+      });
     }
 
     const canonicalUrl = canonicalizeArticleUrl(response.url);
@@ -544,8 +637,47 @@ export class ArticleAdapter implements ItemAdapter, DeferredResponseItemAdapter 
         adapterId: ArticleAdapter.id,
         text,
         fetchedAt: extractionFetchedAt(options),
+        warnings,
       }),
     };
+  }
+
+  /**
+   * For a page whose sanitized text came up short: returns Readability's own
+   * text when the page is an article and that text is long enough, or throws
+   * an {@link ExtractionError} whose code says why the page has no text
+   * (with counts in `details`). The message stays the same for every cause.
+   */
+  private recoverOrExplain(
+    response: HttpTextResponse,
+    sanitized: string,
+    customElementCount: number,
+  ): string {
+    const declared = declaredArticleSignal(response.text);
+    const readable = readableText(response.text, response.url);
+    const details: ErrorDetails = {
+      declaredSignal: declaredSignalDetail(declared),
+      htmlBytes: Buffer.byteLength(response.text),
+      readableChars: readable.length,
+      sanitizedChars: sanitized.length,
+      customElementCount,
+    };
+    const eligible =
+      declared === 'og-article' ||
+      declared === 'json-ld-article' ||
+      (declared === 'none' && readable.length >= MIN_READABLE_ARTICLE_CHARS);
+    if (eligible && readable.length >= MIN_ARTICLE_TEXT_CHARS) return readable;
+
+    const code =
+      readable.length === 0
+        ? ARTICLE_NO_READABLE_TEXT
+        : readable.length < MIN_ARTICLE_TEXT_CHARS
+          ? ARTICLE_TOO_SHORT
+          : ARTICLE_TEXT_DROPPED;
+    throw new ExtractionError(`no readable static article content at ${response.url}`, {
+      code,
+      details,
+    });
   }
 
   private emitFailure(target: string, options: ExtractionOptions, error: unknown): never {

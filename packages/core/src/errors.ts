@@ -5,13 +5,25 @@
  */
 import type { HttpTextResponse } from './http.js';
 
+/**
+ * Machine-readable facts about a failure: counts, flags and enum values only,
+ * never URLs, page text or titles. Written as `details` on JSON error records.
+ */
+export type ErrorDetails = Record<string, string | number | boolean | null>;
+
 export class OwlieError extends Error {
   readonly code: string;
+  /** Optional facts that explain the failure (see {@link ErrorDetails}). */
+  readonly details?: ErrorDetails;
 
-  constructor(message: string, options: { code?: string; cause?: unknown } = {}) {
+  constructor(
+    message: string,
+    options: { code?: string; cause?: unknown; details?: ErrorDetails } = {},
+  ) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.code = options.code ?? 'OWLIE_ERROR';
+    if (options.details !== undefined) this.details = options.details;
   }
 }
 
@@ -28,8 +40,15 @@ export class ValidationError extends OwlieError {
 }
 
 export class ExtractionError extends OwlieError {
-  constructor(message: string, options: { code?: string; cause?: unknown } = {}) {
-    super(message, { code: options.code ?? 'EXTRACTION_ERROR', cause: options.cause });
+  constructor(
+    message: string,
+    options: { code?: string; cause?: unknown; details?: ErrorDetails } = {},
+  ) {
+    super(message, {
+      code: options.code ?? 'EXTRACTION_ERROR',
+      cause: options.cause,
+      details: options.details,
+    });
   }
 }
 

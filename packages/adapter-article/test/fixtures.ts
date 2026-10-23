@@ -118,3 +118,65 @@ return &lt;b&gt;;
     </article>
   </body>
 </html>`;
+
+const PROSE_ONE =
+  'Google Marketing Platform brings new measurement features this month. Advertisers can now compare campaign results across channels in one report, and the reports update every hour instead of once a day. Teams that plan budgets weekly get fresher numbers without exporting data by hand.';
+const PROSE_TWO =
+  'The release also adds audience lists that update on their own as customers interact with a brand. Lists can be shared across products in the same account, so a list built for search can be reused for video and display campaigns without rebuilding it from scratch.';
+
+/** A cut-down blog.google layout: every paragraph inside a custom element (#172). */
+export const CUSTOM_ELEMENT_ARTICLE = `<!doctype html>
+<html>
+  <head>
+    <title>New in Google Marketing Platform</title>
+    <meta property="og:type" content="article" />
+    <link rel="canonical" href="https://blog.example.com/products/gmp-drop/" />
+  </head>
+  <body>
+    <article>
+      <div class="hero"><p>Ada Example</p><p>Product Manager</p><p>Oct 22, 2026</p></div>
+      <uni-article-paragraph data-analytics="x"><div class="rich-text"><script>var tracking = "leak";</script><p>${PROSE_ONE}</p></div></uni-article-paragraph>
+      <uni-article-paragraph><div class="rich-text"><style>.x{color:red}</style><p>${PROSE_TWO}</p></div></uni-article-paragraph>
+      <uni-article-paragraph><div class="rich-text"><p>${PROSE_ONE.replace('this month', 'next quarter')}</p></div></uni-article-paragraph>
+      <uni-article-paragraph><div class="rich-text"><p>${PROSE_TWO.replace('search', 'shopping')}</p></div></uni-article-paragraph>
+      <uni-related-articles><h2>Related stories</h2></uni-related-articles>
+    </article>
+  </body>
+</html>`;
+
+/** Paragraphs two custom elements deep. */
+export const NESTED_CUSTOM_ARTICLE = `<!doctype html>
+<html>
+  <head><title>Nested custom elements</title><meta property="og:type" content="article" /></head>
+  <body><main><x-section><x-copy><p>${PROSE_ONE}</p></x-copy><x-copy><p>${PROSE_TWO}</p></x-copy><x-copy><p>${PROSE_ONE.replace('this month', 'next quarter')}</p></x-copy></x-section></main></body>
+</html>`;
+
+/** Article text only inside an element the sanitizer drops and that is not a custom element. */
+export const DIALOG_ONLY_ARTICLE = `<!doctype html>
+<html>
+  <head><title>Dialog story</title><meta property="og:type" content="article" /></head>
+  <body><article><dialog open><p>${PROSE_ONE}</p><p>${PROSE_TWO}</p></dialog></article></body>
+</html>`;
+
+/** The same, on a page that declares itself something other than an article. */
+export const DIALOG_ONLY_WEBSITE = DIALOG_ONLY_ARTICLE.replace(
+  '<meta property="og:type" content="article" />',
+  '<meta property="og:type" content="website" />',
+);
+
+/** A declared article with only a sentence of text. */
+export const SHORT_ARTICLE = `<!doctype html>
+<html>
+  <head><title>Short note</title><meta property="og:type" content="article" /></head>
+  <body><article><h1>Short note</h1><p>We moved the meeting to Thursday at ten.</p></article></body>
+</html>`;
+
+/** A declared article whose introduction survives sanitizing but whose body sits in a dropped element. */
+export const PARTIAL_DIALOG_ARTICLE = `<!doctype html>
+<html>
+  <head><title>Partly dropped story</title><meta property="og:type" content="article" /></head>
+  <body><article>
+    <p>${PROSE_ONE}</p>
+    <div><dialog open><p>${PROSE_TWO}</p><p>${PROSE_TWO.replace('search', 'video')}</p><p>${PROSE_ONE.replace('this month', 'in spring')}</p><p>${PROSE_TWO.replace('search', 'display')}</p></dialog></div>
+  </article></body>
+</html>`;
