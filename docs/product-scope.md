@@ -1,7 +1,7 @@
 # Product scope
 
 Owlie CLI is an open-source, general-purpose web content extractor: given a
-URL (an article, a PDF, a video, a podcast episode, a feed, or a discussion), it
+URL (an article, a PDF, an arXiv paper, a video, a podcast episode, a feed, or a discussion), it
 returns normalized, provenance-stamped content for people and programs, and can
 process it with an LLM. This document separates what exists now, what the v0.1
 milestone delivers, what is deferred, and what belongs to consuming products.
@@ -85,6 +85,8 @@ Individual items:
   extraction)
 - PDF document, from a URL or a local file (read as an article; scanned PDFs
   without a text layer are not supported)
+- arXiv paper: metadata, abstract, and the paper from its HTML render or PDF
+  (`owlie extract`)
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
@@ -98,6 +100,8 @@ Collections (deferred — not implemented in v0.1):
   discovery from an HTML page URL, are functional)
 - Hacker News front page, newest, best, Ask HN, Show HN, and a user's
   submissions (bounded `owlie list` is functional)
+- arXiv category announcements and API search queries (bounded `owlie list`
+  and `owlie extract` are functional)
 
 ## Planned operations
 

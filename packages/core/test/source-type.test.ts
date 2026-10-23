@@ -10,6 +10,7 @@ describe('SourceType', () => {
       'rss',
       'article',
       'hackernews',
+      'arxiv',
       'local',
     ]);
   });
