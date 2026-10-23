@@ -4,8 +4,8 @@
 [![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
 Ask an LLM anything about a URL, or turn it into clean text you can read or
-pipe: articles, PDFs, YouTube videos, podcast episodes and shows, RSS/Atom
-feeds, and Hacker News threads.
+pipe: articles, PDFs, arXiv papers, YouTube videos, podcast episodes and
+shows, RSS/Atom feeds, and Hacker News threads.
 
 ```bash
 owlie process "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --prompt "Give me the gist, with supporting facts for each claim"
@@ -93,6 +93,25 @@ owlie extract "https://arxiv.org/pdf/1706.03762"
 owlie extract ./report.pdf --json
 owlie process ./paper.pdf --prompt "What problem does this solve, and how?"
 ```
+
+### Keep up with arXiv
+
+A paper URL (`/abs/`, `/pdf/` or `/html/`) returns its title, authors and
+abstract, then the paper itself: the HTML render with formulas kept as LaTeX,
+or the PDF when there is no render. Categories and searches list papers with a
+stable `arxiv:<id>` identity, so cross-listed and revised papers don't appear
+twice.
+
+```bash
+owlie extract "https://arxiv.org/abs/1706.03762"
+owlie extract "https://arxiv.org/abs/1706.03762" --abstract-only --json   # metadata only
+owlie list "https://rss.arxiv.org/rss/cs.CL" --limit 20                    # today's announcements
+owlie list "https://export.arxiv.org/api/query?search_query=abs:%22retrieval%20augmented%22" --limit 10
+owlie extract "https://rss.arxiv.org/rss/cs.CL" --limit 5                  # read each paper
+```
+
+Owlie follows arXiv's API terms: one API request every three seconds and at
+most 200 papers per listing.
 
 ### Get a YouTube transcript
 
@@ -291,6 +310,7 @@ packages/core/               Provider-neutral contracts and types
 packages/testing/            Fakes, fixtures, contract-test helpers
 packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article and PDF adapter
+packages/adapter-arxiv/      arXiv papers, category feeds and searches
 packages/adapter-podcast/    Podcast media, Apple show and episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-hackernews/ Hacker News adapter (lists and item discussions, official API)
@@ -309,6 +329,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/testing`            | Fakes, fixtures, contract-test helpers                          |
 | `@owlieio/adapter-youtube`    | YouTube videos (playlists deferred)                             |
 | `@owlieio/adapter-article`    | Safe static server-rendered editorial-page and PDF extraction   |
+| `@owlieio/adapter-arxiv`      | arXiv papers (API metadata, HTML render or PDF) and listings    |
 | `@owlieio/adapter-podcast`    | Podcast media, Apple shows and episodes, declarative pages      |
 | `@owlieio/adapter-rss`        | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-hackernews` | Hacker News lists and item discussions (official API)           |

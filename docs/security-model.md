@@ -52,6 +52,10 @@ and processing must be built.
   and read with pdf.js (pure JS, no code generation for fonts, logging
   silenced) for at most 300 pages. Page-sniffing text fetches stop at a PDF's
   first chunk instead of decoding it (ADR 0039).
+- **arXiv API politeness** — arXiv API requests are serialized and spaced at
+  least three seconds apart per process; listings are capped at 200 papers and
+  there is no bulk harvesting (ADR 0040). Atom/RSS responses are parsed with
+  entity processing off and DTDs refused, after their declared type is checked.
 - **Narrow static article extraction** — accept only bounded `text/html` or
   XHTML obtained through the safe HTTP seam; never let an article extractor
   fetch URLs itself, execute scripts, render JavaScript, authenticate, or

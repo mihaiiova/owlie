@@ -12,19 +12,22 @@ Owlie models **collections** and **items** separately, with a provider-neutral
 | RSS/Atom feed              | `rss:feed:<canonical-url>`                    |
 | Hacker News list           | `hackernews:list:<top\|new\|best\|ask\|show>` |
 | Hacker News user's stories | `hackernews:user:<name>`                      |
+| arXiv category feed        | `arxiv:list:<cat>[+<cat>…]`                   |
+| arXiv search query         | `arxiv:query:<query>`                         |
 
 A collection has a stable `id`, a `sourceType`, a `canonicalUrl`, an optional
 title, and `metadata`.
 
 ## Items
 
-| Source           | Identity example        |
-| ---------------- | ----------------------- |
-| YouTube video    | `youtube:video:<id>`    |
-| Podcast episode  | `podcast:episode:<url>` |
-| Reddit post      | derived from feed entry |
-| RSS/Atom entry   | derived from feed entry |
-| Hacker News item | `hackernews:item:<id>`  |
+| Source           | Identity example          |
+| ---------------- | ------------------------- |
+| YouTube video    | `youtube:video:<id>`      |
+| Podcast episode  | `podcast:episode:<url>`   |
+| Reddit post      | derived from feed entry   |
+| RSS/Atom entry   | derived from feed entry   |
+| Hacker News item | `hackernews:item:<id>`    |
+| arXiv paper      | `arxiv:<id>` (no version) |
 
 An item has a stable `id`, a `sourceType`, a `canonicalUrl`, optional
 title/description/publishedAt/author, and `metadata`.
@@ -55,6 +58,13 @@ Not every document is a transcript:
   A PDF longer than the page cap carries the `PDF_TRUNCATED_PAGES` warning.
 - Hacker News documents contain written text: the post and a bounded comment
   tree, the linked article, or both, as chosen by `--hn-content` (ADR 0038).
+- arXiv documents (ADR 0040, `sourceType: 'arxiv'`) start with the title, the
+  authors and `Abstract` followed by the abstract, then the paper body: the
+  HTML render with formulas as LaTeX (`$…$`, `$$…$$`), else the PDF text,
+  else nothing (`ARXIV_ABSTRACT_ONLY`). `metadata` carries `arxivId`,
+  `version`, `versionedId`, `authors`, `primaryCategory`, `categories`,
+  `abstract`, `published`, `updated`, `comment`, `doi`, `journalRef`,
+  `absUrl`, `pdfUrl` and `textSource` (`html | pdf | abstract`).
 - Local documents (`sourceType: 'local'`) contain user-supplied text with no
   remote canonical URL (represented as an empty string). Their identity is
   `local:stdin` for piped stdin or `local:file:<normalized-absolute-path>` for

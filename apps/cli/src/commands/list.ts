@@ -8,7 +8,9 @@ import type {
 import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { isHackerNewsUrl } from '@owlieio/adapter-hackernews';
-import { createHackerNewsAdapter } from '../registry.js';
+import { createArxivCollectionAdapter, createHackerNewsAdapter } from '../registry.js';
+import { parseArxivCollectionUrl } from '@owlieio/adapter-arxiv';
+import { arxivUsageError } from './extract.js';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -36,6 +38,8 @@ export interface ListDeps {
   adapter?: CollectionAdapter;
   /** Collection adapter for Hacker News list URLs (tests substitute an offline one). */
   hackerNewsAdapter?: CollectionAdapter;
+  /** Collection adapter for arXiv categories and queries (tests substitute an offline one). */
+  arxivAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
@@ -157,13 +161,33 @@ export async function runListCommand(
     return ExitCode.Usage;
   }
 
+  const isArxiv = parseArxivCollectionUrl(url) !== undefined;
+  const arxivUsage =
+    options.abstractOnly === true
+      ? '--abstract-only applies to extract'
+      : arxivUsageError(url, options);
+  if (arxivUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'list', arxivUsage);
+    return ExitCode.Usage;
+  }
+
   const spinner = createCommandSpinner(io, options, deps.spinner);
 
   try {
     const limit = parseListLimit(options.limit);
     let result: CollectionListResult;
     // Recognition is pure, so the network is only built for the adapter that runs.
-    if (isHackerNews) {
+    if (isArxiv) {
+      const arxiv =
+        deps.arxivAdapter ??
+        createArxivCollectionAdapter({
+          fetcher: extractionNetwork(options, deps.network).fetcher,
+          networkPolicy: deps.networkPolicy,
+          includeReplacements: options.includeReplacements,
+        });
+      spinner.start('listing arXiv');
+      result = await listCollection(arxiv, { url }, { limit, signal: deps.signal });
+    } else if (isHackerNews) {
       const hackerNews =
         deps.hackerNewsAdapter ??
         createHackerNewsAdapter({
