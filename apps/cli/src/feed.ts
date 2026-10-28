@@ -49,6 +49,11 @@ export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
   'primaryCategory',
   'license',
   'doi',
+  // bioRxiv/medRxiv: server, subject, article type, journal DOI (authors, version, license, doi above).
+  'server',
+  'category',
+  'articleType',
+  'published',
 ];
 
 /** The allowlisted, HTML-free metadata of a listed item. */

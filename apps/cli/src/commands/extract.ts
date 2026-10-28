@@ -36,8 +36,13 @@ import {
   toBatchError,
 } from '../feed.js';
 import { parseCollectionLimit } from '../limits.js';
-import { createArxivCollectionAdapter, defaultItemAdapters } from '../registry.js';
+import {
+  createArxivCollectionAdapter,
+  createBiorxivCollectionAdapter,
+  defaultItemAdapters,
+} from '../registry.js';
 import { parseArxivCollectionUrl, parseArxivPaperUrl } from '@owlieio/adapter-arxiv';
+import { isBiorxivCollectionPath, parseBiorxivPaperUrl } from '@owlieio/adapter-biorxiv';
 import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import {
@@ -66,6 +71,8 @@ export interface ExtractDeps {
   feedAdapter?: CollectionAdapter;
   /** Collection adapter for arXiv categories and queries (tests substitute an offline one). */
   arxivCollectionAdapter?: CollectionAdapter;
+  /** Collection adapter for bioRxiv/medRxiv subjects (tests substitute an offline one). */
+  biorxivCollectionAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
@@ -135,9 +142,9 @@ export async function runExtractCommand(
     return ExitCode.Usage;
   }
 
-  const arxivUsage = arxivUsageError(url, options);
-  if (arxivUsage !== undefined) {
-    if (!options.quiet) writeUsageError(io, options, 'extract', arxivUsage);
+  const paperUsage = paperFlagsUsageError(url, options);
+  if (paperUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'extract', paperUsage);
     return ExitCode.Usage;
   }
 
@@ -205,7 +212,7 @@ export async function runExtractCommand(
         mediaMaxBytes: maxMediaBytes,
         networkPolicy: deps.networkPolicy,
         hackerNewsComments,
-        arxivAbstractOnly: options.abstractOnly,
+        abstractOnly: options.abstractOnly,
       });
     feedAdapter =
       deps.feedAdapter ??
@@ -247,6 +254,7 @@ export async function runExtractCommand(
   }
 
   const arxivCollection = parseArxivCollectionUrl(url);
+  const isBiorxivCollection = isBiorxivCollectionPath(url);
 
   const isAppleShowUrl = parseAppleShowUrl(url) !== undefined;
   if (options.page === 'article' && isAppleShowUrl) {
@@ -335,6 +343,16 @@ export async function runExtractCommand(
         });
       return await runFeedExtraction(url, io, itemAdapters, arxivAdapter, spinner, options, deps);
     }
+    if (isBiorxivCollection && options.page === undefined) {
+      const biorxivAdapter =
+        deps.biorxivCollectionAdapter ??
+        createBiorxivCollectionAdapter({
+          fetcher: network().fetcher,
+          networkPolicy: deps.networkPolicy,
+          includeReplacements: options.includeReplacements,
+        });
+      return await runFeedExtraction(url, io, itemAdapters, biorxivAdapter, spinner, options, deps);
+    }
     if (options.page === 'feed') {
       const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
       return await runFeedExtraction(
@@ -367,22 +385,25 @@ export async function runExtractCommand(
 }
 
 /**
- * The usage error for arXiv-only flags on a URL they do not apply to, and for
- * `--order` on an arXiv collection (arXiv sets the order), if any.
+ * The usage error for the paper flags (`--abstract-only`,
+ * `--include-replacements`) on a URL they do not apply to, and for `--order`
+ * on an arXiv or bioRxiv/medRxiv collection (the source sets the order), if any.
  */
-export function arxivUsageError(
+export function paperFlagsUsageError(
   url: string,
   options: Pick<CliOptions, 'abstractOnly' | 'includeReplacements' | 'order'>,
 ): string | undefined {
-  const collection = parseArxivCollectionUrl(url);
-  if (options.abstractOnly && collection === undefined && parseArxivPaperUrl(url) === undefined) {
-    return '--abstract-only applies to arXiv paper and collection URLs';
+  const arxivCollection = parseArxivCollectionUrl(url);
+  const biorxivCollection = isBiorxivCollectionPath(url);
+  const isPaper = parseArxivPaperUrl(url) !== undefined || parseBiorxivPaperUrl(url) !== undefined;
+  if (options.abstractOnly && arxivCollection === undefined && !biorxivCollection && !isPaper) {
+    return '--abstract-only applies to arXiv and bioRxiv/medRxiv paper and collection URLs';
   }
-  if (options.includeReplacements && collection?.kind !== 'category') {
-    return '--include-replacements applies to arXiv category feeds';
+  if (options.includeReplacements && arxivCollection?.kind !== 'category' && !biorxivCollection) {
+    return '--include-replacements applies to arXiv category feeds and bioRxiv/medRxiv collections';
   }
-  if (collection !== undefined && options.order !== undefined) {
-    return '--order applies to RSS/Atom feeds, not arXiv collections';
+  if ((arxivCollection !== undefined || biorxivCollection) && options.order !== undefined) {
+    return '--order applies to RSS/Atom feeds, not arXiv or bioRxiv/medRxiv collections';
   }
   return undefined;
 }

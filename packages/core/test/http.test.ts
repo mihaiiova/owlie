@@ -14,6 +14,9 @@ import {
   ExtractionError,
   isBlockedHost,
   isBlockedIp,
+  parseRetryAfterSeconds,
+  RequestGate,
+  sleep,
   type DnsResolver,
   type HttpFetchFn,
 } from '@owlieio/core';
@@ -1205,5 +1208,70 @@ describe('DefaultHttpFetcher', () => {
       );
     }
     expect(calls).toBe(0);
+  });
+});
+
+describe('HTTP status errors', () => {
+  const resolver: DnsResolver = async () => ['93.184.216.34'];
+
+  it('carries the status and Retry-After as error details', async () => {
+    const fetchFn: HttpFetchFn = async () =>
+      new Response('slow down', {
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: { 'retry-after': '12' },
+      });
+    const error = await new DefaultHttpFetcher(fetchFn, resolver)
+      .fetch('https://example.com/a')
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ExtractionError);
+    expect((error as ExtractionError).message).toBe(
+      'HTTP 429 Too Many Requests for https://example.com/a',
+    );
+    expect((error as ExtractionError).details).toEqual({ httpStatus: 429, retryAfterSeconds: 12 });
+  });
+
+  it('leaves out an absent Retry-After', async () => {
+    const fetchFn: HttpFetchFn = async () => new Response('', { status: 404 });
+    const error = await new DefaultHttpFetcher(fetchFn, resolver)
+      .fetch('https://example.com/a')
+      .catch((caught: unknown) => caught);
+    expect((error as ExtractionError).details).toEqual({ httpStatus: 404 });
+  });
+
+  it('reads Retry-After as seconds or an HTTP date', () => {
+    const now = Date.parse('2026-10-28T12:00:00Z');
+    expect(parseRetryAfterSeconds('5', now)).toBe(5);
+    expect(parseRetryAfterSeconds('Wed, 28 Oct 2026 12:00:30 GMT', now)).toBe(30);
+    expect(parseRetryAfterSeconds('Wed, 28 Oct 2026 11:00:00 GMT', now)).toBe(0);
+    expect(parseRetryAfterSeconds('soon', now)).toBeUndefined();
+    expect(parseRetryAfterSeconds(null, now)).toBeUndefined();
+  });
+});
+
+describe('RequestGate', () => {
+  it('serializes tasks and spaces their starts', async () => {
+    let clock = 0;
+    const waits: number[] = [];
+    const gate = new RequestGate(
+      1_000,
+      () => clock,
+      async (ms) => {
+        waits.push(ms);
+        clock += ms;
+      },
+    );
+    const order: number[] = [];
+    await Promise.all([1, 2, 3].map((n) => gate.run(async () => order.push(n))));
+    expect(order).toEqual([1, 2, 3]);
+    expect(waits).toEqual([1_000, 1_000]);
+    await gate.pause(250);
+    expect(waits).toEqual([1_000, 1_000, 250]);
+  });
+
+  it('rejects a cancelled wait', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(sleep(10, controller.signal)).rejects.toBeInstanceOf(CancelledError);
   });
 });

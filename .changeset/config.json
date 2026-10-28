@@ -13,6 +13,7 @@
     "@owlieio/adapter-youtube",
     "@owlieio/adapter-article",
     "@owlieio/adapter-arxiv",
+    "@owlieio/adapter-biorxiv",
     "@owlieio/adapter-hackernews",
     "@owlieio/adapter-podcast",
     "@owlieio/adapter-rss",

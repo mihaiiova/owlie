@@ -56,6 +56,13 @@ and processing must be built.
   least three seconds apart per process; listings are capped at 200 papers and
   there is no bulk harvesting (ADR 0040). Atom/RSS responses are parsed with
   entity processing off and DTDs refused, after their declared type is checked.
+- **bioRxiv/medRxiv politeness** — `api.biorxiv.org` requests are serialized
+  and spaced at least one second apart, and page/PDF requests to the two sites
+  two seconds apart, per process. On HTTP 429 the adapter honors
+  `Retry-After` once (at most 30 s), then fails. Listings are capped at 200
+  preprints over 14 days (ADR 0041). API JSON is parsed only after its
+  declared type is checked, and only body sections of full-text pages reach
+  the article reader.
 - **Narrow static article extraction** — accept only bounded `text/html` or
   XHTML obtained through the safe HTTP seam; never let an article extractor
   fetch URLs itself, execute scripts, render JavaScript, authenticate, or

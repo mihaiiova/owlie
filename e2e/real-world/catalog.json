@@ -215,6 +215,47 @@
       "status": "gate",
       "origin": "seed: Hacker News RSS stays an RSS feed",
       "added": "2026-10-23"
+    },
+    {
+      "id": "biorxiv-preprint-fulltext",
+      "kind": "biorxiv-paper",
+      "url": "https://www.biorxiv.org/content/10.1101/2020.12.08.416297v3",
+      "status": "watch",
+      "origin": "owlie#185: bioRxiv preprint with a full-text page",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "biorxiv-preprint-recent",
+      "kind": "biorxiv-paper",
+      "url": "https://www.biorxiv.org/content/10.64898/2026.08.27.747565v2",
+      "status": "watch",
+      "origin": "owlie#185: recent version with no full-text body yet (PDF fallback)",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "medrxiv-preprint-abstract",
+      "kind": "biorxiv-paper",
+      "url": "https://www.medrxiv.org/content/10.64898/2026.10.22.26363582v1",
+      "abstractOnly": true,
+      "status": "watch",
+      "origin": "owlie#185: medRxiv preprint, --abstract-only",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "biorxiv-neuroscience",
+      "kind": "biorxiv-listing",
+      "url": "https://www.biorxiv.org/collection/neuroscience",
+      "status": "watch",
+      "origin": "owlie#185: bioRxiv subject listing",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "medrxiv-infectious-diseases",
+      "kind": "biorxiv-listing",
+      "url": "https://www.medrxiv.org/collection/infectious_diseases",
+      "status": "watch",
+      "origin": "owlie#185: medRxiv subject with an underscore slug",
+      "added": "2026-10-28"
     }
   ]
 }

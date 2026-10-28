@@ -1,7 +1,7 @@
 # @owlieio/owlie
 
 Ask an LLM anything about a URL, or turn it into clean text you can read or
-pipe: articles, PDFs, arXiv papers, YouTube videos, podcast episodes and shows, RSS/Atom feeds, and
+pipe: articles, PDFs, arXiv, bioRxiv and medRxiv papers, YouTube videos, podcast episodes and shows, RSS/Atom feeds, and
 Hacker News threads.
 
 ```bash
@@ -21,6 +21,8 @@ Or without installing: `npx @owlieio/owlie@latest extract "https://paulgraham.co
 | Podcast show (feed or Apple Podcasts)   | `https://podcasts.apple.com/us/podcast/unexplainable/id1554578197` | `list`, `extract`, `process --each`  |
 | Podcast episode (audio, Apple, page)    | `https://podcasts.apple.com/…?i=…`                                 | `resolve`, `extract` (local Whisper) |
 | Hacker News list or item                | `https://news.ycombinator.com/item?id=8863`                        | `list`, `extract`, `process`         |
+| arXiv paper, category or search         | `https://arxiv.org/abs/1706.03762`                                 | `list`, `extract`                    |
+| bioRxiv/medRxiv preprint or subject     | `https://www.biorxiv.org/collection/neuroscience`                  | `list`, `extract`                    |
 
 ## Examples
 
@@ -30,6 +32,7 @@ owlie extract "https://paulgraham.com/greatwork.html"
 owlie extract "https://example.com/whitepaper.pdf"    # PDFs too, from a link or a local file
 owlie extract "https://arxiv.org/abs/1706.03762"      # an arXiv paper, formulas as LaTeX
 owlie list "https://rss.arxiv.org/rss/cs.CL" --limit 5
+owlie list "https://www.biorxiv.org/collection/neuroscience" --limit 5   # bioRxiv/medRxiv, last 14 days
 owlie extract "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --language en,es
 owlie list "https://simonwillison.net/atom/everything/" --limit 3
 
@@ -50,8 +53,8 @@ owlie extract "https://www.youtube.com/watch?v=…" | owlie process --prompt "Li
 ## Commands
 
 ```text
-owlie extract URL     article or PDF, arXiv paper, YouTube transcript, podcast audio, Hacker News item, or a bounded feed batch
-owlie list URL        bounded entries of a feed, podcast show, or Hacker News list
+owlie extract URL     article or PDF, arXiv or bioRxiv/medRxiv paper, YouTube transcript, podcast audio, Hacker News item, or a bounded feed batch
+owlie list URL        bounded entries of a feed, podcast show, Hacker News list, arXiv category, or bioRxiv/medRxiv subject
 owlie resolve URL     a podcast episode's validated audio URL (no download)
 owlie process ...     run a prompt on a URL, file, stdin, or each item of a feed
 owlie models          available models per provider
