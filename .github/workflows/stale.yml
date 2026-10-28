@@ -28,10 +28,13 @@ jobs:
             further activity.
           # Keep planning artifacts, onboarding labels, and security-sensitive
           # work out of automation. The spec:* labels mirror the spec lifecycle
-          # (spec:epic, spec:ready, spec:in-progress, spec:reviewed, spec:done).
+          # (spec:idea, spec:draft, spec:ready, spec:in-progress, spec:review,
+          # spec:blocked, spec:done, spec:epic).
           exempt-issue-labels: >
-            good first issue,help wanted,security,pinned,epic,idea,v0.1,
-            spec:epic,spec:ready,spec:in-progress,spec:reviewed,spec:done
+            good first issue,help wanted,security,pinned,epic,v0.1,
+            spec:idea,spec:draft,spec:ready,spec:in-progress,spec:review,
+            spec:blocked,spec:done,spec:epic
           exempt-pr-labels: >
-            good first issue,help wanted,security,pinned,epic,idea,v0.1,
-            spec:epic,spec:ready,spec:in-progress,spec:reviewed,spec:done
+            good first issue,help wanted,security,pinned,epic,v0.1,
+            spec:idea,spec:draft,spec:ready,spec:in-progress,spec:review,
+            spec:blocked,spec:done,spec:epic
