@@ -39,10 +39,13 @@ import { parseCollectionLimit } from '../limits.js';
 import {
   createArxivCollectionAdapter,
   createBiorxivCollectionAdapter,
+  createPubmedSearchAdapter,
   defaultItemAdapters,
 } from '../registry.js';
+import { resolveNcbiSettings } from '../ncbi.js';
 import { parseArxivCollectionUrl, parseArxivPaperUrl } from '@owlieio/adapter-arxiv';
 import { isBiorxivCollectionPath, parseBiorxivPaperUrl } from '@owlieio/adapter-biorxiv';
+import { parsePubmedArticleUrl, parsePubmedSearchUrl } from '@owlieio/adapter-pubmed';
 import { resolvePodcastAudio } from '../resolvers.js';
 import { summarizeCollection } from './list.js';
 import {
@@ -73,6 +76,8 @@ export interface ExtractDeps {
   arxivCollectionAdapter?: CollectionAdapter;
   /** Collection adapter for bioRxiv/medRxiv subjects (tests substitute an offline one). */
   biorxivCollectionAdapter?: CollectionAdapter;
+  /** Collection adapter for PubMed searches (tests substitute an offline one). */
+  pubmedSearchAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   readConfig?: () => UserConfig;
   spinner?: SpinnerLike;
@@ -213,6 +218,7 @@ export async function runExtractCommand(
         networkPolicy: deps.networkPolicy,
         hackerNewsComments,
         abstractOnly: options.abstractOnly,
+        ncbi: resolveNcbiSettings(options, deps.network?.env, deps.network?.loadFile),
       });
     feedAdapter =
       deps.feedAdapter ??
@@ -255,6 +261,7 @@ export async function runExtractCommand(
 
   const arxivCollection = parseArxivCollectionUrl(url);
   const isBiorxivCollection = isBiorxivCollectionPath(url);
+  const isPubmedSearch = parsePubmedSearchUrl(url) !== undefined;
 
   const isAppleShowUrl = parseAppleShowUrl(url) !== undefined;
   if (options.page === 'article' && isAppleShowUrl) {
@@ -353,6 +360,16 @@ export async function runExtractCommand(
         });
       return await runFeedExtraction(url, io, itemAdapters, biorxivAdapter, spinner, options, deps);
     }
+    if (isPubmedSearch && options.page === undefined) {
+      const pubmedAdapter =
+        deps.pubmedSearchAdapter ??
+        createPubmedSearchAdapter({
+          fetcher: network().fetcher,
+          networkPolicy: deps.networkPolicy,
+          ncbi: resolveNcbiSettings(options, deps.network?.env, deps.network?.loadFile),
+        });
+      return await runFeedExtraction(url, io, itemAdapters, pubmedAdapter, spinner, options, deps);
+    }
     if (options.page === 'feed') {
       const feedUrl = await resolveFeedCollectionUrl(feedAdapter, url, deps.signal);
       return await runFeedExtraction(
@@ -387,7 +404,8 @@ export async function runExtractCommand(
 /**
  * The usage error for the paper flags (`--abstract-only`,
  * `--include-replacements`) on a URL they do not apply to, and for `--order`
- * on an arXiv or bioRxiv/medRxiv collection (the source sets the order), if any.
+ * on an arXiv, bioRxiv/medRxiv or PubMed collection (the source sets the
+ * order), if any.
  */
 export function paperFlagsUsageError(
   url: string,
@@ -395,15 +413,20 @@ export function paperFlagsUsageError(
 ): string | undefined {
   const arxivCollection = parseArxivCollectionUrl(url);
   const biorxivCollection = isBiorxivCollectionPath(url);
-  const isPaper = parseArxivPaperUrl(url) !== undefined || parseBiorxivPaperUrl(url) !== undefined;
-  if (options.abstractOnly && arxivCollection === undefined && !biorxivCollection && !isPaper) {
-    return '--abstract-only applies to arXiv and bioRxiv/medRxiv paper and collection URLs';
+  const pubmedSearch = parsePubmedSearchUrl(url) !== undefined;
+  const isPaper =
+    parseArxivPaperUrl(url) !== undefined ||
+    parseBiorxivPaperUrl(url) !== undefined ||
+    parsePubmedArticleUrl(url) !== undefined;
+  const isCollection = arxivCollection !== undefined || biorxivCollection || pubmedSearch;
+  if (options.abstractOnly && !isCollection && !isPaper) {
+    return '--abstract-only applies to arXiv, bioRxiv/medRxiv and PubMed paper and collection URLs';
   }
   if (options.includeReplacements && arxivCollection?.kind !== 'category' && !biorxivCollection) {
     return '--include-replacements applies to arXiv category feeds and bioRxiv/medRxiv collections';
   }
-  if ((arxivCollection !== undefined || biorxivCollection) && options.order !== undefined) {
-    return '--order applies to RSS/Atom feeds, not arXiv or bioRxiv/medRxiv collections';
+  if (isCollection && options.order !== undefined) {
+    return '--order applies to RSS/Atom feeds, not arXiv, bioRxiv/medRxiv or PubMed collections';
   }
   return undefined;
 }

@@ -250,7 +250,7 @@ describe('bioRxiv/medRxiv collections', () => {
   it.each([
     [
       ['list', 'https://www.biorxiv.org/collection/neuroscience', '--order', 'newest'],
-      '--order applies to RSS/Atom feeds, not arXiv or bioRxiv/medRxiv',
+      '--order applies to RSS/Atom feeds, not arXiv, bioRxiv/medRxiv',
     ],
     [
       ['extract', 'https://example.com/post', '--include-replacements'],

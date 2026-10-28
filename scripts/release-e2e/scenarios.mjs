@@ -28,6 +28,7 @@ export const REQUIRED_ADAPTERS = [
   'hackernews',
   'arxiv',
   'biorxiv',
+  'pubmed',
 ];
 export const REQUIRED_RESOLVERS = ['podcast-media', 'podcast-apple', 'podcast-page'];
 

@@ -1,7 +1,7 @@
 # Product scope
 
 Owlie CLI is an open-source, general-purpose web content extractor: given a
-URL (an article, a PDF, an arXiv or bioRxiv/medRxiv paper, a video, a podcast episode, a feed, or a discussion), it
+URL (an article, a PDF, an arXiv, bioRxiv/medRxiv or PubMed paper, a video, a podcast episode, a feed, or a discussion), it
 returns normalized, provenance-stamped content for people and programs, and can
 process it with an LLM. This document separates what exists now, what the v0.1
 milestone delivers, what is deferred, and what belongs to consuming products.
@@ -89,6 +89,8 @@ Individual items:
   (`owlie extract`)
 - bioRxiv or medRxiv preprint: metadata, abstract, and the preprint from its
   full-text page or PDF (`owlie extract`)
+- PubMed article: metadata, abstract, and the PubMed Central full text when
+  it is open (`owlie extract`)
 - Podcast direct-media URL, Apple Podcasts episode URL, or declarative server-rendered episode page (v0.1)
 - Reddit post, discovered through a subreddit feed (deferred)
 - RSS/Atom entry (bounded feed extraction via `owlie extract`)
@@ -106,6 +108,8 @@ Collections (deferred — not implemented in v0.1):
   and `owlie extract` are functional)
 - bioRxiv and medRxiv subjects and whole servers, last 14 days (bounded
   `owlie list` and `owlie extract` are functional)
+- PubMed searches, newest first (bounded `owlie list` and `owlie extract` are
+  functional)
 
 ## Planned operations
 

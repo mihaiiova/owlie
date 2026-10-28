@@ -114,13 +114,15 @@ appear only when it never changes (an RFC title).
 | `arxiv-listing`   | `list URL --limit 2`                     | an `arxiv` collection with at least `minItems` (1) papers whose ids match their `arxivId` (`0` for a category feed)                             |
 | `biorxiv-paper`   | `extract URL` (`--abstract-only` if set) | `id` is the version-less `biorxiv:<doi>`, `textSource` html or pdf (abstract when abstract-only), the text includes the abstract                |
 | `biorxiv-listing` | `list URL --limit 2`                     | a `biorxiv` collection with at least `minItems` (1) preprints whose ids match their `doi`                                                       |
+| `pubmed-article`  | `extract URL` (`--abstract-only` if set) | `id` is `pubmed:<pmid>`, `textSource` pmc (the entry's `textSource` if set; abstract when abstract-only), the text includes the abstract        |
+| `pubmed-search`   | `list URL --limit 2`                     | a `pubmed` collection with at least `minItems` (1) articles whose ids match their `pmid`                                                        |
 
 An `apple-show` entry with `identity: true` and a `feedUrl` adds the podcast
 identity check, the CLI side of the app's identity gate: the feed and the
 Apple show list the same entry ids, and one of the newest episodes (found in
 Apple's public lookup by its GUID) resolves through `podcast-apple` to the
 enclosure of that same feed entry. arXiv entries wait 3 s before running, as
-arXiv asks; bioRxiv/medRxiv entries wait 2 s.
+arXiv asks; bioRxiv/medRxiv entries wait 2 s, PubMed entries 1 s.
 
 ### Adding an entry
 

@@ -256,6 +256,39 @@
       "status": "watch",
       "origin": "owlie#185: medRxiv subject with an underscore slug",
       "added": "2026-10-28"
+    },
+    {
+      "id": "pubmed-alphafold-pmc",
+      "kind": "pubmed-article",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34265844/",
+      "status": "watch",
+      "origin": "owlie#187: PubMed article with PMC full text",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "pubmed-retracted-abstract",
+      "kind": "pubmed-article",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/9500320/",
+      "textSource": "abstract",
+      "status": "watch",
+      "origin": "owlie#187: retracted, structured abstract, no PMC copy",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "pmc-url-alphafold",
+      "kind": "pubmed-article",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8371605/",
+      "status": "watch",
+      "origin": "owlie#187: PMC URL resolves to its PMID",
+      "added": "2026-10-28"
+    },
+    {
+      "id": "pubmed-search-glp1-aud",
+      "kind": "pubmed-search",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/?term=%22GLP-1%22+AND+%22alcohol+use+disorder%22",
+      "status": "watch",
+      "origin": "owlie#187: PubMed search",
+      "added": "2026-10-28"
     }
   ]
 }

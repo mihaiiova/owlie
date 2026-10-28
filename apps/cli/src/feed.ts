@@ -54,6 +54,11 @@ export const LISTED_ITEM_METADATA_KEYS: readonly string[] = [
   'category',
   'articleType',
   'published',
+  // PubMed: PMID, PMCID, journal, publication types (authors, doi above).
+  'pmid',
+  'pmcid',
+  'journal',
+  'publicationTypes',
 ];
 
 /** The allowlisted, HTML-free metadata of a listed item. */

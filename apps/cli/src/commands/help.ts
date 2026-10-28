@@ -4,9 +4,9 @@ Usage:
   owlie <command> [options]
 
 Commands:
-  extract   Extract an article or PDF, YouTube video, podcast episode, Hacker News item, arXiv or bioRxiv/medRxiv paper, or RSS/Atom feed (direct URL or discovered page)
+  extract   Extract an article or PDF, YouTube video, podcast episode, Hacker News item, arXiv, bioRxiv/medRxiv or PubMed paper, or RSS/Atom feed (direct URL or discovered page)
   resolve   Resolve a URL to its validated audio media URL (no transcription)
-  list      List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, an arXiv category or query, or a bioRxiv/medRxiv subject
+  list      List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, an arXiv category or query, a bioRxiv/medRxiv subject, or a PubMed query
   process   Process text, a document, a URL, or a feed's linked items with an LLM
   models    List current models for your LLM providers
   auth      Manage API keys for LLM providers
@@ -37,7 +37,9 @@ Options:
   --max-comments N   Cap Hacker News comments read in total (default 100, max 300)
   --comment-depth N  Hacker News reply levels read (default 2, max 3)
   --max-top-level-comments N  Cap top-level Hacker News comments (default 30, max 100)
-  --abstract-only  Read an arXiv or bioRxiv/medRxiv paper's metadata and abstract only (extract only)
+  --abstract-only  Read an arXiv, bioRxiv/medRxiv or PubMed paper's metadata and abstract only (extract only)
+  --contact-email EMAIL  Contact email NCBI asks PubMed clients to send (or OWLIE_CONTACT_EMAIL)
+  --ncbi-api-key KEY     Optional NCBI API key: 10 PubMed requests a second instead of 3 (or OWLIE_NCBI_API_KEY)
   --include-replacements  Keep new versions of older papers in an arXiv category feed or bioRxiv/medRxiv subject
   --env-file PATH  Load an explicit environment file
   --hosted         Deterministic mode: flags and process env only (no dotenv, saved profile, or model cache)
@@ -92,7 +94,12 @@ const EXTRACT_HELP =
   'medrxiv.org) reads metadata from api.biorxiv.org and the preprint from its\n' +
   'full-text page, else its PDF, else the abstract; --abstract-only skips the\n' +
   'preprint. A subject (biorxiv.org/collection/SUBJECT, or /collection for a\n' +
-  'whole server) extracts its preprints of the last 14 days as a batch.';
+  'whole server) extracts its preprints of the last 14 days as a batch.\n' +
+  'A PubMed article URL (pubmed.ncbi.nlm.nih.gov/PMID, a PMC or Europe PMC\n' +
+  'article) reads metadata from PubMed and the full text from PubMed Central\n' +
+  'when it is open, else the abstract; --abstract-only skips PMC. A PubMed\n' +
+  'search URL (pubmed.ncbi.nlm.nih.gov/?term=...) extracts its newest articles\n' +
+  'as a batch. Send --contact-email (or OWLIE_CONTACT_EMAIL), as NCBI asks.';
 
 const RESOLVE_HELP =
   'owlie resolve URL [--podcast-media | --podcast-page | --podcast-apple] [--json]\n\n' +
@@ -122,7 +129,10 @@ const LIST_HELP =
   'or /collection for a whole server) lists the preprints posted in the last\n' +
   '14 days, newest first (max 200), skipping new versions of older preprints\n' +
   'unless --include-replacements is given. Items carry the DOI, server,\n' +
-  'version, authors, subject, article type and license.';
+  'version, authors, subject, article type and license.\n' +
+  'A PubMed search URL (pubmed.ncbi.nlm.nih.gov/?term=QUERY, common filter=\n' +
+  'values translated) lists the newest matching articles by publication date\n' +
+  '(max 200), with PMID, PMCID, DOI, authors, journal and publication types.';
 
 const PROCESS_HELP =
   'owlie process [FILE|URL] --prompt "..." [--model provider/model-id] [--input FILE] [--input-format text|json] [--json]\n' +

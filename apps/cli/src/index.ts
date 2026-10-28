@@ -75,6 +75,8 @@ export {
   proxyUrl,
   resolveProxy,
 } from './proxy.js';
+export { CONTACT_EMAIL_ENV, NCBI_API_KEY_ENV, resolveNcbiSettings } from './ncbi.js';
+export type { NcbiSettings } from './ncbi.js';
 export type {
   ExtractionNetwork,
   ExtractionNetworkDeps,

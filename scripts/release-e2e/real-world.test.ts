@@ -317,6 +317,34 @@ describe('bioRxiv/medRxiv kinds', () => {
   });
 });
 
+describe('PubMed kinds', () => {
+  const check = (kind: string, value: unknown, extra: Record<string, unknown> = {}) =>
+    KINDS[kind as keyof typeof KINDS].check(value, { id: 'x', kind, url: '', ...extra });
+  const url = 'https://pubmed.ncbi.nlm.nih.gov/34265844/';
+  const abstract = 'Proteins are essential to life, and understanding their structure helps.';
+  const doc = (overrides: Record<string, unknown> = {}) => ({
+    id: 'pubmed:34265844',
+    sourceType: 'pubmed',
+    text: `Title\n\nAbstract\n\n${abstract}\n\nMain`,
+    metadata: { abstract, textSource: 'pmc' },
+    ...overrides,
+  });
+
+  it('pubmed-article: the PMID identity, the text source, and the abstract in the text', () => {
+    expect(check('pubmed-article', doc(), { url })).toEqual({ ok: true });
+    expect(check('pubmed-article', doc({ id: 'pubmed:1' }), { url }).ok).toBe(false);
+    expect(check('pubmed-article', doc(), { url, textSource: 'abstract' }).ok).toBe(false);
+    expect(check('pubmed-article', doc(), { url, abstractOnly: true }).ok).toBe(false);
+  });
+
+  it('pubmed-search: articles whose ids match their PMIDs', () => {
+    const listing = (items: unknown[]) => ({ collection: { sourceType: 'pubmed' }, items });
+    const item = { id: 'pubmed:1', metadata: { pmid: '1' } };
+    expect(check('pubmed-search', listing([item]))).toEqual({ ok: true });
+    expect(check('pubmed-search', listing([{ ...item, id: 'pubmed:2' }])).ok).toBe(false);
+  });
+});
+
 describe('arxivIdFromUrl', () => {
   it('reads abs, pdf and html links without the version', () => {
     expect(arxivIdFromUrl('https://arxiv.org/abs/1706.03762')).toBe('1706.03762');
