@@ -54,8 +54,8 @@ importers:
         specifier: ^7.30.0
         version: 7.30.0
       unpdf:
-        specifier: 1.8.1
-        version: 1.8.1
+        specifier: 1.9.1
+        version: 1.9.1
     devDependencies:
       '@owlieio/adapter-article':
         specifier: workspace:*
@@ -127,8 +127,8 @@ importers:
         specifier: 0.18.13
         version: 0.18.13
       unpdf:
-        specifier: 1.8.1
-        version: 1.8.1
+        specifier: 1.9.1
+        version: 1.9.1
     devDependencies:
       '@owlieio/testing':
         specifier: workspace:*
@@ -2206,8 +2206,8 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  unpdf@1.8.1:
-    resolution: {integrity: sha512-xkURhy2SoGpOIH0a1gLHNkASPIQYonadDJs2AQwPEfUakafeD9EA1WTWWsaR++gfTCXJpV27W7tU1nXuk82UKQ==}
+  unpdf@1.9.1:
+    resolution: {integrity: sha512-nO1npM2kNyd4hj1fKzUVU6bvnWjDSxI97eycM/DgzI83dYyW+pNRI9NeMQVEfef8fI3Q06i9lkMeE1HxrQqKoA==}
     engines: {node: '>=22'}
     peerDependencies:
       '@napi-rs/canvas': ^0.1.69 || ^1.0.0
@@ -4032,7 +4032,7 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  unpdf@1.8.1: {}
+  unpdf@1.9.1: {}
 
   uri-js@4.4.1:
     dependencies:
