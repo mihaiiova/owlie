@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/mihaiiova/owlie/branch/main/graph/badge.svg)](https://codecov.io/gh/mihaiiova/owlie)
 
 Ask an LLM anything about a URL, or turn it into clean text you can read or
-pipe: articles, PDFs, arXiv, bioRxiv and medRxiv papers, YouTube videos,
+pipe: articles, PDFs, arXiv, bioRxiv, medRxiv and PubMed papers, YouTube videos,
 podcast episodes and shows, RSS/Atom feeds, and Hacker News threads.
 
 ```bash
@@ -131,6 +131,26 @@ owlie extract "https://www.biorxiv.org/collection/genomics" --limit 5        # r
 
 Requests are spaced (one API request a second, one page every two seconds),
 and listings return at most 200 preprints.
+
+### Follow PubMed searches
+
+An article URL (PubMed, PMC or Europe PMC) returns its title, authors,
+journal and abstract (structured abstracts keep their headings), then the free
+full text from PubMed Central when there is one. A search URL lists the newest
+matching articles by publication date, under a stable `pubmed:<pmid>`
+identity; common filters such as free full text, years and publication types
+carry over.
+
+```bash
+owlie extract "https://pubmed.ncbi.nlm.nih.gov/34265844/" --contact-email you@example.org
+owlie extract "https://pmc.ncbi.nlm.nih.gov/articles/PMC8371605/" --json    # same identity
+owlie list "https://pubmed.ncbi.nlm.nih.gov/?term=%22GLP-1%22+AND+%22alcohol+use+disorder%22" --limit 10
+owlie extract "https://pubmed.ncbi.nlm.nih.gov/?term=sepsis&filter=simsearch2.ffrft" --limit 5
+```
+
+NCBI asks clients to send a contact email: pass `--contact-email` or set
+`OWLIE_CONTACT_EMAIL`. Requests are spaced to three a second, or ten with a
+free NCBI API key (`--ncbi-api-key` or `OWLIE_NCBI_API_KEY`).
 
 ### Get a YouTube transcript
 
@@ -331,6 +351,7 @@ packages/adapter-youtube/    YouTube adapter (videos in v0.1)
 packages/adapter-article/    Static server-rendered article and PDF adapter
 packages/adapter-arxiv/      arXiv papers, category feeds and searches
 packages/adapter-biorxiv/    bioRxiv and medRxiv preprints and subjects
+packages/adapter-pubmed/     PubMed articles (PMC full text) and searches
 packages/adapter-podcast/    Podcast media, Apple show and episode, and episode-page adapter
 packages/adapter-rss/        RSS/Atom adapter (fetch, list, extract; `owlie list` exposes listing)
 packages/adapter-hackernews/ Hacker News adapter (lists and item discussions, official API)
@@ -351,6 +372,7 @@ docs/                        Architecture, contracts, security, decisions
 | `@owlieio/adapter-article`    | Safe static server-rendered editorial-page and PDF extraction   |
 | `@owlieio/adapter-arxiv`      | arXiv papers (API metadata, HTML render or PDF) and listings    |
 | `@owlieio/adapter-biorxiv`    | bioRxiv/medRxiv preprints (API metadata, full text or PDF)      |
+| `@owlieio/adapter-pubmed`     | PubMed articles (PMC full text or abstract) and searches        |
 | `@owlieio/adapter-podcast`    | Podcast media, Apple shows and episodes, declarative pages      |
 | `@owlieio/adapter-rss`        | RSS/Atom feeds and entries (fetch, list, extract)               |
 | `@owlieio/adapter-hackernews` | Hacker News lists and item discussions (official API)           |

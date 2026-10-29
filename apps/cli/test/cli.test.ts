@@ -147,6 +147,7 @@ describe('doctor', () => {
       'hackernews',
       'arxiv',
       'biorxiv',
+      'pubmed',
     ]);
     expect(report.providers).toEqual([
       { id: 'deepseek', apiKey: 'set', model: 'deepseek-chat', authSource: 'environment' },

@@ -21,6 +21,9 @@ export const ARXIV_PAUSE_MS = 3_000;
 /** Seconds between bioRxiv/medRxiv entries, matching the CLI's page spacing. */
 export const BIORXIV_PAUSE_MS = 2_000;
 
+/** Seconds between PubMed entries, well inside NCBI's three requests a second. */
+export const PUBMED_PAUSE_MS = 1_000;
+
 /** The flags the app passes on every call (`owlie --hosted … --json` with its bounds). */
 export function appInvocation(args) {
   return ['--hosted', ...args, '--json', '--timeout-ms', '90000', '--max-stdout-bytes', '16777216'];
@@ -96,6 +99,11 @@ export function biorxivDoiFromUrl(url) {
   return /(?:bio|med)rxiv\.org\/content\/(10\.(?:1101|64898)\/\d{4}\.\d{2}\.\d{2}\.\d{6,8})/i
     .exec(String(url))?.[1]
     ?.toLowerCase();
+}
+
+/** The PMID in a PubMed article URL. */
+export function pmidFromUrl(url) {
+  return /pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i.exec(String(url))?.[1];
 }
 
 const normalizeSpace = (text) => String(text).replace(/\s+/g, ' ').trim();
@@ -276,6 +284,42 @@ export const KINDS = {
       for (const item of items) {
         if (item.id !== `biorxiv:${item.metadata?.doi}`)
           return fail('preprint id does not match its doi');
+      }
+      return ok;
+    },
+  },
+  'pubmed-article': {
+    options: ['abstractOnly', 'textSource'],
+    pauseMs: PUBMED_PAUSE_MS,
+    args: (entry) => ['extract', entry.url, ...(entry.abstractOnly ? ['--abstract-only'] : [])],
+    check: (doc, entry) => {
+      const pmid = pmidFromUrl(entry.url);
+      if (doc?.sourceType !== 'pubmed')
+        return fail(`sourceType ${doc?.sourceType}, expected pubmed`);
+      if (pmid && doc.id !== `pubmed:${pmid}`) return fail(`id ${doc.id}, expected pubmed:${pmid}`);
+      const expected = entry.abstractOnly ? 'abstract' : (entry.textSource ?? 'pmc');
+      if (doc.metadata?.textSource !== expected)
+        return fail(`textSource ${doc.metadata?.textSource}, expected ${expected}`);
+      const abstract = normalizeSpace(doc.metadata?.abstract ?? '');
+      if (abstract.length < 40) return fail('article has no abstract');
+      if (!normalizeSpace(doc.text).includes(abstract.slice(0, 40)))
+        return fail('text does not include the abstract');
+      return ok;
+    },
+  },
+  'pubmed-search': {
+    options: ['minItems'],
+    pauseMs: PUBMED_PAUSE_MS,
+    args: (entry) => ['list', entry.url, '--limit', '2'],
+    check: (listing, entry) => {
+      if (listing?.collection?.sourceType !== 'pubmed')
+        return fail('collection is not a PubMed search');
+      const items = listing.items ?? [];
+      if (items.length < (entry.minItems ?? 1))
+        return fail(`expected at least ${entry.minItems ?? 1} articles`);
+      for (const item of items) {
+        if (item.id !== `pubmed:${item.metadata?.pmid}`)
+          return fail('article id does not match its pmid');
       }
       return ok;
     },

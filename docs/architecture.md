@@ -14,6 +14,7 @@ apps/cli (owlie, published)
               ├─ adapter-hackernews ─▶ @owlieio/core
               ├─ adapter-arxiv      ─▶ @owlieio/core (reads HTML/PDF through the article adapter, composed in apps/cli)
               ├─ adapter-biorxiv    ─▶ @owlieio/core (same composition as adapter-arxiv)
+              ├─ adapter-pubmed     ─▶ @owlieio/core (E-utilities and PMC JATS)
               ├─ adapter-reddit     ─▶ @owlieio/core (reuses adapter-rss parsing)
               ├─ provider-openai    ─▶ @owlieio/core
               ├─ provider-deepseek  ─▶ @owlieio/core

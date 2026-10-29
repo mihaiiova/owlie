@@ -63,6 +63,13 @@ and processing must be built.
   preprints over 14 days (ADR 0041). API JSON is parsed only after its
   declared type is checked, and only body sections of full-text pages reach
   the article reader.
+- **NCBI politeness** — PubMed and PMC requests send `tool=owlie` and the
+  configured contact email, and are serialized at three a second (ten with an
+  API key) per process; listings are capped at 200 (ADR 0042). The API key
+  rides in the query string, which error records and diagnostics never print.
+  NCBI XML is parsed with entity processing off; only the one external
+  `DOCTYPE … PUBLIC` line NCBI sends is removed, and any other DTD or entity
+  declaration is refused.
 - **Narrow static article extraction** — accept only bounded `text/html` or
   XHTML obtained through the safe HTTP seam; never let an article extractor
   fetch URLs itself, execute scripts, render JavaScript, authenticate, or

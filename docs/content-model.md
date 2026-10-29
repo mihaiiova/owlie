@@ -16,6 +16,7 @@ Owlie models **collections** and **items** separately, with a provider-neutral
 | arXiv search query         | `arxiv:query:<query>`                         |
 | bioRxiv/medRxiv subject    | `biorxiv:collection:<server>:<subject>`       |
 | bioRxiv/medRxiv server     | `biorxiv:collection:<server>`                 |
+| PubMed search              | `pubmed:search:<query>`                       |
 
 A collection has a stable `id`, a `sourceType`, a `canonicalUrl`, an optional
 title, and `metadata`.
@@ -31,6 +32,7 @@ title, and `metadata`.
 | Hacker News item         | `hackernews:item:<id>`                   |
 | arXiv paper              | `arxiv:<id>` (no version)                |
 | bioRxiv/medRxiv preprint | `biorxiv:<doi>` (lowercased, no version) |
+| PubMed article           | `pubmed:<pmid>` (or `pubmed:PMC<id>`)    |
 
 An item has a stable `id`, a `sourceType`, a `canonicalUrl`, optional
 title/description/publishedAt/author, and `metadata`.
@@ -78,6 +80,14 @@ Not every document is a transcript:
   `articleType`, `license`, `published` (journal DOI) and `journal`,
   `journalPublishedDate`, `abstract`, `posted`, `versionDate`, `versionedUrl`,
   `htmlUrl`, `pdfUrl` and `textSource` (`html | pdf | abstract`).
+- PubMed documents (ADR 0042, `sourceType: 'pubmed'`) start with the title,
+  the authors, the journal and date, then `Abstract` and the abstract
+  (structured labels as headings), then the PMC full text when it is open
+  (`PUBMED_ABSTRACT_ONLY` otherwise). `metadata` carries `pmid`, `pmcid`,
+  `doi`, `authors`, `affiliations`, `journal`, `journalAbbreviation`,
+  `volume`, `issue`, `pages`, `publicationDate`, `publicationTypes`,
+  `meshHeadings`, `keywords`, `language`, `retracted`, `abstract`,
+  `pubmedUrl`, `pmcUrl` and `textSource` (`pmc | abstract`).
 - Local documents (`sourceType: 'local'`) contain user-supplied text with no
   remote canonical URL (represented as an empty string). Their identity is
   `local:stdin` for piped stdin or `local:file:<normalized-absolute-path>` for
@@ -108,7 +118,8 @@ Every v2 document carries `provenance` with:
   `article_text_recovered` (article text recovered from Readability's
   unsanitized output because sanitizing removed it), `PDF_TRUNCATED_PAGES`,
   `ARXIV_ABSTRACT_ONLY`, `ARXIV_WITHDRAWN`, `BIORXIV_ABSTRACT_ONLY`,
-  `BIORXIV_WITHDRAWN`, `HN_COMMENTS_TRUNCATED`,
+  `BIORXIV_WITHDRAWN`, `PUBMED_ABSTRACT_ONLY`, `PUBMED_RETRACTED`,
+  `PUBMED_NO_CONTACT`, `HN_COMMENTS_TRUNCATED`,
   `HN_NO_LINKED_ARTICLE`, `HN_ARTICLE_UNAVAILABLE`.
 
 ## Stable identities

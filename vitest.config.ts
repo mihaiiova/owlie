@@ -17,6 +17,7 @@ export default defineConfig({
       '@owlieio/adapter-biorxiv': src('packages/adapter-biorxiv/src/index.ts'),
       '@owlieio/adapter-hackernews': src('packages/adapter-hackernews/src/index.ts'),
       '@owlieio/adapter-podcast': src('packages/adapter-podcast/src/index.ts'),
+      '@owlieio/adapter-pubmed': src('packages/adapter-pubmed/src/index.ts'),
       '@owlieio/adapter-rss': src('packages/adapter-rss/src/index.ts'),
       '@owlieio/adapter-reddit': src('packages/adapter-reddit/src/index.ts'),
       '@owlieio/provider-openai': src('packages/provider-openai/src/index.ts'),

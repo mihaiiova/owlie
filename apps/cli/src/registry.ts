@@ -9,6 +9,7 @@ import { ConfigurationError, DefaultHttpFetcher } from '@owlieio/core';
 import { ArticleAdapter } from '@owlieio/adapter-article';
 import { ArxivCollectionAdapter, ArxivPaperAdapter } from '@owlieio/adapter-arxiv';
 import { BiorxivCollectionAdapter, BiorxivPaperAdapter } from '@owlieio/adapter-biorxiv';
+import { PubmedArticleAdapter, PubmedSearchAdapter } from '@owlieio/adapter-pubmed';
 import { HackerNewsAdapter } from '@owlieio/adapter-hackernews';
 import type { HackerNewsCommentBounds } from '@owlieio/adapter-hackernews';
 import { PodcastAdapter } from '@owlieio/adapter-podcast';
@@ -17,6 +18,7 @@ import { RssAdapter } from '@owlieio/adapter-rss';
 import { YouTubeAdapter } from '@owlieio/adapter-youtube';
 import { DeepSeekProcessor, DeepSeekCatalog, DEEPSEEK_BASE_URL } from '@owlieio/provider-deepseek';
 import { OpenAIProcessor, OpenAICatalog, OPENAI_BASE_URL } from '@owlieio/provider-openai';
+import type { NcbiSettings } from './ncbi.js';
 import type { YouTubeNetwork } from './proxy.js';
 import { createPodcastResolvers } from './resolvers.js';
 
@@ -26,7 +28,8 @@ import { createPodcastResolvers } from './resolvers.js';
  * adapter (universal `extract` dispatch), the RSS/Atom collection adapter
  * (bounded `list` and feed extraction), the Hacker News list and item
  * adapter, the arXiv paper and collection adapter (ADR 0040), and the
- * bioRxiv/medRxiv preprint and collection adapter (ADR 0041). Reddit
+ * bioRxiv/medRxiv preprint and collection adapter (ADR 0041), and the PubMed
+ * article and search adapter (ADR 0042). Reddit
  * remains a deferred scaffold and is deliberately not registered.
  */
 export const ADAPTER_IDS: readonly string[] = [
@@ -37,6 +40,7 @@ export const ADAPTER_IDS: readonly string[] = [
   HackerNewsAdapter.id,
   ArxivPaperAdapter.id,
   BiorxivPaperAdapter.id,
+  PubmedArticleAdapter.id,
 ];
 
 /** The arXiv collection adapter (categories and API queries) on the invocation's network. */
@@ -69,6 +73,22 @@ export function createBiorxivCollectionAdapter(
   });
 }
 
+/** The PubMed search adapter on the invocation's network, identified to NCBI. */
+export function createPubmedSearchAdapter(
+  options: {
+    fetcher?: HttpFetcher;
+    networkPolicy?: HttpFetchPolicy;
+    ncbi?: NcbiSettings;
+  } = {},
+): PubmedSearchAdapter {
+  return new PubmedSearchAdapter({
+    fetcher: options.fetcher ?? new DefaultHttpFetcher(),
+    policy: options.networkPolicy,
+    contactEmail: options.ncbi?.contactEmail,
+    apiKey: options.ncbi?.apiKey,
+  });
+}
+
 /**
  * The Hacker News adapter on the invocation's extraction network, with the
  * caller's comment bounds (validated against their maximums).
@@ -89,7 +109,7 @@ export function createHackerNewsAdapter(
 
 /**
  * The default ordered item adapters for universal `extract` dispatch: the
- * specialized YouTube, Hacker News, arXiv and bioRxiv/medRxiv adapters first, then podcast media and declarative
+ * specialized YouTube, Hacker News, arXiv, bioRxiv/medRxiv and PubMed adapters first, then podcast media and declarative
  * episode pages, then the article fallback for any remaining safe HTTP(S)
  * URL. The arXiv and bioRxiv/medRxiv adapters read a paper's HTML and PDF through the same
  * article adapter (adapters do not depend on each other). The CLI passes explicit language/transcription configuration and the
@@ -107,8 +127,10 @@ export function defaultItemAdapters(
     mediaMaxBytes?: number;
     networkPolicy?: HttpFetchPolicy;
     hackerNewsComments?: Partial<HackerNewsCommentBounds>;
-    /** arXiv and bioRxiv/medRxiv papers: metadata and abstract only (`--abstract-only`). */
+    /** arXiv, bioRxiv/medRxiv and PubMed papers: metadata and abstract only (`--abstract-only`). */
     abstractOnly?: boolean;
+    /** How PubMed requests identify themselves to NCBI. */
+    ncbi?: NcbiSettings;
   } = {},
 ): ItemAdapter[] {
   const fetcher = options.fetcher ?? new DefaultHttpFetcher();
@@ -134,6 +156,13 @@ export function defaultItemAdapters(
       fetcher,
       policy: options.networkPolicy,
       article,
+      abstractOnly: options.abstractOnly,
+    }),
+    new PubmedArticleAdapter({
+      fetcher,
+      policy: options.networkPolicy,
+      contactEmail: options.ncbi?.contactEmail,
+      apiKey: options.ncbi?.apiKey,
       abstractOnly: options.abstractOnly,
     }),
     new PodcastAdapter({

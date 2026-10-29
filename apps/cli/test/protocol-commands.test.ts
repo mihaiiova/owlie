@@ -185,7 +185,16 @@ describe('unified JSON protocol through run()', () => {
       schemaVersion: JSON_PROTOCOL_SCHEMA_VERSION,
       command: 'doctor',
       result: {
-        adapters: ['youtube', 'podcast', 'rss', 'article', 'hackernews', 'arxiv', 'biorxiv'],
+        adapters: [
+          'youtube',
+          'podcast',
+          'rss',
+          'article',
+          'hackernews',
+          'arxiv',
+          'biorxiv',
+          'pubmed',
+        ],
       },
     });
     expect(stderr()).toBe('');

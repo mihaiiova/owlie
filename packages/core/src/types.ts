@@ -16,6 +16,7 @@ export type SourceType =
   | 'hackernews'
   | 'arxiv'
   | 'biorxiv'
+  | 'pubmed'
   | 'local';
 
 /** Every {@link SourceType} value, kept as the single runtime source of truth. */
@@ -28,6 +29,7 @@ export const SOURCE_TYPES = [
   'hackernews',
   'arxiv',
   'biorxiv',
+  'pubmed',
   'local',
 ] as const;
 

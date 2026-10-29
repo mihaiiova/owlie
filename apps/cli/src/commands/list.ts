@@ -12,9 +12,12 @@ import {
   createArxivCollectionAdapter,
   createBiorxivCollectionAdapter,
   createHackerNewsAdapter,
+  createPubmedSearchAdapter,
 } from '../registry.js';
+import { resolveNcbiSettings } from '../ncbi.js';
 import { parseArxivCollectionUrl } from '@owlieio/adapter-arxiv';
 import { isBiorxivCollectionPath } from '@owlieio/adapter-biorxiv';
+import { parsePubmedSearchUrl } from '@owlieio/adapter-pubmed';
 import { paperFlagsUsageError } from './extract.js';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
@@ -47,6 +50,8 @@ export interface ListDeps {
   arxivAdapter?: CollectionAdapter;
   /** Collection adapter for bioRxiv/medRxiv subjects (tests substitute an offline one). */
   biorxivAdapter?: CollectionAdapter;
+  /** Collection adapter for PubMed searches (tests substitute an offline one). */
+  pubmedAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
@@ -170,6 +175,7 @@ export async function runListCommand(
 
   const isArxiv = parseArxivCollectionUrl(url) !== undefined;
   const isBiorxiv = isBiorxivCollectionPath(url);
+  const isPubmed = parsePubmedSearchUrl(url) !== undefined;
   const paperUsage =
     options.abstractOnly === true
       ? '--abstract-only applies to extract'
@@ -205,6 +211,16 @@ export async function runListCommand(
         });
       spinner.start('listing bioRxiv/medRxiv');
       result = await listCollection(biorxiv, { url }, { limit, signal: deps.signal });
+    } else if (isPubmed) {
+      const pubmed =
+        deps.pubmedAdapter ??
+        createPubmedSearchAdapter({
+          fetcher: extractionNetwork(options, deps.network).fetcher,
+          networkPolicy: deps.networkPolicy,
+          ncbi: resolveNcbiSettings(options, deps.network?.env, deps.network?.loadFile),
+        });
+      spinner.start('searching PubMed');
+      result = await listCollection(pubmed, { url }, { limit, signal: deps.signal });
     } else if (isHackerNews) {
       const hackerNews =
         deps.hackerNewsAdapter ??
