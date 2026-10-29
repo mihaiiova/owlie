@@ -336,7 +336,9 @@ export class PubmedArticleAdapter implements ItemAdapter {
     try {
       return parsePmcArticle(await this.network.xml('efetch', { db: 'pmc', id: pmcid }, signal));
     } catch (error) {
-      if (error instanceof CancelledError || signal?.aborted) throw error;
+      // Throttling is not "no full text": fail so the caller can retry later.
+      const rateLimited = error instanceof ExtractionError && error.details?.httpStatus === 429;
+      if (error instanceof CancelledError || signal?.aborted || rateLimited) throw error;
       return undefined;
     }
   }

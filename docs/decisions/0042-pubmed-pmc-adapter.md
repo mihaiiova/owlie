@@ -82,6 +82,9 @@ resolver. The DOI work was parked, so this ADR takes the next free number.)
     document carries `PUBMED_NO_CONTACT`.
   - At most three requests a second per process, or ten with an NCBI API key
     (`api_key=`), through one shared gate per rate.
+  - An HTTP 429 fails the read with `httpStatus: 429` (also when it comes
+    from PMC), rather than returning the abstract, so a consumer can retry
+    later.
   - Requests go through the injected `HttpFetcher` (User-Agent, proxy, SSRF,
     deadlines, budgets). Error messages and records never include query
     strings, so the API key does not leak.

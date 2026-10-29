@@ -30,7 +30,7 @@ const JSON_TYPE = 'application/json; charset=UTF-8';
 const EMAIL = 'research@example.org';
 
 /** A fake NCBI: routes by endpoint and parameters, recording every request URL. */
-function network(routes: Record<string, HttpTextResponse>) {
+function network(routes: Record<string, HttpTextResponse | { status: number }>) {
   const requests: URL[] = [];
   const fetcher: HttpFetcher = {
     async fetch(url) {
@@ -45,6 +45,10 @@ function network(routes: Record<string, HttpTextResponse>) {
         throw new ExtractionError(`HTTP 404 Not Found for ${key}`, {
           details: { httpStatus: 404 },
         });
+      if ('status' in route)
+        throw new ExtractionError(`HTTP ${route.status} for ${key}`, {
+          details: { httpStatus: route.status },
+        });
       return { ...route, url };
     },
   };
@@ -55,7 +59,7 @@ const xml = (text: string): HttpTextResponse => ({ url: '', contentType: XML, te
 const json = (text: string): HttpTextResponse => ({ url: '', contentType: JSON_TYPE, text });
 
 function articleAdapter(
-  routes: Record<string, HttpTextResponse>,
+  routes: Record<string, HttpTextResponse | { status: number }>,
   options: { abstractOnly?: boolean; contactEmail?: string; apiKey?: string } = {
     contactEmail: EMAIL,
   },
@@ -197,6 +201,18 @@ describe('PubmedArticleAdapter', () => {
     expect(document.provenance.warnings.map((warning) => warning.code)).toEqual([
       PUBMED_ABSTRACT_ONLY,
     ]);
+  });
+
+  it('fails instead of returning the abstract when PMC is rate limiting', async () => {
+    const { adapter } = articleAdapter({
+      'efetch pubmed 34265844': xml(pubmedSet(ALPHAFOLD_ARTICLE)),
+      'efetch pmc PMC8371605': { status: 429 },
+    });
+    const error = await extract(adapter, 'https://pubmed.ncbi.nlm.nih.gov/34265844/').catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ExtractionError);
+    expect((error as ExtractionError).details).toEqual({ httpStatus: 429 });
   });
 
   it('reads PubMed only with abstractOnly, and warns about nothing', async () => {
