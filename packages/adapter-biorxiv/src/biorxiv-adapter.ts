@@ -223,7 +223,9 @@ function isWithdrawn(record: BiorxivRecord): boolean {
   return (
     /^withdrawn\b/i.test(record.title) ||
     /\bwithdrawn\b/i.test(record.type ?? '') ||
-    /\b(?:has been|was|is being|are) withdrawn\b|\bwithdraw(?:n|ing) (?:this|the) (?:manuscript|preprint)\b/i.test(
+    // Only a notice about this preprint itself, not any mention of something withdrawn.
+    /^\s*withdrawn\b/i.test(record.abstract) ||
+    /\b(?:this|the) (?:manuscript|preprint|paper|article) (?:has been|was|is being|is) withdrawn\b|\bwithdr(?:awn|ew|awing|aw) (?:this|the|their|our) (?:manuscript|preprint|paper|article)\b/i.test(
       record.abstract,
     )
   );
@@ -407,7 +409,7 @@ export class BiorxivPaperAdapter implements ItemAdapter {
     try {
       return parseBiorxivPublication(await this.network.api(`/pubs/${server}/${doi}`, signal));
     } catch (error) {
-      if (error instanceof CancelledError || signal?.aborted) throw error;
+      if (error instanceof CancelledError || signal?.aborted || isRateLimited(error)) throw error;
       return undefined;
     }
   }
@@ -434,7 +436,10 @@ export class BiorxivPaperAdapter implements ItemAdapter {
         ? { text: document.text, source: 'html' }
         : undefined;
     } catch (error) {
-      if (error instanceof CancelledError || options.signal?.aborted) throw error;
+      // Throttling after the retry is not "no full text": fail so the caller can retry later.
+      if (error instanceof CancelledError || options.signal?.aborted || isRateLimited(error)) {
+        throw error;
+      }
       return undefined;
     }
   }
@@ -457,7 +462,10 @@ export class BiorxivPaperAdapter implements ItemAdapter {
       warnings.push(...document.provenance.warnings);
       return { text: document.text, source: 'pdf', pageCount: document.metadata.pageCount };
     } catch (error) {
-      if (error instanceof CancelledError || options.signal?.aborted) throw error;
+      // Throttling after the retry is not "no full text": fail so the caller can retry later.
+      if (error instanceof CancelledError || options.signal?.aborted || isRateLimited(error)) {
+        throw error;
+      }
       return undefined;
     }
   }

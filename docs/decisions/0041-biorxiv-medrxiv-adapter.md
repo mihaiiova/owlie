@@ -71,8 +71,9 @@ and list a subject's new preprints, as it does for arXiv (ADR 0040).
 
   The API's `jatsxml` link is not used: it returned 404 for papers whose HTML
   and PDF worked. `metadata.textSource` records which source was used. A
-  withdrawn preprint (its title, type or abstract says so) is not read, and
-  it carries a `BIORXIV_WITHDRAWN` warning. `--abstract-only` skips the body
+  withdrawn preprint (its title or type says so, or its abstract is a
+  withdrawal notice for the preprint itself) is not read, and it carries a
+  `BIORXIV_WITHDRAWN` warning. `--abstract-only` skips the body
   by request, with no warning.
 
 - **Document text** starts with the title, the authors, then
@@ -104,7 +105,9 @@ DeferredResponseItemAdapter`.
     two seconds apart;
   - on HTTP 429 the adapter waits for `Retry-After` (at most 30 s; 5 s when
     absent) once, then fails with an `ExtractionError` whose details carry
-    `httpStatus: 429`, so a consumer can retry later.
+    `httpStatus: 429`, so a consumer can retry later. This applies to the
+    full-text page and the PDF too: a rate-limited read never falls back to
+    the abstract.
 
   To support this, core's HTTP errors now carry `details.httpStatus` (and
   `retryAfterSeconds` when the server sent one), and `RequestGate` moved from

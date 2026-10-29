@@ -342,6 +342,31 @@ describe('BiorxivPaperAdapter.extract', () => {
     ]);
   });
 
+  it.each([
+    'The authors have withdrawn this manuscript because of an error in Figure 2.',
+    'WITHDRAWN: duplicate submission.',
+  ])('recognizes the withdrawal notice %j', async (abstract) => {
+    const { adapter } = paperAdapter({
+      [`${API}/details/biorxiv/${DOI}`]: json(details([record({ abstract })])),
+    });
+    const document = await extract(adapter, PAPER);
+    expect(document.provenance.warnings.map((warning) => warning.code)).toEqual([
+      BIORXIV_WITHDRAWN,
+    ]);
+  });
+
+  it('reads an active preprint whose abstract mentions something else being withdrawn', async () => {
+    const { adapter, requests } = paperAdapter({
+      [`${API}/details/biorxiv/${DOI}`]: json(
+        details([record({ abstract: 'Rofecoxib has been withdrawn from the market in 2004.' })]),
+      ),
+      [`${PAPER}v1.full`]: html(FULL_TEXT_HTML),
+    });
+    const document = await extract(adapter, PAPER);
+    expect(requests).toContain(`${PAPER}v1.full`);
+    expect(document.metadata.textSource).toBe('html');
+  });
+
   it('fails for an unknown preprint', async () => {
     const { adapter } = paperAdapter({
       [`${API}/details/biorxiv/${DOI}`]: json(NO_POSTS),
@@ -384,6 +409,25 @@ describe('BiorxivPaperAdapter.extract', () => {
     );
     expect((error as ExtractionError).details).toEqual({ httpStatus: 429 });
     expect(capped.apiGate.waits[0]).toBe(30_000);
+  });
+
+  it.each<[string, Record<string, Route | Route[]>]>([
+    ['the full-text page', { [`${PAPER}v2.full`]: [{ status: 429 }, { status: 429 }] }],
+    [
+      'the PDF',
+      {
+        [`${PAPER}v2.full`]: html(ABSTRACT_ONLY_HTML),
+        [`${PAPER}v2.full.pdf`]: [{ status: 429 }, { status: 429 }],
+      },
+    ],
+  ])('fails instead of returning the abstract when %s stays rate limited', async (_, routes) => {
+    const { adapter } = paperAdapter({
+      [`${API}/details/biorxiv/${DOI}`]: json(DETAILS_TWO_VERSIONS),
+      ...routes,
+    });
+    const error = await extract(adapter, PAPER).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ExtractionError);
+    expect((error as ExtractionError).details).toEqual({ httpStatus: 429 });
   });
 
   it('propagates cancellation instead of falling back', async () => {
