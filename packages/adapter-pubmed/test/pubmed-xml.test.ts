@@ -107,6 +107,23 @@ describe('parsePmcArticle', () => {
     expect(article.body).not.toContain('A cited paper');
   });
 
+  it('handles collective authors, alttext and display formulas, and blocks inside paragraphs', () => {
+    const article = parsePmcArticle(
+      pmcSet(
+        `<article><front><article-meta><article-id pub-id-type="pmcid">PMC1</article-id><title-group><article-title>T</article-title></title-group><contrib-group><contrib contrib-type="author"><collab>The Consortium</collab></contrib></contrib-group></article-meta></front><body><sec><title>Results</title><p>Energy is <inline-formula><mml:math alttext="E = mc^2"><mml:mi>E</mml:mi></mml:math></inline-formula> here.<list><list-item><p>first</p></list-item></list>After the list.</p><disp-formula><tex-math>x^2</tex-math></disp-formula><fig><label>Fig. 2</label></fig></sec></body></article>`,
+      ),
+    )!;
+    expect(article.front.authors).toEqual(['The Consortium']);
+    expect(article.body!.split('\n\n')).toEqual([
+      'Results',
+      'Energy is $E = mc^2$ here.',
+      '- first',
+      'After the list.',
+      '$$x^2$$',
+      'Fig. 2',
+    ]);
+  });
+
   it('has no body when PMC withholds it', () => {
     expect(parsePmcArticle(pmcSet(pmcArticle({ body: false })))).toMatchObject({
       front: { pmcid: 'PMC8371605' },
@@ -126,6 +143,8 @@ describe('E-utilities JSON', () => {
     ).toEqual({ ids: ['2', '1'], count: 142, messages: ['Unmatched double quote ignored.'] });
     expect(() => parsePubmedSearch(ESEARCH_ERROR)).toThrow('PubMed search failed: Empty term');
     expect(() => parsePubmedSearch('{}')).toThrow('no esearchresult');
+    expect(() => parsePubmedSearch('not json')).toThrow('NCBI returned invalid JSON');
+    expect(() => parsePubmedSearch('[]')).toThrow('NCBI returned an unexpected response');
   });
 
   it('reads summaries in order and skips errors', () => {

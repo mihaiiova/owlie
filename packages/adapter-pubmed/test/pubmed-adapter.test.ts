@@ -243,6 +243,39 @@ describe('PubmedArticleAdapter', () => {
     await expect(extract(adapter, 'https://pubmed.ncbi.nlm.nih.gov/34265844/')).rejects.toThrow(
       'NCBI efetch returned unsupported content type: text/html',
     );
+    const converter = articleAdapter({
+      'idconv PMC8371605': { url: '', contentType: 'text/html', text: '<html></html>' },
+    });
+    await expect(
+      extract(converter.adapter, 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8371605/'),
+    ).rejects.toThrow('PMC ID converter returned unsupported content type: text/html');
+  });
+
+  it('returns the abstract of a PMC article that has no PMID and no body', async () => {
+    const { adapter } = articleAdapter({
+      'idconv PMC8371605': json(idconv('PMC8371605', {})),
+      'efetch pmc PMC8371605': xml(pmcSet(pmcArticle({ pmid: '', body: false }))),
+    });
+    const document = await extract(adapter, 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8371605/');
+    expect(document.metadata.textSource).toBe('abstract');
+    expect(document.text).toContain('Proteins are essential to life.');
+    expect(document.provenance.warnings.map((warning) => warning.code)).toEqual([
+      PUBMED_ABSTRACT_ONLY,
+    ]);
+  });
+
+  it('reads an item without ids from its URL, and refuses other items', async () => {
+    const { adapter } = articleAdapter(ALPHAFOLD);
+    const item = {
+      id: 'pubmed:34265844',
+      sourceType: 'pubmed' as const,
+      canonicalUrl: 'https://pubmed.ncbi.nlm.nih.gov/34265844/',
+      metadata: {},
+    };
+    await expect(adapter.extract(item)).resolves.toMatchObject({ id: 'pubmed:34265844' });
+    await expect(
+      adapter.extract({ ...item, canonicalUrl: 'https://example.com/paper' }),
+    ).rejects.toThrow('not a PubMed article: https://example.com/paper');
   });
 
   it('propagates cancellation instead of falling back', async () => {
@@ -372,6 +405,19 @@ describe('PubmedSearchAdapter', () => {
     const { adapter } = searchAdapter({});
     const collection = await adapter.resolve({ url: SEARCH_URL });
     await expect(adapter.list(collection, { limit: 201 })).rejects.toThrow();
+  });
+
+  it('refuses a collection without a query, and checks the search content type', async () => {
+    const { adapter } = searchAdapter({
+      [`esearch pubmed ${QUERY}`]: { url: '', contentType: 'text/html', text: '<html></html>' },
+    });
+    const collection = await adapter.resolve({ url: SEARCH_URL });
+    await expect(adapter.list({ ...collection, metadata: {} }, { limit: 5 })).rejects.toThrow(
+      'not a PubMed search',
+    );
+    await expect(adapter.list(collection, { limit: 5 })).rejects.toThrow(
+      'NCBI esearch returned unsupported content type: text/html',
+    );
   });
 });
 

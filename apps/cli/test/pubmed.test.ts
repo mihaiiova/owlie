@@ -125,6 +125,49 @@ describe('PubMed through the CLI', () => {
     });
   });
 
+  it('builds the search adapter on the invocation network, identified to NCBI', async () => {
+    const net = network(ROUTES);
+    const invocationNetwork = {
+      env: { OWLIE_CONTACT_EMAIL: 'env@example.org' },
+      loadFile: () => ({}),
+      readConfig: () => ({}),
+      createFetcher: () => net.fetcher,
+    };
+    const listed = capture();
+    expect(
+      await run(['list', 'https://pubmed.ncbi.nlm.nih.gov/?term=sepsis', '--json'], listed.io, {
+        list: { network: invocationNetwork },
+      }),
+    ).toBe(ExitCode.Success);
+    expect(JSON.parse(listed.stdout()).result.items).toHaveLength(1);
+
+    const extracted = capture();
+    expect(
+      await run(
+        ['extract', 'https://pubmed.ncbi.nlm.nih.gov/?term=sepsis', '--abstract-only', '--json'],
+        extracted.io,
+        {
+          extract: {
+            itemAdapters: [
+              new PubmedArticleAdapter({
+                fetcher: net.fetcher,
+                gate: new RequestGate(0),
+                abstractOnly: true,
+              }),
+            ],
+            network: invocationNetwork,
+          },
+        },
+      ),
+    ).toBe(ExitCode.Success);
+    expect(JSON.parse(extracted.stdout()).result.items).toHaveLength(1);
+    const searches = net.requests.filter((url) => /\/es(?:earch|ummary)\.fcgi$/.test(url.pathname));
+    expect(searches).toHaveLength(4);
+    expect(searches.map((url) => url.searchParams.get('email'))).toEqual(
+      Array(4).fill('env@example.org'),
+    );
+  });
+
   it.each([
     [
       ['list', 'https://pubmed.ncbi.nlm.nih.gov/?term=x', '--order', 'newest'],
