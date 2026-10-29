@@ -279,7 +279,9 @@ export async function runSetupCommand(
       });
       let proxy: TranscriptProxy | undefined;
       if (proxyType === 'webshare') {
-        const username = (await prompt('WebShare username')).trim();
+        const username = (
+          await prompt('WebShare username (with or without -rotate; it is added automatically)')
+        ).trim();
         const password = (await prompt('WebShare password')).trim();
         if (!username || !password) {
           if (!options.quiet)

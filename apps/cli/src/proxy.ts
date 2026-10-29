@@ -12,6 +12,7 @@ export const WEBSHARE_PASSWORD_ENV = 'OWLIE_WEBSHARE_PROXY_PASSWORD';
 
 /** Webshare's rotating residential endpoint, used for non-YouTube traffic. */
 const WEBSHARE_HOST = 'p.webshare.io:80';
+const ROTATE_SUFFIX = '-rotate';
 const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks5:']);
 
 /**
@@ -117,11 +118,15 @@ export function proxyReport(resolved: ResolvedProxy): ProxyReport {
 
 /**
  * The proxy URL used for non-YouTube traffic. A Webshare pair maps to
- * Webshare's rotating residential endpoint.
+ * Webshare's rotating residential endpoint. Webshare's dashboard shows the
+ * username with `-rotate` already on it, so the suffix is added only once.
  */
 export function proxyUrl(proxy: ExtractionProxy): string {
   if (proxy.type === 'generic') return proxy.url;
-  const username = encodeURIComponent(`${proxy.username}-rotate`);
+  const base = proxy.username.endsWith(ROTATE_SUFFIX)
+    ? proxy.username
+    : `${proxy.username}${ROTATE_SUFFIX}`;
+  const username = encodeURIComponent(base);
   const password = encodeURIComponent(proxy.password);
   return `http://${username}:${password}@${WEBSHARE_HOST}`;
 }

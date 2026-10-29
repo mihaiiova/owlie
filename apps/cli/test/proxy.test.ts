@@ -149,6 +149,15 @@ describe('proxyUrl', () => {
       'http://user-rotate:p%40ss@p.webshare.io:80',
     );
   });
+
+  it('keeps a username that already ends in -rotate', () => {
+    expect(proxyUrl({ type: 'webshare', username: 'user-rotate', password: 'secret' })).toBe(
+      'http://user-rotate:secret@p.webshare.io:80',
+    );
+    expect(proxyUrl({ type: 'webshare', username: 'user-rotate', password: 'p@ss:/#' })).toBe(
+      'http://user-rotate:p%40ss%3A%2F%23@p.webshare.io:80',
+    );
+  });
 });
 
 describe('extractionNetwork', () => {
