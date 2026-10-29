@@ -62,10 +62,14 @@ export interface CliOptions {
   hnContent?: HackerNewsContent;
   /** Feed entry order for listings and feed batches (default: feed document order). */
   order?: 'feed' | 'newest';
-  /** arXiv papers: read metadata and the abstract only (`extract`). */
+  /** arXiv, bioRxiv/medRxiv and PubMed papers: read metadata and the abstract only (`extract`). */
   abstractOnly?: boolean;
-  /** arXiv category feeds: keep `replace` announcements (`list`, `extract`). */
+  /** arXiv category feeds and bioRxiv/medRxiv subjects: keep new versions (`list`, `extract`). */
   includeReplacements?: boolean;
+  /** Contact email sent to NCBI with PubMed requests (`--contact-email`). */
+  contactEmail?: string;
+  /** Optional NCBI API key for PubMed requests (`--ncbi-api-key`). */
+  ncbiApiKey?: string;
   /** Hacker News comment bounds for `extract` (raw flag values). */
   maxComments?: string;
   commentDepth?: string;
@@ -128,6 +132,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     '--max-comments',
     '--comment-depth',
     '--max-top-level-comments',
+    '--contact-email',
+    '--ncbi-api-key',
   ];
 
   const applyValue = (key: string, value: string | undefined): void => {
@@ -195,6 +201,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--max-comments':
         options.maxComments = value;
+        break;
+      case '--contact-email':
+        options.contactEmail = value;
+        break;
+      case '--ncbi-api-key':
+        options.ncbiApiKey = value;
         break;
       case '--comment-depth':
         options.commentDepth = value;
@@ -344,12 +356,17 @@ export async function run(argv: string[], io: CliIo, deps: CliDeps = {}): Promis
 
     // The arXiv flags are read by extract (and list, for replacements) only;
     // anywhere else they would be silently ignored.
+    const readsSources = command === 'extract' || command === 'list' || command === 'process';
     const misplacedArxivFlag =
       options.abstractOnly && command !== 'extract'
         ? '--abstract-only applies to extract'
         : options.includeReplacements && command !== 'extract' && command !== 'list'
           ? '--include-replacements applies to extract and list'
-          : undefined;
+          : options.contactEmail !== undefined && !readsSources
+            ? '--contact-email applies to extract, list and process'
+            : options.ncbiApiKey !== undefined && !readsSources
+              ? '--ncbi-api-key applies to extract, list and process'
+              : undefined;
     if (misplacedArxivFlag && !parsed.helpRequested) {
       if (!options.quiet) writeUsageError(bounded, options, command ?? 'owlie', misplacedArxivFlag);
       return ExitCode.Usage;

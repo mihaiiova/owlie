@@ -6,9 +6,9 @@ exit codes.
 ## Commands
 
 ```text
-owlie extract  Extract an article or PDF, a YouTube video, a podcast, a Hacker News item, an arXiv paper, or a feed's linked items   (v0.1)
+owlie extract  Extract an article or PDF, a YouTube video, a podcast, a Hacker News item, an arXiv, bioRxiv/medRxiv or PubMed paper, or a feed's linked items   (v0.1)
 owlie resolve  Resolve a URL to its validated audio media URL (no transcription)  (v0.1)
-owlie list     List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, or an arXiv category or search (functional)
+owlie list     List entries in an RSS/Atom feed (direct URL or discovered page), a Hacker News list, an arXiv category or search, a bioRxiv/medRxiv subject, or a PubMed search (functional)
 owlie process  Process text, a document, or a feed's linked items with DeepSeek or OpenAI   (v0.1)
 owlie models   List current models for your LLM providers     (v0.1)
 owlie auth     Manage API keys for LLM providers             (v0.1)
@@ -71,7 +71,8 @@ additive; `schemaVersion` stays `1`. The `ARTICLE_*` errors carry
 `declaredSignal` (`og-article` | `json-ld-article` | `none` | `other`),
 `htmlBytes`, `readableChars` (Readability's text), `sanitizedChars` (text left
 after sanitizing) and `customElementCount`. Feed-batch item errors carry the
-same `details`.
+same `details`. An HTTP status failure carries `httpStatus`, plus
+`retryAfterSeconds` when the server sent `Retry-After`.
 
 Cancellation emits `kind: "cancelled"` instead of `kind: "error"` and exits
 **130** (SIGINT/SIGTERM or an expired invocation deadline). All stderr records
@@ -176,6 +177,26 @@ owlie capabilities [--json]
   category feed (`rss.arxiv.org/rss/<cat>`, `arxiv.org/list/<cat>`) or API
   search (`export.arxiv.org/api/query?search_query=…`), `extract` writes the
   bounded batch envelope below. API requests are spaced three seconds apart.
+- `extract` on a bioRxiv or medRxiv preprint URL
+  (`<server>.org/content/<doi>[vN][.full|.full.pdf|…]`) writes one
+  `NormalizedDocument` with `sourceType: "biorxiv"` and `adapterId: "biorxiv"`
+  (ADR 0041): metadata from `api.biorxiv.org`, then the full-text page's body
+  sections, else the PDF, else the abstract with a `BIORXIV_ABSTRACT_ONLY`
+  warning. `--abstract-only` reads metadata and the abstract only. On a
+  subject (`<server>.org/collection/<subject>`) or whole server
+  (`<server>.org/collection`), `extract` writes the bounded batch envelope
+  below. An unknown subject is a `CONFIGURATION_ERROR`. API requests are
+  spaced one second apart, page and PDF requests two seconds; a repeated
+  HTTP 429 is an `EXTRACTION_ERROR` with `details.httpStatus: 429`.
+- `extract` on a PubMed, PMC or Europe PMC article URL writes one
+  `NormalizedDocument` with `sourceType: "pubmed"` and `adapterId: "pubmed"`
+  (ADR 0042): metadata from PubMed, then the PMC full text when it is open,
+  else the abstract with a `PUBMED_ABSTRACT_ONLY` warning; a PMC URL gets its
+  PMID's identity. `--abstract-only` skips PMC. On a PubMed search URL
+  (`pubmed.ncbi.nlm.nih.gov/?term=…`), `extract` writes the bounded batch
+  envelope below. `--contact-email` (or `OWLIE_CONTACT_EMAIL`) and
+  `--ncbi-api-key` (or `OWLIE_NCBI_API_KEY`) identify requests to NCBI;
+  hosted mode reads them from flags and the process environment only.
 - `extract` on an RSS/Atom feed URL — or an HTML page URL that exposes one —
   performs a bounded linked-item batch
   extraction and always writes a single versioned JSON envelope (regardless of
@@ -213,8 +234,17 @@ owlie capabilities [--json]
   its newest submissions (ADR 0040, at most 200). Items carry `arxivId`,
   `version`, `announceType`, `authors`, `categories`, `primaryCategory`,
   `license` and `doi`; replacements are skipped unless `--include-replacements`
-  is given. `--order` with an arXiv URL, and `--abstract-only` or
-  `--include-replacements` where they do not apply, are usage errors.
+  is given. A bioRxiv/medRxiv subject or server lists the preprints posted in
+  the last 14 days, newest first (ADR 0041, at most 200). Items carry `doi`,
+  `server`, `version`, `authors`, `category`, `articleType`, `license` and
+  `published`; revisions are skipped unless `--include-replacements` is
+  given. A PubMed search URL lists the newest matching articles by
+  publication date (ADR 0042, at most 200), with `pmid`, `pmcid`, `doi`,
+  `authors`, `journal` and `publicationTypes`; `collection.metadata` carries
+  `totalResults` and any `ignoredFilters`. `--order` with an arXiv,
+  bioRxiv/medRxiv or PubMed collection URL, and
+  `--abstract-only` or `--include-replacements` where they do not apply, are
+  usage errors.
 - `process` reads exactly one input — a positional http(s) URL, a positional
   file, `--input FILE`, or stdin — and rejects ambiguous multiple inputs
   (exit code 2). A URL is extracted first through the universal

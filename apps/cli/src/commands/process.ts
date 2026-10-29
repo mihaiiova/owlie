@@ -61,6 +61,7 @@ import { lazyExtractionNetwork } from '../proxy.js';
 import type { ExtractionNetwork, ExtractionNetworkDeps } from '../proxy.js';
 import { writeDiagnostic } from '../style.js';
 import { localFileId, localPdfDocument, readLocalPdf } from '../local-pdf.js';
+import { resolveNcbiSettings } from '../ncbi.js';
 
 /** Spinner message shown while waiting for the LLM response. */
 const LLM_WAIT_NOTICE = 'waiting for llm response';
@@ -304,6 +305,7 @@ function resolveItemAdapters(
       cacheDir: cacheDir(),
       whisperModel: options.hosted ? undefined : readConfig().transcription?.model,
       networkPolicy: deps.networkPolicy,
+      ncbi: resolveNcbiSettings(options, deps.network?.env, deps.network?.loadFile),
     })
   );
 }

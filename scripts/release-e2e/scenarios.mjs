@@ -20,7 +20,16 @@ import { sanitize } from './redact.mjs';
 const DIAGNOSTIC_LIMIT = 500;
 
 /** Every adapter and resolver the release supports; capabilities must report them all. */
-export const REQUIRED_ADAPTERS = ['youtube', 'podcast', 'rss', 'article', 'hackernews', 'arxiv'];
+export const REQUIRED_ADAPTERS = [
+  'youtube',
+  'podcast',
+  'rss',
+  'article',
+  'hackernews',
+  'arxiv',
+  'biorxiv',
+  'pubmed',
+];
 export const REQUIRED_RESOLVERS = ['podcast-media', 'podcast-apple', 'podcast-page'];
 
 /** Hacker News inputs: the live front page and an old item whose discussion no longer changes. */

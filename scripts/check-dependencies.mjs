@@ -18,6 +18,8 @@ const PACKAGES = [
   { name: '@owlieio/adapter-article', dir: 'packages/adapter-article', publishable: false },
   { name: '@owlieio/adapter-hackernews', dir: 'packages/adapter-hackernews', publishable: false },
   { name: '@owlieio/adapter-arxiv', dir: 'packages/adapter-arxiv', publishable: false },
+  { name: '@owlieio/adapter-biorxiv', dir: 'packages/adapter-biorxiv', publishable: false },
+  { name: '@owlieio/adapter-pubmed', dir: 'packages/adapter-pubmed', publishable: false },
   { name: '@owlieio/adapter-reddit', dir: 'packages/adapter-reddit', publishable: false },
   { name: '@owlieio/provider-openai', dir: 'packages/provider-openai', publishable: false },
   { name: '@owlieio/provider-deepseek', dir: 'packages/provider-deepseek', publishable: false },
@@ -32,6 +34,8 @@ const ADAPTERS = [
   '@owlieio/adapter-article',
   '@owlieio/adapter-hackernews',
   '@owlieio/adapter-arxiv',
+  '@owlieio/adapter-biorxiv',
+  '@owlieio/adapter-pubmed',
   '@owlieio/adapter-reddit',
 ];
 const PROVIDERS = [
@@ -50,6 +54,8 @@ const ALLOWED = {
   '@owlieio/adapter-article': ['@owlieio/core'],
   '@owlieio/adapter-hackernews': ['@owlieio/core'],
   '@owlieio/adapter-arxiv': ['@owlieio/core'],
+  '@owlieio/adapter-biorxiv': ['@owlieio/core'],
+  '@owlieio/adapter-pubmed': ['@owlieio/core'],
   // Documented exception: reddit may reuse public RSS/Atom parsing from rss.
   '@owlieio/adapter-reddit': ['@owlieio/core', '@owlieio/adapter-rss'],
   '@owlieio/provider-openai': ['@owlieio/core'],

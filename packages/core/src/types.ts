@@ -8,7 +8,16 @@
 
 /** The kind of source a locator, collection, item, or document came from. */
 export type SourceType =
-  'youtube' | 'podcast' | 'reddit' | 'rss' | 'article' | 'hackernews' | 'arxiv' | 'local';
+  | 'youtube'
+  | 'podcast'
+  | 'reddit'
+  | 'rss'
+  | 'article'
+  | 'hackernews'
+  | 'arxiv'
+  | 'biorxiv'
+  | 'pubmed'
+  | 'local';
 
 /** Every {@link SourceType} value, kept as the single runtime source of truth. */
 export const SOURCE_TYPES = [
@@ -19,6 +28,8 @@ export const SOURCE_TYPES = [
   'article',
   'hackernews',
   'arxiv',
+  'biorxiv',
+  'pubmed',
   'local',
 ] as const;
 

@@ -18,6 +18,12 @@ export const CATALOG_VERSION = 1;
 /** Seconds between arXiv requests, as arXiv asks; the CLI only spaces requests within one run. */
 export const ARXIV_PAUSE_MS = 3_000;
 
+/** Seconds between bioRxiv/medRxiv entries, matching the CLI's page spacing. */
+export const BIORXIV_PAUSE_MS = 2_000;
+
+/** Seconds between PubMed entries, well inside NCBI's three requests a second. */
+export const PUBMED_PAUSE_MS = 1_000;
+
 /** The flags the app passes on every call (`owlie --hosted … --json` with its bounds). */
 export function appInvocation(args) {
   return ['--hosted', ...args, '--json', '--timeout-ms', '90000', '--max-stdout-bytes', '16777216'];
@@ -86,6 +92,18 @@ export function applePodcastId(url) {
 /** The new-style arXiv id in an abs/pdf/html URL, without its version. */
 export function arxivIdFromUrl(url) {
   return /arxiv\.org\/(?:abs|pdf|html)\/(\d{4}\.\d{4,5})(?:v\d+)?/i.exec(String(url))?.[1];
+}
+
+/** The lowercased preprint DOI in a bioRxiv/medRxiv `/content/` URL, without its version. */
+export function biorxivDoiFromUrl(url) {
+  return /(?:bio|med)rxiv\.org\/content\/(10\.(?:1101|64898)\/\d{4}\.\d{2}\.\d{2}\.\d{6,8})/i
+    .exec(String(url))?.[1]
+    ?.toLowerCase();
+}
+
+/** The PMID in a PubMed article URL. */
+export function pmidFromUrl(url) {
+  return /pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i.exec(String(url))?.[1];
 }
 
 const normalizeSpace = (text) => String(text).replace(/\s+/g, ' ').trim();
@@ -233,6 +251,79 @@ export const KINDS = {
       return ok;
     },
   },
+  'biorxiv-paper': {
+    options: ['abstractOnly'],
+    pauseMs: BIORXIV_PAUSE_MS,
+    args: (entry) => ['extract', entry.url, ...(entry.abstractOnly ? ['--abstract-only'] : [])],
+    check: (doc, entry) => {
+      const doi = biorxivDoiFromUrl(entry.url);
+      if (doc?.sourceType !== 'biorxiv')
+        return fail(`sourceType ${doc?.sourceType}, expected biorxiv`);
+      if (doc.id !== `biorxiv:${doi}`) return fail(`id ${doc.id}, expected biorxiv:${doi}`);
+      const sources = entry.abstractOnly ? ['abstract'] : ['html', 'pdf'];
+      if (!sources.includes(doc.metadata?.textSource)) {
+        return fail(`textSource ${doc.metadata?.textSource}, expected ${sources.join(' or ')}`);
+      }
+      const abstract = normalizeSpace(doc.metadata?.abstract ?? '');
+      if (abstract.length < 40) return fail('preprint has no abstract');
+      if (!normalizeSpace(doc.text).includes(abstract.slice(0, 40)))
+        return fail('text does not include the abstract');
+      return ok;
+    },
+  },
+  'biorxiv-listing': {
+    options: ['minItems'],
+    pauseMs: BIORXIV_PAUSE_MS,
+    args: (entry) => ['list', entry.url, '--limit', '2'],
+    check: (listing, entry) => {
+      if (listing?.collection?.sourceType !== 'biorxiv')
+        return fail('collection is not a bioRxiv/medRxiv listing');
+      const items = listing.items ?? [];
+      if (items.length < (entry.minItems ?? 1))
+        return fail(`expected at least ${entry.minItems ?? 1} preprints`);
+      for (const item of items) {
+        if (item.id !== `biorxiv:${item.metadata?.doi}`)
+          return fail('preprint id does not match its doi');
+      }
+      return ok;
+    },
+  },
+  'pubmed-article': {
+    options: ['abstractOnly', 'textSource'],
+    pauseMs: PUBMED_PAUSE_MS,
+    args: (entry) => ['extract', entry.url, ...(entry.abstractOnly ? ['--abstract-only'] : [])],
+    check: (doc, entry) => {
+      const pmid = pmidFromUrl(entry.url);
+      if (doc?.sourceType !== 'pubmed')
+        return fail(`sourceType ${doc?.sourceType}, expected pubmed`);
+      if (pmid && doc.id !== `pubmed:${pmid}`) return fail(`id ${doc.id}, expected pubmed:${pmid}`);
+      const expected = entry.abstractOnly ? 'abstract' : (entry.textSource ?? 'pmc');
+      if (doc.metadata?.textSource !== expected)
+        return fail(`textSource ${doc.metadata?.textSource}, expected ${expected}`);
+      const abstract = normalizeSpace(doc.metadata?.abstract ?? '');
+      if (abstract.length < 40) return fail('article has no abstract');
+      if (!normalizeSpace(doc.text).includes(abstract.slice(0, 40)))
+        return fail('text does not include the abstract');
+      return ok;
+    },
+  },
+  'pubmed-search': {
+    options: ['minItems'],
+    pauseMs: PUBMED_PAUSE_MS,
+    args: (entry) => ['list', entry.url, '--limit', '2'],
+    check: (listing, entry) => {
+      if (listing?.collection?.sourceType !== 'pubmed')
+        return fail('collection is not a PubMed search');
+      const items = listing.items ?? [];
+      if (items.length < (entry.minItems ?? 1))
+        return fail(`expected at least ${entry.minItems ?? 1} articles`);
+      for (const item of items) {
+        if (item.id !== `pubmed:${item.metadata?.pmid}`)
+          return fail('article id does not match its pmid');
+      }
+      return ok;
+    },
+  },
 };
 
 /** Validates the catalog file and returns its entries, or every problem found. */
@@ -277,6 +368,8 @@ export function validateCatalog(json) {
     }
     if (entry.kind === 'arxiv-paper' && !arxivIdFromUrl(entry.url))
       errors.push(`${label}: not an arXiv paper URL`);
+    if (entry.kind === 'biorxiv-paper' && !biorxivDoiFromUrl(entry.url))
+      errors.push(`${label}: not a bioRxiv/medRxiv preprint URL`);
     if (entry.kind === 'apple-show') {
       if (!applePodcastId(entry.url)) errors.push(`${label}: not an Apple Podcasts show URL`);
       if (entry.identity && !isHttpUrl(entry.feedUrl))

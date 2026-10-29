@@ -1,6 +1,6 @@
 {
   "name": "@owlieio/owlie",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "description": "Ask an LLM about any URL, or turn it into clean text: articles, PDFs, arXiv papers, YouTube transcripts, podcasts, RSS/Atom feeds and Hacker News",
   "keywords": [
     "cli",
@@ -73,6 +73,8 @@
   "devDependencies": {
     "@owlieio/adapter-article": "workspace:*",
     "@owlieio/adapter-arxiv": "workspace:*",
+    "@owlieio/adapter-biorxiv": "workspace:*",
+    "@owlieio/adapter-pubmed": "workspace:*",
     "@owlieio/adapter-hackernews": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",

@@ -20,11 +20,11 @@ consumer.
 
 This is a **scaffold** that is progressively becoming functional. Contracts
 compile, tests pass, and `pnpm check` is green. Functional commands today:
-`owlie extract` (article pages, PDFs from a URL or a local file (ADR 0039), arXiv papers and category/search batches (ADR 0040), YouTube transcripts, podcast direct-media URLs, Apple Podcasts
+`owlie extract` (article pages, PDFs from a URL or a local file (ADR 0039), arXiv papers and category/search batches (ADR 0040), bioRxiv/medRxiv preprints and subject batches (ADR 0041), PubMed articles and search batches (ADR 0042), YouTube transcripts, podcast direct-media URLs, Apple Podcasts
 episode URLs, and declarative server-rendered episode pages, Hacker News items — discussion,
 linked article, or both via `--hn-content` (ADR 0038) — and bounded RSS/Atom feed batches —
 from a feed URL or a non-article HTML page URL that exposes one; `--article`/`--feed` force a path),
-`owlie list` (RSS/Atom feeds, Hacker News lists, and arXiv categories and searches), `owlie resolve` (a validated audio media URL with no download or
+`owlie list` (RSS/Atom feeds, Hacker News lists, arXiv categories and searches, bioRxiv/medRxiv subjects, and PubMed searches), `owlie resolve` (a validated audio media URL with no download or
 transcription), `owlie process` (DeepSeek or OpenAI; a single local text, local PDF, or
 stdin document, a normalized JSON document, a single http(s) URL — which
 uses the static-article adapter for pages — or a feed
@@ -67,10 +67,10 @@ differ from older v1 plans.
 ### v0.1 (current milestone)
 
 Functional commands: `owlie extract URL` (an article page, a PDF, a YouTube video, podcast direct-media
-URL, Apple Podcasts episode URL, declarative server-rendered episode page, a Hacker News item, an arXiv paper, or a bounded
-RSS/Atom feed or arXiv category/search batch — a feed supplied as a feed URL or a non-article HTML page URL that exposes one),
+URL, Apple Podcasts episode URL, declarative server-rendered episode page, a Hacker News item, an arXiv, bioRxiv/medRxiv or PubMed paper, or a bounded
+RSS/Atom feed, arXiv category/search, bioRxiv/medRxiv subject or PubMed search batch — a feed supplied as a feed URL or a non-article HTML page URL that exposes one),
 `owlie resolve URL` (a validated audio media URL, no transcription), `owlie list URL` (a feed, a
-Hacker News list, or an arXiv category or search), `owlie process [FILE|URL] --prompt`, `owlie
+Hacker News list, an arXiv category or search, a bioRxiv/medRxiv subject, or a PubMed search), `owlie process [FILE|URL] --prompt`, `owlie
 process FEED_URL --each [--limit N] --prompt "..."`, `owlie models [--provider <provider>] [--refresh]`,
 `owlie auth add|list|remove <provider>`, `owlie doctor`, `owlie setup`, `owlie capabilities`,
 `owlie --help`, `owlie --version`. In scope: individual YouTube video transcript
@@ -83,6 +83,10 @@ URL` with page classification per ADR 0035, `process URL`, and linked-item feed 
 PDF documents read as articles from URLs and local files (ADR 0039), the
 arXiv adapter (papers from API metadata plus the HTML render or PDF, bounded
 category and search listings, API requests three seconds apart; ADR 0040), the
+bioRxiv/medRxiv adapter (preprints from API metadata plus the full-text page or
+PDF, 14-day subject listings, spaced API and page requests; ADR 0041), the
+PubMed adapter (E-utilities metadata plus the PMC JATS full text, bounded
+searches, NCBI-identified requests at three a second; ADR 0042), the
 Hacker News adapter over the official API (bounded list listing and item discussions with
 bounded comment trees, plus the linked article composed in `apps/cli`; ADR 0038), bounded RSS/Atom listing, linked-item
 feed extraction, linked-item feed processing (`process --each`), and bounded
@@ -153,6 +157,8 @@ packages/adapter-podcast/    @owlieio/adapter-podcast
 packages/adapter-rss/        @owlieio/adapter-rss
 packages/adapter-hackernews/ @owlieio/adapter-hackernews
 packages/adapter-arxiv/      @owlieio/adapter-arxiv
+packages/adapter-biorxiv/    @owlieio/adapter-biorxiv
+packages/adapter-pubmed/     @owlieio/adapter-pubmed
 packages/adapter-reddit/     @owlieio/adapter-reddit
 packages/provider-deepseek/  @owlieio/provider-deepseek
 packages/provider-openai/    @owlieio/provider-openai
@@ -206,8 +212,8 @@ pnpm cli doctor
 ## 8. Item-versus-collection model
 
 Model collections and items separately. Collections: YouTube playlist,
-subreddit, RSS/Atom feed, Hacker News list, arXiv category or search. Items: YouTube video, podcast
-episode, Reddit post, RSS/Atom entry, Hacker News item, arXiv paper. A collection adapter recognizes, resolves, lists bounded items
+subreddit, RSS/Atom feed, Hacker News list, arXiv category or search, bioRxiv/medRxiv subject, PubMed search. Items: YouTube video, podcast
+episode, Reddit post, RSS/Atom entry, Hacker News item, arXiv paper, bioRxiv/medRxiv preprint, PubMed article. A collection adapter recognizes, resolves, lists bounded items
 with stable identities, and exposes metadata. An item adapter recognizes or
 resolves an item, extracts a `NormalizedDocument`, emits provider-neutral
 progress events, and supports cancellation. Not every document is a transcript:

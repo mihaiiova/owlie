@@ -378,7 +378,16 @@ describe('buildScenarios', () => {
         schemaVersion: 1,
         command: 'doctor',
         result: {
-          adapters: ['youtube', 'podcast', 'rss', 'article', 'hackernews', 'arxiv'],
+          adapters: [
+            'youtube',
+            'podcast',
+            'rss',
+            'article',
+            'hackernews',
+            'arxiv',
+            'biorxiv',
+            'pubmed',
+          ],
           providers: [
             { id: 'deepseek', apiKey: 'set', model: 'not set' },
             { id: 'openai', apiKey: 'not set', model: 'not set' },

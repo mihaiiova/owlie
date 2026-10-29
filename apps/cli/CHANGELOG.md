@@ -1,5 +1,16 @@
 # @owlieio/owlie
 
+## 0.10.0
+
+### Minor Changes
+
+- d17cb84: Read bioRxiv and medRxiv preprints and follow their subjects (ADR 0041). A preprint URL (`biorxiv.org/content/<doi>`, `medrxiv.org/…`) is extracted as one paper with source type `biorxiv` and a version-less `biorxiv:<doi>` identity: metadata from `api.biorxiv.org`, then the full-text page's body sections, else the PDF, else the abstract (`BIORXIV_ABSTRACT_ONLY`). `owlie list` and `owlie extract` on a subject (`biorxiv.org/collection/neuroscience`) or a whole server (`/collection`) return the preprints posted in the last 14 days, newest first, at most 200, with revisions skipped unless `--include-replacements`. `--abstract-only` works for preprints too. Requests are spaced per process (one API request a second, one page every two seconds), and an HTTP 429 is retried once after `Retry-After`. HTTP status errors now carry `details.httpStatus` (and `retryAfterSeconds`) in JSON error records.
+- 91c862a: Read PubMed articles and follow PubMed searches (ADR 0042). A PubMed, PMC or Europe PMC article URL is extracted with source type `pubmed` and identity `pubmed:<pmid>` (a PMC URL resolves to its PMID): metadata from PubMed (authors, journal, structured abstract, MeSH headings, publication types, DOI, PMCID), then the open PubMed Central full text converted from JATS (sections, captions, formulas as LaTeX, no references), else the abstract (`PUBMED_ABSTRACT_ONLY`). Retracted articles carry `PUBMED_RETRACTED`. `owlie list` and `owlie extract` on a search URL (`pubmed.ncbi.nlm.nih.gov/?term=…`, common filters translated) return the newest matching articles, at most 200. New `--contact-email` / `OWLIE_CONTACT_EMAIL` and `--ncbi-api-key` / `OWLIE_NCBI_API_KEY` identify requests to NCBI; requests are spaced to three a second, or ten with a key.
+
+### Patch Changes
+
+- 84adfbf: Fix the Webshare proxy for non-YouTube requests when the saved username already ends in `-rotate` (as Webshare's dashboard shows it). The CLI no longer sends `user-rotate-rotate`, which Webshare rejected with HTTP 407.
+
 ## 0.9.2
 
 ### Patch Changes

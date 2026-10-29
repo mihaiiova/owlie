@@ -63,12 +63,18 @@ importers:
       '@owlieio/adapter-arxiv':
         specifier: workspace:*
         version: link:../../packages/adapter-arxiv
+      '@owlieio/adapter-biorxiv':
+        specifier: workspace:*
+        version: link:../../packages/adapter-biorxiv
       '@owlieio/adapter-hackernews':
         specifier: workspace:*
         version: link:../../packages/adapter-hackernews
       '@owlieio/adapter-podcast':
         specifier: workspace:*
         version: link:../../packages/adapter-podcast
+      '@owlieio/adapter-pubmed':
+        specifier: workspace:*
+        version: link:../../packages/adapter-pubmed
       '@owlieio/adapter-reddit':
         specifier: workspace:*
         version: link:../../packages/adapter-reddit
@@ -165,6 +171,25 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(supports-color@7.2.0)
 
+  packages/adapter-biorxiv:
+    dependencies:
+      '@owlieio/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@owlieio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(supports-color@7.2.0)
+
   packages/adapter-hackernews:
     dependencies:
       '@owlieio/core':
@@ -195,6 +220,31 @@ importers:
       '@owlieio/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@owlieio/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(supports-color@7.2.0)
+
+  packages/adapter-pubmed:
+    dependencies:
+      '@owlieio/core':
+        specifier: workspace:*
+        version: link:../core
+      entities:
+        specifier: ^8.0.0
+        version: 8.1.0
+      fast-xml-parser:
+        specifier: ^5.11.2
+        version: 5.11.2
     devDependencies:
       '@owlieio/testing':
         specifier: workspace:*

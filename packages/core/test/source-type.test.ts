@@ -11,6 +11,8 @@ describe('SourceType', () => {
       'article',
       'hackernews',
       'arxiv',
+      'biorxiv',
+      'pubmed',
       'local',
     ]);
   });

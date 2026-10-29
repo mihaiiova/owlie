@@ -275,11 +275,13 @@ describe('arXiv flag usage', () => {
     });
   });
 
-  it('puts the arXiv adapter ahead of podcast pages and the article fallback', () => {
+  it('puts the arXiv, bioRxiv and PubMed adapters ahead of podcast pages and the article fallback', () => {
     expect(defaultItemAdapters().map((adapter) => adapter.id)).toEqual([
       'youtube',
       'hackernews',
       'arxiv',
+      'biorxiv',
+      'pubmed',
       'podcast',
       'article',
     ]);
