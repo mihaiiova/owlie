@@ -8,9 +8,14 @@ import type {
 import { assertNoUrlCredentials, listCollection } from '@owlieio/core';
 import { RssAdapter } from '@owlieio/adapter-rss';
 import { isHackerNewsUrl } from '@owlieio/adapter-hackernews';
-import { createArxivCollectionAdapter, createHackerNewsAdapter } from '../registry.js';
+import {
+  createArxivCollectionAdapter,
+  createBiorxivCollectionAdapter,
+  createHackerNewsAdapter,
+} from '../registry.js';
 import { parseArxivCollectionUrl } from '@owlieio/adapter-arxiv';
-import { arxivUsageError } from './extract.js';
+import { isBiorxivCollectionPath } from '@owlieio/adapter-biorxiv';
+import { paperFlagsUsageError } from './extract.js';
 import type { CliIo } from '../io.js';
 import { ExitCode, exitCodeForError } from '../io.js';
 import type { CliOptions } from '../cli.js';
@@ -40,6 +45,8 @@ export interface ListDeps {
   hackerNewsAdapter?: CollectionAdapter;
   /** Collection adapter for arXiv categories and queries (tests substitute an offline one). */
   arxivAdapter?: CollectionAdapter;
+  /** Collection adapter for bioRxiv/medRxiv subjects (tests substitute an offline one). */
+  biorxivAdapter?: CollectionAdapter;
   signal?: AbortSignal;
   spinner?: SpinnerLike;
   /** Invocation-wide network fetch policy (max download bytes). */
@@ -162,12 +169,13 @@ export async function runListCommand(
   }
 
   const isArxiv = parseArxivCollectionUrl(url) !== undefined;
-  const arxivUsage =
+  const isBiorxiv = isBiorxivCollectionPath(url);
+  const paperUsage =
     options.abstractOnly === true
       ? '--abstract-only applies to extract'
-      : arxivUsageError(url, options);
-  if (arxivUsage !== undefined) {
-    if (!options.quiet) writeUsageError(io, options, 'list', arxivUsage);
+      : paperFlagsUsageError(url, options);
+  if (paperUsage !== undefined) {
+    if (!options.quiet) writeUsageError(io, options, 'list', paperUsage);
     return ExitCode.Usage;
   }
 
@@ -187,6 +195,16 @@ export async function runListCommand(
         });
       spinner.start('listing arXiv');
       result = await listCollection(arxiv, { url }, { limit, signal: deps.signal });
+    } else if (isBiorxiv) {
+      const biorxiv =
+        deps.biorxivAdapter ??
+        createBiorxivCollectionAdapter({
+          fetcher: extractionNetwork(options, deps.network).fetcher,
+          networkPolicy: deps.networkPolicy,
+          includeReplacements: options.includeReplacements,
+        });
+      spinner.start('listing bioRxiv/medRxiv');
+      result = await listCollection(biorxiv, { url }, { limit, signal: deps.signal });
     } else if (isHackerNews) {
       const hackerNews =
         deps.hackerNewsAdapter ??

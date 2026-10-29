@@ -6,6 +6,7 @@ import {
   ARXIV_PAUSE_MS,
   appInvocation,
   arxivIdFromUrl,
+  biorxivDoiFromUrl,
   buildCatalogScenarios,
   checkPodcastIdentity,
   KINDS,
@@ -273,6 +274,46 @@ describe('kind contracts', () => {
     failsWith(check('arxiv-listing', listing([])), /at least 1/);
     ok(check('arxiv-listing', listing([]), { minItems: 0 }));
     failsWith(check('arxiv-listing', listing([{ ...paper, id: 'arxiv:other' }])), /does not match/);
+  });
+});
+
+describe('bioRxiv/medRxiv kinds', () => {
+  const check = (kind: string, value: unknown, extra: Record<string, unknown> = {}) =>
+    KINDS[kind as keyof typeof KINDS].check(value, { id: 'x', kind, url: '', ...extra });
+  const url = 'https://www.biorxiv.org/content/10.64898/2026.08.27.747565v2';
+  const abstract = 'The brain is the central processing center that integrates information.';
+  const doc = (overrides: Record<string, unknown> = {}) => ({
+    id: 'biorxiv:10.64898/2026.08.27.747565',
+    sourceType: 'biorxiv',
+    text: `Title\n\nAbstract\n\n${abstract}\n\nBody`,
+    metadata: { abstract, textSource: 'pdf' },
+    ...overrides,
+  });
+
+  it('biorxiv-paper: the version-less id, the text source, and the abstract in the text', () => {
+    expect(check('biorxiv-paper', doc(), { url })).toEqual({ ok: true });
+    expect(check('biorxiv-paper', doc({ id: 'biorxiv:other' }), { url }).ok).toBe(false);
+    expect(check('biorxiv-paper', doc(), { url, abstractOnly: true }).ok).toBe(false);
+    expect(check('biorxiv-paper', doc({ sourceType: 'article' }), { url }).ok).toBe(false);
+  });
+
+  it('biorxiv-listing: preprints whose ids match their DOIs', () => {
+    const listing = (items: unknown[]) => ({ collection: { sourceType: 'biorxiv' }, items });
+    const item = {
+      id: 'biorxiv:10.1101/2020.12.08.416297',
+      metadata: { doi: '10.1101/2020.12.08.416297' },
+    };
+    expect(check('biorxiv-listing', listing([item]))).toEqual({ ok: true });
+    expect(check('biorxiv-listing', listing([])).ok).toBe(false);
+    expect(check('biorxiv-listing', listing([{ ...item, id: 'biorxiv:x' }])).ok).toBe(false);
+  });
+
+  it('reads the DOI from a preprint URL', () => {
+    expect(biorxivDoiFromUrl(url)).toBe('10.64898/2026.08.27.747565');
+    expect(
+      biorxivDoiFromUrl('https://www.medrxiv.org/content/10.1101/2020.04.13.20063966v2.full'),
+    ).toBe('10.1101/2020.04.13.20063966');
+    expect(biorxivDoiFromUrl('https://www.biorxiv.org/collection/neuroscience')).toBeUndefined();
   });
 });
 

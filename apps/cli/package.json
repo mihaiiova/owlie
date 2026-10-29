@@ -73,6 +73,7 @@
   "devDependencies": {
     "@owlieio/adapter-article": "workspace:*",
     "@owlieio/adapter-arxiv": "workspace:*",
+    "@owlieio/adapter-biorxiv": "workspace:*",
     "@owlieio/adapter-hackernews": "workspace:*",
     "@owlieio/adapter-podcast": "workspace:*",
     "@owlieio/adapter-reddit": "workspace:*",

@@ -446,6 +446,22 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Seconds a `Retry-After` header asks the client to wait (delta seconds or an
+ * HTTP date), or `undefined` when absent or unreadable.
+ */
+export function parseRetryAfterSeconds(
+  value: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (value === null) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const date = Date.parse(trimmed);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - now) / 1000));
+}
+
 function formatDiagnosticUrl(url: string | URL): string {
   try {
     const parsed = typeof url === 'string' ? new URL(url) : url;
@@ -556,8 +572,15 @@ export class DefaultHttpFetcher implements HttpFetcher {
         }
 
         if (!response.ok) {
+          const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get('retry-after'));
           throw new ExtractionError(
             `HTTP ${response.status} ${response.statusText} for ${formatDiagnosticUrl(current)}`,
+            {
+              details: {
+                httpStatus: response.status,
+                ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+              },
+            },
           );
         }
 
