@@ -1,0 +1,5 @@
+# Fake NCBI API keys in PubMed tests (commit a14c613); later replaced with ncbitestkey.
+a14c6133f47c2bd1b3f0ea0a21517bac8472fcf1:apps/cli/test/pubmed.test.ts:generic-api-key:138
+a14c6133f47c2bd1b3f0ea0a21517bac8472fcf1:apps/cli/test/pubmed.test.ts:generic-api-key:164
+a14c6133f47c2bd1b3f0ea0a21517bac8472fcf1:apps/cli/test/pubmed.test.ts:generic-api-key:166
+a14c6133f47c2bd1b3f0ea0a21517bac8472fcf1:packages/adapter-pubmed/test/pubmed-adapter.test.ts:generic-api-key:214

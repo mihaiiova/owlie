@@ -135,7 +135,7 @@ describe('PubMed through the CLI', () => {
       '--contact-email applies to extract, list and process',
     ],
     [
-      ['models', '--ncbi-api-key', 'abcdef0123456789'],
+      ['models', '--ncbi-api-key', 'ncbitestkey'],
       '--ncbi-api-key applies to extract, list and process',
     ],
   ])('rejects %j', async (argv, message) => {
@@ -161,9 +161,9 @@ describe('resolveNcbiSettings', () => {
       resolveNcbiSettings(
         {},
         {},
-        files({ OWLIE_CONTACT_EMAIL: 'file@example.org', OWLIE_NCBI_API_KEY: 'abcdef0123456789' }),
+        files({ OWLIE_CONTACT_EMAIL: 'file@example.org', OWLIE_NCBI_API_KEY: 'ncbitestkey' }),
       ),
-    ).toEqual({ contactEmail: 'file@example.org', apiKey: 'abcdef0123456789' });
+    ).toEqual({ contactEmail: 'file@example.org', apiKey: 'ncbitestkey' });
   });
 
   it('reads no env files in hosted mode', () => {

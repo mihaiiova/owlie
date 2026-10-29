@@ -211,10 +211,10 @@ describe('PubmedArticleAdapter', () => {
   });
 
   it('warns without a contact email, and sends the API key when set', async () => {
-    const { adapter, requests } = articleAdapter(ALPHAFOLD, { apiKey: 'abcdef0123456789' });
+    const { adapter, requests } = articleAdapter(ALPHAFOLD, { apiKey: 'ncbitestkey' });
     const document = await extract(adapter, 'https://pubmed.ncbi.nlm.nih.gov/34265844/');
     expect(requests[0]!.searchParams.has('email')).toBe(false);
-    expect(requests[0]!.searchParams.get('api_key')).toBe('abcdef0123456789');
+    expect(requests[0]!.searchParams.get('api_key')).toBe('ncbitestkey');
     expect(document.provenance.warnings.map((warning) => warning.code)).toEqual([
       PUBMED_NO_CONTACT,
     ]);
