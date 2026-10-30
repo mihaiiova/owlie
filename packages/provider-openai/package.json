@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@owlieio/core": "workspace:*",
-    "ai": "^7.0.138",
-    "@ai-sdk/openai": "^4.0.92"
+    "ai": "^7.0.154",
+    "@ai-sdk/openai": "^4.0.103"
   },
   "devDependencies": {
     "@owlieio/testing": "workspace:*",

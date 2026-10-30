@@ -58,10 +58,10 @@
     "dist"
   ],
   "dependencies": {
-    "@ai-sdk/deepseek": "^3.0.64",
-    "@ai-sdk/openai": "^4.0.92",
+    "@ai-sdk/deepseek": "^3.0.74",
+    "@ai-sdk/openai": "^4.0.103",
     "@hallelx/youtube-transcript": "^0.2.0",
-    "ai": "^7.0.138",
+    "ai": "^7.0.154",
     "undici": "^7.30.0",
     "unpdf": "1.8.1"
   },
