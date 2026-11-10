@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigurationError } from '@owlieio/core';
-import { extractionNetwork, proxiedFetch, proxyReport, proxyUrl, resolveProxy } from 'owlie';
+import {
+  extractionNetwork,
+  proxiedFetch,
+  proxyReport,
+  proxyUrl,
+  resolveProxy,
+  retryBlockedRequests,
+} from 'owlie';
 
 const noFiles = () => ({});
 const noConfig = () => ({});
@@ -224,5 +231,99 @@ describe('proxiedFetch', () => {
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+});
+
+describe('proxiedFetch through a proxy URL', () => {
+  it('does not retry a blocked request, since a proxy URL may keep one IP', async () => {
+    const { createServer } = await import('node:http');
+    let connects = 0;
+    const server = createServer();
+    server.on('connect', (_request, socket) => {
+      connects += 1;
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      socket.once('data', () => {
+        socket.end('HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\nconnection: close\r\n\r\n');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const response = await proxiedFetch({ type: 'generic', url: `http://127.0.0.1:${port}` })(
+        'http://target.example/feed',
+      );
+      expect(response.status).toBe(403);
+      expect(connects).toBe(1);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe('retryBlockedRequests', () => {
+  const respond = (...statuses: number[]) => {
+    const calls: Array<{ input: unknown; init?: RequestInit }> = [];
+    const queue = [...statuses];
+    const fetchFn = async (input: unknown, init?: RequestInit) => {
+      calls.push({ input, init });
+      return new Response(`status ${queue[0]}`, { status: queue.shift() ?? 200 });
+    };
+    return { calls, fetchFn: fetchFn as unknown as Parameters<typeof retryBlockedRequests>[0] };
+  };
+
+  it('sends a blocked GET again, through a new IP, until it succeeds', async () => {
+    const { calls, fetchFn } = respond(403, 200);
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/feed');
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('retries a 429 as well', async () => {
+    const { calls, fetchFn } = respond(429, 429, 200);
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/feed', {
+      method: 'HEAD',
+    });
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('returns the last blocked response after two retries', async () => {
+    const { calls, fetchFn } = respond(403, 403, 403, 200);
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/feed');
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe('status 403');
+    expect(calls).toHaveLength(3);
+  });
+
+  it.each([404, 500, 401])('does not retry a %i', async (status) => {
+    const { calls, fetchFn } = respond(status, 200);
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/feed');
+    expect(response.status).toBe(status);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not retry a request with a method other than GET or HEAD', async () => {
+    const { calls, fetchFn } = respond(403, 200);
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/api', {
+      method: 'POST',
+      body: 'x',
+    });
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('stops retrying once the request is aborted', async () => {
+    const controller = new AbortController();
+    const calls: number[] = [];
+    const fetchFn = (async () => {
+      calls.push(1);
+      controller.abort();
+      return new Response('', { status: 403 });
+    }) as unknown as Parameters<typeof retryBlockedRequests>[0];
+    const response = await retryBlockedRequests(fetchFn)('https://example.com/feed', {
+      signal: controller.signal,
+    });
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(1);
   });
 });

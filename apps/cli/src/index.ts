@@ -71,6 +71,7 @@ export {
   extractionNetwork,
   lazyExtractionNetwork,
   proxiedFetch,
+  retryBlockedRequests,
   proxyReport,
   proxyUrl,
   resolveProxy,

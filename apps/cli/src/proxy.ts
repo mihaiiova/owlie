@@ -131,9 +131,38 @@ export function proxyUrl(proxy: ExtractionProxy): string {
   return `http://${username}:${password}@${WEBSHARE_HOST}`;
 }
 
+/** Statuses a site answers when it blocks the IP a request came from. */
+const BLOCKED_STATUSES = new Set([403, 429]);
+/** Extra attempts after a blocked response; each leaves through a new IP. */
+const BLOCKED_RETRIES = 2;
+
+/**
+ * Sends a blocked request again. Through a rotating proxy (Webshare) every
+ * request leaves from a different IP, and some sites block only part of those
+ * IPs, so a 403 or 429 is often gone on the next attempt. Only bodiless GET and
+ * HEAD requests retry, at most twice; the last response is returned as is, so a
+ * site that blocks every IP still reports its real status.
+ */
+export function retryBlockedRequests(fetchFn: HttpFetchFn, retries = BLOCKED_RETRIES): HttpFetchFn {
+  const retrying = async (input: Parameters<HttpFetchFn>[0], init?: RequestInit) => {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const retryable = (method === 'GET' || method === 'HEAD') && init?.body == null;
+    let response = await fetchFn(input, init);
+    for (let attempt = 0; attempt < retries; attempt += 1) {
+      if (!retryable || !BLOCKED_STATUSES.has(response.status) || init?.signal?.aborted) break;
+      await response.body?.cancel().catch(() => undefined);
+      response = await fetchFn(input, init);
+    }
+    return response;
+  };
+  return retrying as HttpFetchFn;
+}
+
 /**
  * A `fetch` that sends every request through the proxy. undici is loaded only
- * when a proxy is configured, so the direct path pays nothing for it.
+ * when a proxy is configured, so the direct path pays nothing for it. Through
+ * Webshare's rotating endpoint a blocked request is retried from a new IP; a
+ * proxy URL may keep one IP, so it is not.
  */
 export function proxiedFetch(proxy: ExtractionProxy): HttpFetchFn {
   const uri = proxyUrl(proxy);
@@ -149,7 +178,9 @@ export function proxiedFetch(proxy: ExtractionProxy): HttpFetchFn {
     const { fetch, dispatcher } = await load();
     return fetch(input, { ...init, dispatcher } as RequestInit);
   };
-  return fetchThroughProxy as HttpFetchFn;
+  return proxy.type === 'webshare'
+    ? retryBlockedRequests(fetchThroughProxy as HttpFetchFn)
+    : (fetchThroughProxy as HttpFetchFn);
 }
 
 /** How the YouTube transcript client should reach YouTube. */

@@ -134,8 +134,12 @@ wins: process environment → `--env-file` → `.env.local` → `.env` → the s
 
 With a Webshare pair, YouTube uses the transcript library's Webshare support
 (which rotates IPs and retries when blocked), and other traffic uses Webshare's
-rotating endpoint (`p.webshare.io:80` with the `-rotate` username suffix). With
-a proxy URL, all traffic, YouTube included, goes through that proxy.
+rotating endpoint (`p.webshare.io:80` with the `-rotate` username suffix). Some
+sites block only part of Webshare's IPs, so through the rotating endpoint a GET
+or HEAD request that answers 403 or 429 is sent again, at most twice, each time
+from a new IP; the last response is kept. With a proxy URL, all traffic, YouTube
+included, goes through that proxy, and a blocked request is not retried, since
+the proxy may keep one IP.
 
 `owlie doctor` reports the effective proxy as `{ mode: "none" | "url" |
 "webshare" | "invalid", source }`, never its host or credentials.
