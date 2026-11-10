@@ -131,25 +131,105 @@ export function proxyUrl(proxy: ExtractionProxy): string {
   return `http://${username}:${password}@${WEBSHARE_HOST}`;
 }
 
+/** The status a site answers when it blocks the IP a request came from. */
+const BLOCKED_STATUS = 403;
+/** Extra attempts after a blocked response; each leaves through a new IP. */
+const BLOCKED_RETRIES = 2;
+/**
+ * Sources whose adapters pace their own requests (arXiv, bioRxiv/medRxiv,
+ * NCBI). A retry inside one paced request would bypass that pacing, so their
+ * hosts (and subdomains) are never retried here.
+ */
+const PACED_DOMAINS = ['arxiv.org', 'biorxiv.org', 'medrxiv.org', 'ncbi.nlm.nih.gov'];
+
+function isPacedHost(input: Parameters<HttpFetchFn>[0]): boolean {
+  let host: string;
+  try {
+    const raw = typeof input === 'string' || input instanceof URL ? input : input.url;
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return PACED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+/** Options for {@link retryBlockedRequests}. */
+export interface RetryBlockedOptions {
+  /** Extra attempts after a blocked response (default 2). */
+  retries?: number;
+  /**
+   * Returns the fetch for one retry. A rotating proxy picks the exit IP per
+   * tunnel, so each retry needs a new connection rather than a pooled one.
+   */
+  freshFetch?: () => HttpFetchFn;
+}
+
+/**
+ * Sends a blocked request again. Through a rotating proxy (Webshare) each
+ * tunnel leaves from a different IP, and some sites block only part of those
+ * IPs, so a 403 is often gone on the next attempt. Only bodiless GET and HEAD
+ * requests retry, at most twice, each through a fresh tunnel; the last
+ * response is returned as is, so a site that blocks every IP still reports its
+ * real status. A 429, or a 403 with `Retry-After`, is rate limiting rather
+ * than a blocked IP, and sources that pace their own requests are never
+ * retried here: both stay with the adapters' pacing and backoff.
+ */
+export function retryBlockedRequests(
+  fetchFn: HttpFetchFn,
+  options: RetryBlockedOptions = {},
+): HttpFetchFn {
+  const retries = options.retries ?? BLOCKED_RETRIES;
+  const retrying = async (input: Parameters<HttpFetchFn>[0], init?: RequestInit) => {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const retryable =
+      (method === 'GET' || method === 'HEAD') && init?.body == null && !isPacedHost(input);
+    let response = await fetchFn(input, init);
+    for (let attempt = 0; attempt < retries; attempt += 1) {
+      const blocked = response.status === BLOCKED_STATUS && !response.headers.has('retry-after');
+      if (!retryable || !blocked || init?.signal?.aborted) break;
+      await response.body?.cancel().catch(() => undefined);
+      response = await (options.freshFetch?.() ?? fetchFn)(input, init);
+    }
+    return response;
+  };
+  return retrying as HttpFetchFn;
+}
+
+/** Options for {@link proxiedFetch}. */
+export interface ProxiedFetchOptions {
+  /** Retry blocked requests through fresh tunnels (default: Webshare only). */
+  retryBlocked?: boolean;
+}
+
 /**
  * A `fetch` that sends every request through the proxy. undici is loaded only
- * when a proxy is configured, so the direct path pays nothing for it.
+ * when a proxy is configured, so the direct path pays nothing for it. Through
+ * Webshare's rotating endpoint a blocked request is retried through a new
+ * tunnel, so from a new IP; a proxy URL may keep one IP, so it is not.
  */
-export function proxiedFetch(proxy: ExtractionProxy): HttpFetchFn {
+export function proxiedFetch(
+  proxy: ExtractionProxy,
+  options: ProxiedFetchOptions = {},
+): HttpFetchFn {
   const uri = proxyUrl(proxy);
-  let ready: Promise<{ fetch: HttpFetchFn; dispatcher: unknown }> | undefined;
-  const load = () =>
-    (ready ??= import('undici').then((undici) => ({
-      fetch: undici.fetch as unknown as HttpFetchFn,
-      dispatcher: uri.startsWith('socks5:')
-        ? new undici.Socks5ProxyAgent(uri)
-        : new undici.ProxyAgent(uri),
-    })));
-  const fetchThroughProxy = async (input: Parameters<HttpFetchFn>[0], init?: RequestInit) => {
-    const { fetch, dispatcher } = await load();
-    return fetch(input, { ...init, dispatcher } as RequestInit);
-  };
-  return fetchThroughProxy as HttpFetchFn;
+  type Undici = typeof import('undici');
+  let undiciReady: Promise<Undici> | undefined;
+  const loadUndici = () => (undiciReady ??= import('undici'));
+  const agent = (undici: Undici) =>
+    uri.startsWith('socks5:') ? new undici.Socks5ProxyAgent(uri) : new undici.ProxyAgent(uri);
+  let shared: unknown;
+  const through =
+    (fresh: boolean) => async (input: Parameters<HttpFetchFn>[0], init?: RequestInit) => {
+      const undici = await loadUndici();
+      const dispatcher = fresh ? agent(undici) : (shared ??= agent(undici));
+      const fetch = undici.fetch as unknown as HttpFetchFn;
+      return fetch(input, { ...init, dispatcher } as RequestInit);
+    };
+  const fetchThroughProxy = through(false) as HttpFetchFn;
+  const retry = options.retryBlocked ?? proxy.type === 'webshare';
+  return retry
+    ? retryBlockedRequests(fetchThroughProxy, { freshFetch: () => through(true) as HttpFetchFn })
+    : fetchThroughProxy;
 }
 
 /** How the YouTube transcript client should reach YouTube. */
