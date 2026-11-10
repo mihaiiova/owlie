@@ -261,12 +261,14 @@ describe('proxiedFetch through a proxy URL', () => {
 });
 
 describe('retryBlockedRequests', () => {
-  const respond = (...statuses: number[]) => {
+  const respond = (...statuses: Array<number | [number, Record<string, string>]>) => {
     const calls: Array<{ input: unknown; init?: RequestInit }> = [];
     const queue = [...statuses];
     const fetchFn = async (input: unknown, init?: RequestInit) => {
       calls.push({ input, init });
-      return new Response(`status ${queue[0]}`, { status: queue.shift() ?? 200 });
+      const next = queue.shift() ?? 200;
+      const [status, headers] = Array.isArray(next) ? next : [next, {}];
+      return new Response(`status ${status}`, { status, headers });
     };
     return { calls, fetchFn: fetchFn as unknown as Parameters<typeof retryBlockedRequests>[0] };
   };
@@ -278,13 +280,25 @@ describe('retryBlockedRequests', () => {
     expect(calls).toHaveLength(2);
   });
 
-  it('retries a 429 as well', async () => {
-    const { calls, fetchFn } = respond(429, 429, 200);
+  it('retries a blocked HEAD as well', async () => {
+    const { calls, fetchFn } = respond(403, 403, 200);
     const response = await retryBlockedRequests(fetchFn)('https://example.com/feed', {
       method: 'HEAD',
     });
     expect(response.status).toBe(200);
     expect(calls).toHaveLength(3);
+  });
+
+  it('leaves rate limiting (429, or 403 with Retry-After) to the adapters', async () => {
+    const limited = respond(429, 200);
+    expect((await retryBlockedRequests(limited.fetchFn)('https://example.com/api')).status).toBe(
+      429,
+    );
+    expect(limited.calls).toHaveLength(1);
+
+    const asked = respond([403, { 'retry-after': '5' }], 200);
+    expect((await retryBlockedRequests(asked.fetchFn)('https://example.com/api')).status).toBe(403);
+    expect(asked.calls).toHaveLength(1);
   });
 
   it('returns the last blocked response after two retries', async () => {

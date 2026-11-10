@@ -131,17 +131,19 @@ export function proxyUrl(proxy: ExtractionProxy): string {
   return `http://${username}:${password}@${WEBSHARE_HOST}`;
 }
 
-/** Statuses a site answers when it blocks the IP a request came from. */
-const BLOCKED_STATUSES = new Set([403, 429]);
+/** The status a site answers when it blocks the IP a request came from. */
+const BLOCKED_STATUS = 403;
 /** Extra attempts after a blocked response; each leaves through a new IP. */
 const BLOCKED_RETRIES = 2;
 
 /**
  * Sends a blocked request again. Through a rotating proxy (Webshare) every
  * request leaves from a different IP, and some sites block only part of those
- * IPs, so a 403 or 429 is often gone on the next attempt. Only bodiless GET and
- * HEAD requests retry, at most twice; the last response is returned as is, so a
- * site that blocks every IP still reports its real status.
+ * IPs, so a 403 is often gone on the next attempt. Only bodiless GET and HEAD
+ * requests retry, at most twice; the last response is returned as is, so a
+ * site that blocks every IP still reports its real status. A 429, or a 403
+ * with `Retry-After`, is rate limiting rather than a blocked IP: it is left to
+ * the adapters' own pacing and backoff (arXiv, bioRxiv, PubMed).
  */
 export function retryBlockedRequests(fetchFn: HttpFetchFn, retries = BLOCKED_RETRIES): HttpFetchFn {
   const retrying = async (input: Parameters<HttpFetchFn>[0], init?: RequestInit) => {
@@ -149,7 +151,8 @@ export function retryBlockedRequests(fetchFn: HttpFetchFn, retries = BLOCKED_RET
     const retryable = (method === 'GET' || method === 'HEAD') && init?.body == null;
     let response = await fetchFn(input, init);
     for (let attempt = 0; attempt < retries; attempt += 1) {
-      if (!retryable || !BLOCKED_STATUSES.has(response.status) || init?.signal?.aborted) break;
+      const blocked = response.status === BLOCKED_STATUS && !response.headers.has('retry-after');
+      if (!retryable || !blocked || init?.signal?.aborted) break;
       await response.body?.cancel().catch(() => undefined);
       response = await fetchFn(input, init);
     }
