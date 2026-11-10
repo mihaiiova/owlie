@@ -260,6 +260,44 @@ describe('proxiedFetch through a proxy URL', () => {
   });
 });
 
+describe('proxiedFetch retrying through a rotating proxy', () => {
+  it('opens a new proxy tunnel for each retry, so each leaves from a new IP', async () => {
+    const { createServer } = await import('node:http');
+    let tunnels = 0;
+    const requestsPerTunnel: number[] = [];
+    const sockets: Array<{ destroy: () => void }> = [];
+    const server = createServer();
+    server.on('connect', (_request, socket) => {
+      const tunnel = tunnels++;
+      requestsPerTunnel[tunnel] = 0;
+      sockets.push(socket);
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      // Keep-alive: the tunnel stays open and answers every request with 403.
+      socket.on('data', () => {
+        requestsPerTunnel[tunnel] = (requestsPerTunnel[tunnel] ?? 0) + 1;
+        socket.write(
+          'HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\nconnection: keep-alive\r\n\r\n',
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const fetchThroughProxy = proxiedFetch(
+        { type: 'generic', url: `http://127.0.0.1:${port}` },
+        { retryBlocked: true },
+      );
+      const response = await fetchThroughProxy('http://target.example/feed');
+      expect(response.status).toBe(403);
+      expect(tunnels).toBe(3);
+      expect(requestsPerTunnel).toEqual([1, 1, 1]);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
 describe('retryBlockedRequests', () => {
   const respond = (...statuses: Array<number | [number, Record<string, string>]>) => {
     const calls: Array<{ input: unknown; init?: RequestInit }> = [];
@@ -314,6 +352,41 @@ describe('retryBlockedRequests', () => {
     const response = await retryBlockedRequests(fetchFn)('https://example.com/feed');
     expect(response.status).toBe(status);
     expect(calls).toHaveLength(1);
+  });
+
+  it('sends each retry through a fresh fetch when one is given', async () => {
+    const first = respond(403);
+    const fresh = respond(403, 200);
+    let opened = 0;
+    const response = await retryBlockedRequests(first.fetchFn, {
+      freshFetch: () => {
+        opened += 1;
+        return fresh.fetchFn;
+      },
+    })('https://example.com/feed');
+    expect(response.status).toBe(200);
+    expect(first.calls).toHaveLength(1);
+    expect(fresh.calls).toHaveLength(2);
+    expect(opened).toBe(2);
+  });
+
+  it.each([
+    'https://export.arxiv.org/api/query?search_query=all:x',
+    'https://arxiv.org/abs/2401.00001',
+    'https://api.biorxiv.org/details/biorxiv/10.1101/x',
+    'https://www.medrxiv.org/content/10.1101/x',
+    'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi',
+    'https://pmc.ncbi.nlm.nih.gov/articles/PMC1/',
+  ])('leaves %s to its adapter, which paces its requests', async (url) => {
+    const { calls, fetchFn } = respond(403, 200);
+    expect((await retryBlockedRequests(fetchFn)(url)).status).toBe(403);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not mistake a look-alike host for a paced source', async () => {
+    const { calls, fetchFn } = respond(403, 200);
+    expect((await retryBlockedRequests(fetchFn)('https://notarxiv.org/feed')).status).toBe(200);
+    expect(calls).toHaveLength(2);
   });
 
   it('does not retry a request with a method other than GET or HEAD', async () => {
