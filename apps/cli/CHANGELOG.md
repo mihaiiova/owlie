@@ -1,5 +1,12 @@
 # @owlieio/owlie
 
+## 0.10.1
+
+### Patch Changes
+
+- 5cb7fa5: Through a Webshare proxy, a GET or HEAD request that a site answers with 403 (without `Retry-After`) is sent again, at most twice, each time from a new IP of the rotating endpoint. Some sites block only part of Webshare's IPs, so one blocked IP no longer fails the whole command; a site that blocks every IP still reports its real status. Rate limiting (429, or `Retry-After`) is left to each source's own backoff, and a proxy URL (`OWLIE_PROXY_URL`) is not retried.
+- b93d494: A blocked request retried through the Webshare proxy now opens a new tunnel for each retry, so it really leaves from a new IP instead of reusing a pooled connection. arXiv, bioRxiv/medRxiv and NCBI (PubMed) requests are never retried this way, since their adapters pace their own requests.
+
 ## 0.10.0
 
 ### Minor Changes
